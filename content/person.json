@@ -1,0 +1,12 @@
+{
+  "name": "Feng",
+  "description": "A personal digital archive organized around a person rather than a page tree.",
+  "currentFocus": "Building a terminal-first archive interface for cylf.me.",
+  "created": "2026-07-08",
+  "links": [
+    {
+      "label": "Website",
+      "href": "https://cylf.me"
+    }
+  ]
+}

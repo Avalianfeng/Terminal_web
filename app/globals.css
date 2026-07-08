@@ -1,0 +1,138 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+  --archive-black: #090a0b;
+  --archive-ink: #111418;
+  --archive-paper: #f4f1ea;
+  --archive-paper-ink: #181818;
+  --archive-line: rgb(244 241 234 / 0.16);
+  --archive-muted: #8a929d;
+  --archive-accent: #b8c7d9;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: var(--archive-black);
+}
+
+body {
+  min-height: 100dvh;
+  margin: 0;
+  background:
+    radial-gradient(circle at 20% 0%, rgb(184 199 217 / 0.08), transparent 32rem),
+    linear-gradient(180deg, #0d0f12 0%, var(--archive-black) 48%, #070808 100%);
+  color: #e8edf2;
+  font-family:
+    "JetBrains Mono",
+    "IBM Plex Mono",
+    "SFMono-Regular",
+    Consolas,
+    "Liberation Mono",
+    monospace;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.014) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.75), transparent 78%);
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: rgb(184 199 217 / 0.28);
+  color: #fff;
+}
+
+.terminal-entry {
+  animation: archive-output-in 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.terminal-cursor {
+  width: 0.58rem;
+  height: 1.15rem;
+  background: var(--archive-accent);
+  opacity: 0.72;
+  animation: archive-cursor 1.12s steps(2, start) infinite;
+}
+
+.archive-paper {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgb(0 0 0 / 0.1);
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 0.78), transparent 44%),
+    var(--archive-paper);
+  color: var(--archive-paper-ink);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.76),
+    0 24px 80px rgb(0 0 0 / 0.34);
+  padding: clamp(1.25rem, 3vw, 2.75rem);
+}
+
+.archive-paper::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgb(0 0 0 / 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(0 0 0 / 0.018) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.48), transparent);
+}
+
+.archive-paper > * {
+  position: relative;
+}
+
+@keyframes archive-output-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes archive-cursor {
+  0%,
+  45% {
+    opacity: 0.72;
+  }
+
+  46%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
