@@ -1,14 +1,17 @@
 @import "tailwindcss";
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
+  --workspace-bg: #ece8e1;
+  --workspace-bg-deep: #e3ddd3;
   --archive-black: #090a0b;
   --archive-ink: #111418;
-  --archive-paper: #f4f1ea;
+  --archive-paper: #f7f4ee;
   --archive-paper-ink: #181818;
-  --archive-line: rgb(244 241 234 / 0.16);
-  --archive-muted: #8a929d;
+  --archive-line: rgb(24 24 24 / 0.1);
+  --archive-muted: #6b7280;
   --archive-accent: #b8c7d9;
+  --terminal-border: rgb(255 255 255 / 0.1);
 }
 
 * {
@@ -17,16 +20,17 @@
 
 html {
   min-height: 100%;
-  background: var(--archive-black);
+  background: var(--workspace-bg);
 }
 
 body {
   min-height: 100dvh;
   margin: 0;
+  /* 外区浅亮 Surface：衬阅读面板 Elevation，而不是第二块黑终端 */
   background:
-    radial-gradient(circle at 20% 0%, rgb(184 199 217 / 0.08), transparent 32rem),
-    linear-gradient(180deg, #0d0f12 0%, var(--archive-black) 48%, #070808 100%);
-  color: #e8edf2;
+    radial-gradient(circle at 18% 0%, rgb(255 255 255 / 0.55), transparent 28rem),
+    linear-gradient(180deg, #f3efe8 0%, var(--workspace-bg) 42%, var(--workspace-bg-deep) 100%);
+  color: #1c1c1c;
   font-family:
     "JetBrains Mono",
     "IBM Plex Mono",
@@ -42,10 +46,10 @@ body::before {
   inset: 0;
   pointer-events: none;
   background-image:
-    linear-gradient(rgb(255 255 255 / 0.018) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(255 255 255 / 0.014) 1px, transparent 1px);
-  background-size: 44px 44px;
-  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.75), transparent 78%);
+    linear-gradient(rgb(0 0 0 / 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(0 0 0 / 0.02) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.35), transparent 85%);
 }
 
 button,
@@ -55,12 +59,131 @@ textarea {
 }
 
 ::selection {
+  background: rgb(40 50 60 / 0.18);
+  color: #111;
+}
+
+/* —— A. 工作区 —— */
+.archive-workspace {
+  position: relative;
+  min-height: 100dvh;
+  padding: clamp(1rem, 3vw, 2rem);
+}
+
+.archive-workspace__stage {
+  margin: 0 auto;
+  display: flex;
+  max-width: 1120px;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* —— C. 阅读面板（floating）—— */
+.reading-panel {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  max-height: min(52dvh, 520px);
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgb(0 0 0 / 0.12);
+  border-radius: 4px;
+  background: var(--archive-paper);
+  color: var(--archive-paper-ink);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 0.7) inset,
+    0 18px 48px rgb(40 30 20 / 0.14);
+  animation: reading-panel-in var(--panel-fade-ms, 420ms) cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.reading-panel__chrome {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid rgb(0 0 0 / 0.08);
+  background: rgb(255 255 255 / 0.45);
+  padding: 0.9rem 1rem;
+}
+
+.reading-panel__eyebrow {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--archive-muted);
+}
+
+.reading-panel__title {
+  margin: 0.35rem 0 0;
+  font-size: clamp(1.15rem, 2.4vw, 1.55rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.25;
+  color: #111;
+}
+
+.reading-panel__path {
+  margin: 0.35rem 0 0;
+  font-size: 12px;
+  color: #7a7a7a;
+}
+
+.reading-panel__close {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid rgb(0 0 0 / 0.12);
+  border-radius: 2px;
+  background: rgb(255 255 255 / 0.7);
+  color: #333;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.reading-panel__close:hover {
+  background: #fff;
+  border-color: rgb(0 0 0 / 0.22);
+}
+
+.reading-panel__close:focus-visible {
+  outline: 2px solid rgb(80 100 120 / 0.45);
+  outline-offset: 2px;
+}
+
+.reading-panel__body {
+  overflow-y: auto;
+  padding: clamp(1rem, 2.5vw, 1.5rem);
+}
+
+/* —— B. 终端壳 —— */
+.terminal-shell {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  height: min(72dvh, 720px);
+  min-height: 480px;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--terminal-border);
+  border-radius: 6px;
+  background: rgb(9 10 11 / 0.94);
+  color: #e8edf2;
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 0.06) inset,
+    0 28px 80px rgb(20 16 12 / 0.28);
+  color-scheme: dark;
+}
+
+.terminal-shell ::selection {
   background: rgb(184 199 217 / 0.28);
   color: #fff;
 }
 
 .terminal-entry {
-  animation: archive-output-in 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: archive-output-in var(--output-fade-ms, 320ms) cubic-bezier(0.16, 1, 0.3, 1)
+    both;
 }
 
 .terminal-cursor {
@@ -68,44 +191,57 @@ textarea {
   height: 1.15rem;
   background: var(--archive-accent);
   opacity: 0.72;
-  animation: archive-cursor 1.12s steps(2, start) infinite;
+  animation: archive-cursor var(--cursor-blink-ms, 1.12s) steps(2, start) infinite;
 }
 
-.archive-paper {
-  position: relative;
-  overflow: hidden;
-  border: 1px solid rgb(0 0 0 / 0.1);
-  border-radius: 18px;
-  background:
-    linear-gradient(135deg, rgb(255 255 255 / 0.78), transparent 44%),
-    var(--archive-paper);
-  color: var(--archive-paper-ink);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.76),
-    0 24px 80px rgb(0 0 0 / 0.34);
-  padding: clamp(1.25rem, 3vw, 2.75rem);
+.terminal-tone-normal {
+  color: rgb(219 227 235);
 }
 
-.archive-paper::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgb(0 0 0 / 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(0 0 0 / 0.018) 1px, transparent 1px);
-  background-size: 32px 32px;
-  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.48), transparent);
+.terminal-tone-prompt {
+  color: rgb(146 173 199);
 }
 
-.archive-paper > * {
-  position: relative;
+.terminal-tone-command {
+  color: rgb(206 225 247);
+}
+
+.terminal-tone-hint {
+  color: rgb(150 166 181);
+}
+
+.terminal-tone-error {
+  color: rgb(244 139 139);
+}
+
+.terminal-tone-success {
+  color: rgb(152 219 174);
+}
+
+.terminal-tone-path {
+  color: rgb(137 196 255);
+}
+
+.terminal-tone-muted {
+  color: rgb(120 131 144);
 }
 
 @keyframes archive-output-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(var(--output-distance, 8px));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes reading-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
   }
 
   to {
@@ -134,5 +270,15 @@ textarea {
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+@media (min-width: 960px) {
+  .archive-workspace__stage {
+    gap: 1.5rem;
+  }
+
+  .reading-panel {
+    max-height: min(46dvh, 480px);
   }
 }
