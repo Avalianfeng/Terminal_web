@@ -35,19 +35,46 @@ export type ArchiveSnapshot = {
   generatedAt: string;
 };
 
-export type TerminalEntry =
+export type TerminalTone =
+  | "prompt"
+  | "command"
+  | "normal"
+  | "hint"
+  | "error"
+  | "success"
+  | "path"
+  | "muted";
+
+export type TerminalToken = {
+  text: string;
+  tone?: TerminalTone;
+};
+
+export type TerminalLine = {
+  tokens: TerminalToken[];
+};
+
+export type TerminalSession = {
+  cwd: string;
+  commandHistory: string[];
+  selectedPath?: string;
+};
+
+export type TerminalEntry = {
+  id: string;
+  kind: "system" | "command" | "lines";
+  lines: TerminalLine[];
+};
+
+/** C0 阅读表面：浮层面板内容。未来可扩 dock-left / dock-bottom。 */
+export type ReadingSurface =
   | {
-      id: string;
-      kind: "system" | "command" | "lines";
-      lines: string[];
-    }
-  | {
-      id: string;
       kind: "document";
       document: ArchiveDocument;
     }
   | {
-      id: string;
       kind: "timeline";
       entries: TimelineEntry[];
     };
+
+export type ReadingLayout = "floating";
