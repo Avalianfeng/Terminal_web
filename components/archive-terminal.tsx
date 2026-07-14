@@ -1,122 +1,91 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  CSSProperties,
+  KeyboardEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { ReadingPanel } from "@/components/reading-panel";
+import { completeInput } from "@/lib/archive/complete";
 import { initialEntries, runCommand } from "@/lib/archive/commands";
-import type { ArchiveDocument, ArchiveSnapshot, TerminalEntry } from "@/lib/archive/types";
+import { zhCN } from "@/lib/archive/i18n";
+import { motionSpec, resolveMotionLevel } from "@/lib/archive/motion-spec";
+import { createSession, formatShellPrompt } from "@/lib/archive/vfs";
+import type {
+  ArchiveSnapshot,
+  ReadingSurface,
+  TerminalLine,
+  TerminalSession,
+  TerminalToken,
+  TerminalEntry,
+} from "@/lib/archive/types";
 
 type ArchiveTerminalProps = {
   snapshot: ArchiveSnapshot;
 };
 
-function MarkdownView({ document }: { document: ArchiveDocument }) {
-  const lines = document.body.split("\n");
+function tokenClass(tone?: TerminalToken["tone"]) {
+  switch (tone) {
+    case "prompt":
+      return "terminal-tone-prompt";
+    case "command":
+      return "terminal-tone-command";
+    case "hint":
+      return "terminal-tone-hint";
+    case "error":
+      return "terminal-tone-error";
+    case "success":
+      return "terminal-tone-success";
+    case "path":
+      return "terminal-tone-path";
+    case "muted":
+      return "terminal-tone-muted";
+    default:
+      return "terminal-tone-normal";
+  }
+}
+
+function TokenLineView({ line }: { line: TerminalLine }) {
+  if (line.tokens.length === 0) return <span>&nbsp;</span>;
 
   return (
-    <article className="archive-paper">
-      <div className="mb-6 flex flex-col gap-3 border-b border-black/10 pb-5 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="mb-2 text-[11px] uppercase tracking-[0.18em] text-neutral-500">
-            {document.path}
-          </p>
-          <h2 className="text-3xl font-semibold leading-tight tracking-[-0.04em] text-neutral-950 md:text-5xl">
-            {document.title}
-          </h2>
+    <>
+      {line.tokens.map((segment, index) => (
+        <span key={`${segment.text}-${index}`} className={tokenClass(segment.tone)}>
+          {segment.text}
+        </span>
+      ))}
+    </>
+  );
+}
+
+function TokenLines({
+  lines,
+  toneClass,
+}: {
+  lines: TerminalLine[];
+  toneClass?: string;
+}) {
+  return (
+    <pre
+      className={`terminal-entry whitespace-pre-wrap text-sm leading-7 ${
+        toneClass ?? "text-slate-300"
+      }`}
+    >
+      {lines.map((line, index) => (
+        <div key={index}>
+          <TokenLineView line={line} />
         </div>
-        {document.status ? (
-          <p className="w-fit rounded-full border border-black/15 px-3 py-1 text-xs text-neutral-700">
-            {document.status}
-          </p>
-        ) : null}
-      </div>
-
-      {document.summary ? (
-        <p className="mb-8 max-w-[62ch] text-base leading-7 text-neutral-700">
-          {document.summary}
-        </p>
-      ) : null}
-
-      <div className="space-y-4 text-[15px] leading-7 text-neutral-800">
-        {lines.map((line, index) => {
-          if (line.startsWith("# ")) {
-            return (
-              <h3
-                key={`${line}-${index}`}
-                className="pt-3 text-2xl font-semibold tracking-[-0.03em] text-neutral-950"
-              >
-                {line.replace(/^#\s+/, "")}
-              </h3>
-            );
-          }
-
-          if (line.startsWith("## ")) {
-            return (
-              <h4
-                key={`${line}-${index}`}
-                className="pt-4 text-lg font-semibold tracking-[-0.02em] text-neutral-950"
-              >
-                {line.replace(/^##\s+/, "")}
-              </h4>
-            );
-          }
-
-          if (line.startsWith("- ")) {
-            return (
-              <p key={`${line}-${index}`} className="pl-4 text-neutral-700">
-                <span className="mr-2 text-neutral-400">-</span>
-                {line.replace(/^-\s+/, "")}
-              </p>
-            );
-          }
-
-          if (!line.trim()) {
-            return <div key={`space-${index}`} className="h-2" />;
-          }
-
-          return <p key={`${line}-${index}`}>{line}</p>;
-        })}
-      </div>
-    </article>
+      ))}
+    </pre>
   );
 }
 
 function TerminalOutput({ entry }: { entry: TerminalEntry }) {
-  if (entry.kind === "document") {
-    return (
-      <div className="terminal-entry">
-        <MarkdownView document={entry.document} />
-      </div>
-    );
-  }
-
-  if (entry.kind === "timeline") {
-    return (
-      <div className="terminal-entry archive-paper">
-        <p className="mb-6 text-[11px] uppercase tracking-[0.18em] text-neutral-500">
-          timeline
-        </p>
-        <div className="space-y-7">
-          {entry.entries.map((item) => (
-            <section
-              key={`${item.date}-${item.title}`}
-              className="grid gap-2 border-t border-black/10 pt-5 md:grid-cols-[9rem_1fr]"
-            >
-              <time className="text-sm text-neutral-500">{item.date}</time>
-              <div>
-                <h3 className="text-xl font-semibold tracking-[-0.03em] text-neutral-950">
-                  {item.title}
-                </h3>
-                <p className="mt-2 max-w-[68ch] text-[15px] leading-7 text-neutral-700">
-                  {item.body}
-                </p>
-              </div>
-            </section>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   const tone =
     entry.kind === "command"
       ? "text-[color:var(--archive-accent)]"
@@ -124,53 +93,151 @@ function TerminalOutput({ entry }: { entry: TerminalEntry }) {
         ? "text-slate-100"
         : "text-slate-300";
 
-  return (
-    <pre className={`terminal-entry whitespace-pre-wrap text-sm leading-7 ${tone}`}>
-      {entry.lines.join("\n")}
-    </pre>
-  );
+  return <TokenLines lines={entry.lines} toneClass={tone} />;
 }
 
 export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
+  const motionLevel = resolveMotionLevel();
+
   const bootEntries = useMemo(() => initialEntries(snapshot), [snapshot]);
   const [entries, setEntries] = useState<TerminalEntry[]>(bootEntries);
   const [input, setInput] = useState("");
+  const [session, setSession] = useState<TerminalSession>(() => createSession());
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState<number | null>(null);
+  const [reading, setReading] = useState<ReadingSurface | null>(null);
+  const [completeCandidates, setCompleteCandidates] = useState<string[]>([]);
+  const [completeCycle, setCompleteCycle] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const outputRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
+  const appendQueueRef = useRef(0);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
   useEffect(() => {
-    outputRef.current?.scrollTo({
-      top: outputRef.current.scrollHeight,
-      behavior: "smooth",
-    });
+    if (!outputRef.current || !stickToBottomRef.current) return;
+
+    const scroll = () => {
+      outputRef.current?.scrollTo({
+        top: outputRef.current.scrollHeight,
+        behavior: motionSpec.scrollBehavior,
+      });
+    };
+
+    requestAnimationFrame(scroll);
+    requestAnimationFrame(scroll);
   }, [entries]);
 
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function closeReading() {
+    setReading(null);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }
 
+  /** 轻量 streaming output：条目短间隔入列，制造加载感（非真 PTY 流）。 */
+  function appendEntries(nextEntries: TerminalEntry[]) {
+    if (nextEntries.length === 0) return;
+
+    const reduced =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (reduced || nextEntries.length === 1 || motionSpec.lineDelayMs <= 0) {
+      setEntries((current) => [...current, ...nextEntries]);
+      return;
+    }
+
+    const queueId = ++appendQueueRef.current;
+    nextEntries.forEach((entry, index) => {
+      window.setTimeout(() => {
+        if (appendQueueRef.current !== queueId) return;
+        setEntries((current) => [...current, entry]);
+      }, index * motionSpec.lineDelayMs);
+    });
+  }
+
+  function resetCompletion() {
+    setCompleteCandidates([]);
+    setCompleteCycle(null);
+  }
+
+  function applyTabCompletion() {
+    /**
+     * Tab 补全流程（你会直接摸到这几个词）：
+     * 1) prefix match — 按已输入前缀筛命令/路径/slug
+     * 2) longest common prefix — 多候选先补公共前缀
+     * 3) cycle — 再按 Tab 在完整候选间轮换
+     */
+    let result = completeInput(input, snapshot, session.cwd, completeCycle);
+
+    if (!result.applied && result.candidates.length > 1) {
+      const startIndex = completeCycle ?? 0;
+      result = completeInput(input, snapshot, session.cwd, startIndex);
+      setCompleteCycle(startIndex + 1);
+    } else if (result.applied && result.candidates.length > 1 && completeCycle !== null) {
+      setCompleteCycle(completeCycle + 1);
+    } else if (result.candidates.length <= 1) {
+      setCompleteCycle(null);
+    }
+
+    if (result.applied) {
+      setInput(result.input);
+    }
+    setCompleteCandidates(result.candidates.length > 1 ? result.candidates : []);
+  }
+
+  function executeCommand() {
     const command = input.trim();
     if (!command) return;
 
-    const result = runCommand(snapshot, command);
+    const result = runCommand(snapshot, command, session);
     setHistory((current) => [...current, command]);
     setHistoryIndex(null);
     setInput("");
+    resetCompletion();
+    setSession(result.session);
+
+    if (result.reading !== undefined) {
+      setReading(result.reading);
+    }
 
     if (result.clear) {
+      appendQueueRef.current += 1;
       setEntries([]);
       return;
     }
 
-    setEntries((current) => [...current, ...result.entries]);
+    appendEntries(result.entries);
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Tab") {
+      event.preventDefault();
+      applyTabCompletion();
+      return;
+    }
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+      executeCommand();
+      return;
+    }
+
+    if (event.key === "Escape") {
+      if (completeCandidates.length > 0) {
+        event.preventDefault();
+        resetCompletion();
+        return;
+      }
+      if (reading) {
+        event.preventDefault();
+        closeReading();
+      }
+      return;
+    }
+
     if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
     event.preventDefault();
 
@@ -180,7 +247,8 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
       const nextIndex =
         historyIndex === null ? history.length - 1 : Math.max(0, historyIndex - 1);
       setHistoryIndex(nextIndex);
-      setInput(history[nextIndex]);
+      setInput(history[nextIndex] ?? "");
+      resetCompletion();
       return;
     }
 
@@ -190,69 +258,113 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
     if (nextIndex >= history.length) {
       setHistoryIndex(null);
       setInput("");
+      resetCompletion();
       return;
     }
 
     setHistoryIndex(nextIndex);
-    setInput(history[nextIndex]);
+    setInput(history[nextIndex] ?? "");
+    resetCompletion();
   }
 
   return (
-    <main className="min-h-[100dvh] px-4 py-5 text-slate-100 md:px-8 md:py-8">
-      <section className="mx-auto flex min-h-[calc(100dvh-2.5rem)] max-w-[1400px] flex-col overflow-hidden rounded-[18px] border border-white/10 bg-[#090a0b]/88 shadow-[0_30px_120px_rgb(0_0_0/0.42)] backdrop-blur md:min-h-[calc(100dvh-4rem)]">
-        <header className="flex h-16 items-center justify-between border-b border-white/10 px-4 md:px-6">
-          <div>
-            <p className="text-sm tracking-[-0.02em] text-slate-100">
-              PERSONAL ARCHIVE SYSTEM
-            </p>
-            <p className="mt-1 text-xs text-slate-500">cylf.me</p>
-          </div>
-          <Link
-            href="/themes"
-            className="rounded-full border border-white/12 px-3 py-1.5 text-xs text-slate-300 transition hover:border-white/25 hover:text-white active:translate-y-px"
+    <main
+      className={`archive-workspace motion-level-${motionLevel}`}
+      style={
+        {
+          "--output-fade-ms": `${motionSpec.outputFadeMs}ms`,
+          "--output-distance": `${motionSpec.outputDistancePx}px`,
+          "--cursor-blink-ms": `${motionSpec.cursorBlinkMs}ms`,
+          "--panel-fade-ms": `${motionSpec.cardFadeMs}ms`,
+        } as CSSProperties
+      }
+    >
+      {/* 外区：浅亮 Surface，与终端 Spatial separation */}
+      <div className="archive-workspace__stage">
+        {reading ? <ReadingPanel surface={reading} onClose={closeReading} /> : null}
+
+        <section className="terminal-shell">
+          <header className="flex h-14 items-center justify-between border-b border-white/10 px-4 md:px-5">
+            <div>
+              <p className="text-sm tracking-[-0.02em] text-slate-100">
+                {zhCN.shell.title}
+              </p>
+              <p className="mt-0.5 text-xs text-slate-500">{zhCN.shell.subtitle}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled
+                className="rounded border border-white/10 px-2.5 py-1 text-xs text-slate-600"
+              >
+                fullscreen
+              </button>
+              <Link
+                href="/themes"
+                className="rounded border border-white/12 px-2.5 py-1 text-xs text-slate-300 transition hover:border-white/25 hover:text-white active:translate-y-px"
+              >
+                {zhCN.shell.themeLab}
+              </Link>
+            </div>
+          </header>
+
+          <div
+            ref={outputRef}
+            className="flex-1 space-y-5 overflow-y-auto px-4 py-5 md:px-5 md:py-6"
+            onClick={() => inputRef.current?.focus()}
+            onScroll={(event) => {
+              const element = event.currentTarget;
+              const distanceToBottom =
+                element.scrollHeight - element.scrollTop - element.clientHeight;
+              stickToBottomRef.current = distanceToBottom < 24;
+            }}
           >
-            theme lab
-          </Link>
-        </header>
+            {entries.length === 0 ? (
+              <p className="terminal-entry text-sm text-slate-500">
+                {zhCN.shell.cleared}
+              </p>
+            ) : (
+              entries.map((entry) => <TerminalOutput key={entry.id} entry={entry} />)
+            )}
+          </div>
 
-        <div
-          ref={outputRef}
-          className="flex-1 space-y-6 overflow-y-auto px-4 py-6 md:px-8 md:py-8"
-          onClick={() => inputRef.current?.focus()}
-        >
-          {entries.length === 0 ? (
-            <p className="terminal-entry text-sm text-slate-500">
-              Terminal cleared. Type help to continue.
-            </p>
-          ) : (
-            entries.map((entry) => <TerminalOutput key={entry.id} entry={entry} />)
-          )}
-        </div>
-
-        <form
-          onSubmit={submit}
-          className="border-t border-white/10 bg-black/18 px-4 py-4 md:px-8"
-        >
-          <label className="flex items-center gap-3 text-sm text-slate-200">
-            <span className="shrink-0 text-[color:var(--archive-accent)]">
-              visitor@archive:~$
-            </span>
-            <input
-              ref={inputRef}
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              onKeyDown={onKeyDown}
-              className="min-w-0 flex-1 border-none bg-transparent text-slate-100 caret-[color:var(--archive-accent)] outline-none placeholder:text-slate-600"
-              placeholder="type help"
-              autoCapitalize="none"
-              autoComplete="off"
-              spellCheck={false}
-              aria-label="Archive terminal command"
-            />
-            <span className="terminal-cursor" aria-hidden="true" />
-          </label>
-        </form>
-      </section>
+          <div className="border-t border-white/10 bg-black/25 px-4 py-3.5 md:px-5">
+            <label className="flex items-center gap-3 text-sm text-slate-200">
+              <span className="shrink-0 text-[color:var(--archive-accent)]">
+                {formatShellPrompt(session.cwd)}
+              </span>
+              <input
+                ref={inputRef}
+                value={input}
+                onChange={(event) => {
+                  setInput(event.target.value);
+                  resetCompletion();
+                }}
+                onKeyDown={onKeyDown}
+                className="min-w-0 flex-1 border-none bg-transparent text-slate-100 caret-[color:var(--archive-accent)] outline-none placeholder:text-slate-600"
+                placeholder={zhCN.shell.placeholder}
+                autoCapitalize="none"
+                autoComplete="off"
+                spellCheck={false}
+                aria-label="Archive terminal command"
+              />
+              <span className="terminal-cursor" aria-hidden="true" />
+            </label>
+            {completeCandidates.length > 0 ? (
+              <p
+                className="mt-2 truncate text-xs text-slate-500"
+                aria-live="polite"
+              >
+                <span className="text-slate-600">{zhCN.shell.completeHint}: </span>
+                {completeCandidates.join("  ")}
+                <span className="ml-2 text-slate-600">
+                  ({zhCN.shell.completeCycle})
+                </span>
+              </p>
+            ) : null}
+          </div>
+        </section>
+      </div>
     </main>
   );
 }
