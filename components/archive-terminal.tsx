@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CSSProperties, useMemo, useRef, useState } from "react";
+import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { ArchiveXterm, type ArchiveXtermHandle } from "@/components/archive-xterm";
 import { ReadingPanel } from "@/components/reading-panel";
 import { completeInput } from "@/lib/archive/complete";
@@ -32,14 +32,23 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
   sessionRef.current = session;
   readingRef.current = reading;
 
+  useEffect(() => {
+    xtermRef.current?.relayout();
+  }, [reading, completeCandidates.length]);
+
   function closeReading() {
     setReading(null);
-    requestAnimationFrame(() => xtermRef.current?.focus());
+    requestAnimationFrame(() => {
+      xtermRef.current?.relayout();
+      xtermRef.current?.focus();
+    });
   }
 
   return (
     <main
-      className={`archive-workspace motion-level-${motionLevel}`}
+      className={`archive-workspace motion-level-${motionLevel}${
+        reading ? " is-reading" : ""
+      }`}
       style={
         {
           "--output-fade-ms": `${motionSpec.outputFadeMs}ms`,

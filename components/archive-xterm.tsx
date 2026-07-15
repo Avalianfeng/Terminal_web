@@ -15,6 +15,8 @@ export type ArchiveXtermHandle = {
   focus: () => void;
   /** cwd 变化后重绘当前输入行 prompt */
   refreshPrompt: () => void;
+  /** 外区布局变化（阅读面板开关等）后重新 fit 并滚到输入行 */
+  relayout: () => void;
 };
 
 type ArchiveXtermProps = {
@@ -78,6 +80,27 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       lineDelayMs,
     };
 
+    function scrollToPrompt() {
+      const term = termRef.current;
+      if (!term) return;
+      term.scrollToBottom();
+    }
+
+    function fitAndScroll() {
+      const fitAddon = fitRef.current;
+      const term = termRef.current;
+      if (!fitAddon || !term || !readyRef.current) return;
+      try {
+        fitAddon.fit();
+      } catch {
+        /* 容器尚未有尺寸时忽略 */
+      }
+      scrollToPrompt();
+      // 再绘一行，避免 fit 后光标行落在裁切区外
+      paintPromptLine();
+      scrollToPrompt();
+    }
+
     function paintPromptLine() {
       const term = termRef.current;
       if (!term) return;
@@ -138,6 +161,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
         for (const line of lines) {
           term.writeln(line);
         }
+        scrollToPrompt();
         if (delay > 0 && i < list.length - 1) {
           await new Promise((resolve) => window.setTimeout(resolve, delay));
         }
@@ -174,6 +198,11 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
 
       await writeEntries(result.entries, true);
       paintPromptLine();
+      scrollToPrompt();
+      // open 后面板可能改变外区高度：等布局后再 fit
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => fitAndScroll());
+      });
     }
 
     function handleHistory(direction: "up" | "down") {
@@ -211,6 +240,11 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       focus: () => termRef.current?.focus(),
       refreshPrompt: () => {
         if (readyRef.current) paintPromptLine();
+      },
+      relayout: () => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => fitAndScroll());
+        });
       },
     }));
 
@@ -331,13 +365,12 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
         });
 
         resizeObserver = new ResizeObserver(() => {
-          try {
-            fitAddon.fit();
-          } catch {
-            /* 容器尚未有尺寸时忽略 */
-          }
+          fitAndScroll();
         });
         resizeObserver.observe(host);
+        // 同时观察壳层，阅读面板出现导致整页重排时也能 fit
+        const shell = host.closest(".terminal-shell");
+        if (shell) resizeObserver.observe(shell);
         term.focus();
       }
 
@@ -359,10 +392,12 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
 
     return (
       <div
-        ref={hostRef}
-        className="archive-xterm"
+        className="archive-xterm-frame"
         onClick={() => termRef.current?.focus()}
-      />
+      >
+        {/* 测量宿主无 padding，避免 fit 行数多于可见区 */}
+        <div ref={hostRef} className="archive-xterm" />
+      </div>
     );
   },
 );

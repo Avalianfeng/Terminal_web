@@ -78,6 +78,18 @@ textarea {
   gap: 1.25rem;
 }
 
+/* 阅读面板打开时：舞台限制在视口内，终端可收缩，避免末行被裁切且滚不到 */
+.archive-workspace.is-reading .archive-workspace__stage {
+  min-height: calc(100dvh - 2 * clamp(1rem, 3vw, 2rem));
+}
+
+.archive-workspace.is-reading .terminal-shell {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 240px;
+  max-height: min(52dvh, 560px);
+}
+
 /* —— C. 阅读面板（floating）—— */
 .reading-panel {
   position: relative;
@@ -181,8 +193,8 @@ textarea {
   color: #fff;
 }
 
-/* xterm 表面：占满壳内除标题/候选条外的区域 */
-.archive-xterm {
+/* xterm：外框留白，内层宿主供 FitAddon 精确测量 */
+.archive-xterm-frame {
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
@@ -190,6 +202,12 @@ textarea {
   padding: 0.75rem 0.85rem;
   overflow: hidden;
   cursor: text;
+}
+
+.archive-xterm {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 
 .archive-xterm .xterm {
