@@ -13,13 +13,13 @@ function MarkdownBody({ document }: { document: ArchiveDocument }) {
   const lines = document.body.split("\n");
 
   return (
-    <div className="space-y-4 text-[15px] leading-7 text-neutral-800">
+    <div className="space-y-4 text-[15px] leading-7 text-[color:var(--archive-paper-ink)]/85">
       {lines.map((line, index) => {
         if (line.startsWith("# ")) {
           return (
             <h3
               key={`${line}-${index}`}
-              className="pt-3 text-2xl font-semibold tracking-[-0.03em] text-neutral-950"
+              className="pt-3 text-2xl font-semibold tracking-[-0.03em] text-[color:var(--archive-paper-ink)]"
             >
               {line.replace(/^#\s+/, "")}
             </h3>
@@ -30,7 +30,7 @@ function MarkdownBody({ document }: { document: ArchiveDocument }) {
           return (
             <h4
               key={`${line}-${index}`}
-              className="pt-4 text-lg font-semibold tracking-[-0.02em] text-neutral-950"
+              className="pt-4 text-lg font-semibold tracking-[-0.02em] text-[color:var(--archive-paper-ink)]"
             >
               {line.replace(/^##\s+/, "")}
             </h4>
@@ -39,8 +39,8 @@ function MarkdownBody({ document }: { document: ArchiveDocument }) {
 
         if (line.startsWith("- ")) {
           return (
-            <p key={`${line}-${index}`} className="pl-4 text-neutral-700">
-              <span className="mr-2 text-neutral-400">-</span>
+            <p key={`${line}-${index}`} className="pl-4 text-[color:var(--archive-paper-ink)]/80">
+              <span className="mr-2 text-[color:var(--archive-muted)]">-</span>
               {line.replace(/^-\s+/, "")}
             </p>
           );
@@ -62,14 +62,14 @@ function TimelineBody({ entries }: { entries: TimelineEntry[] }) {
       {entries.map((item) => (
         <section
           key={`${item.date}-${item.title}`}
-          className="grid gap-2 border-t border-black/10 pt-5 md:grid-cols-[9rem_1fr]"
+          className="grid gap-2 border-t border-[color:var(--archive-line)] pt-5 md:grid-cols-[9rem_1fr]"
         >
-          <time className="text-sm text-neutral-500">{item.date}</time>
+          <time className="text-sm text-[color:var(--archive-muted)]">{item.date}</time>
           <div>
-            <h3 className="text-xl font-semibold tracking-[-0.03em] text-neutral-950">
+            <h3 className="text-xl font-semibold tracking-[-0.03em] text-[color:var(--archive-paper-ink)]">
               {item.title}
             </h3>
-            <p className="mt-2 max-w-[68ch] text-[15px] leading-7 text-neutral-700">
+            <p className="mt-2 max-w-[68ch] text-[15px] leading-7 text-[color:var(--archive-paper-ink)]/80">
               {item.body}
             </p>
           </div>
@@ -149,12 +149,12 @@ export function ReadingPanel({ surface, onClose }: ReadingPanelProps) {
         {surface.kind === "document" ? (
           <>
             {surface.document.status ? (
-              <p className="mb-5 w-fit rounded border border-black/12 px-2.5 py-1 text-xs text-neutral-600">
+              <p className="mb-5 w-fit rounded border border-[color:var(--archive-line)] px-2.5 py-1 text-xs text-[color:var(--archive-muted)]">
                 {surface.document.status}
               </p>
             ) : null}
             {surface.document.summary ? (
-              <p className="mb-8 max-w-[62ch] text-base leading-7 text-neutral-700">
+              <p className="mb-8 max-w-[62ch] text-base leading-7 text-[color:var(--archive-paper-ink)]/80">
                 {surface.document.summary}
               </p>
             ) : null}

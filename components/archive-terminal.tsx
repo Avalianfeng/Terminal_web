@@ -284,24 +284,24 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
         {reading ? <ReadingPanel surface={reading} onClose={closeReading} /> : null}
 
         <section className="terminal-shell">
-          <header className="flex h-14 items-center justify-between border-b border-white/10 px-4 md:px-5">
+          <header className="flex h-14 items-center justify-between border-b border-[color:var(--terminal-border)] px-4 md:px-5">
             <div>
-              <p className="text-sm tracking-[-0.02em] text-slate-100">
+              <p className="text-sm tracking-[-0.02em] text-[rgb(var(--tone-normal))]">
                 {zhCN.shell.title}
               </p>
-              <p className="mt-0.5 text-xs text-slate-500">{zhCN.shell.subtitle}</p>
+              <p className="mt-0.5 text-xs text-[rgb(var(--tone-muted))]">{zhCN.shell.subtitle}</p>
             </div>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 disabled
-                className="rounded border border-white/10 px-2.5 py-1 text-xs text-slate-600"
+                className="rounded border border-[color:var(--terminal-border)] px-2.5 py-1 text-xs text-[rgb(var(--tone-muted))]"
               >
                 fullscreen
               </button>
               <Link
                 href="/themes"
-                className="rounded border border-white/12 px-2.5 py-1 text-xs text-slate-300 transition hover:border-white/25 hover:text-white active:translate-y-px"
+                className="rounded border border-[color:var(--terminal-border)] px-2.5 py-1 text-xs text-[rgb(var(--tone-normal))] transition hover:border-white/25 hover:text-white active:translate-y-px"
               >
                 {zhCN.shell.themeLab}
               </Link>
@@ -320,7 +320,7 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
             }}
           >
             {entries.length === 0 ? (
-              <p className="terminal-entry text-sm text-slate-500">
+              <p className="terminal-entry text-sm text-[rgb(var(--tone-muted))]">
                 {zhCN.shell.cleared}
               </p>
             ) : (
@@ -328,8 +328,8 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
             )}
           </div>
 
-          <div className="border-t border-white/10 bg-black/25 px-4 py-3.5 md:px-5">
-            <label className="flex items-center gap-3 text-sm text-slate-200">
+          <div className="border-t border-[color:var(--terminal-border)] bg-black/25 px-4 py-3.5 md:px-5">
+            <label className="flex items-center gap-3 text-sm text-[rgb(var(--tone-normal))]">
               <span className="shrink-0 text-[color:var(--archive-accent)]">
                 {formatShellPrompt(session.cwd)}
               </span>
@@ -341,7 +341,7 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
                   resetCompletion();
                 }}
                 onKeyDown={onKeyDown}
-                className="min-w-0 flex-1 border-none bg-transparent text-slate-100 caret-[color:var(--archive-accent)] outline-none placeholder:text-slate-600"
+                className="min-w-0 flex-1 border-none bg-transparent text-[rgb(var(--tone-normal))] caret-[color:var(--archive-accent)] outline-none placeholder:text-[rgb(var(--tone-muted))]"
                 placeholder={zhCN.shell.placeholder}
                 autoCapitalize="none"
                 autoComplete="off"
@@ -352,12 +352,12 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
             </label>
             {completeCandidates.length > 0 ? (
               <p
-                className="mt-2 truncate text-xs text-slate-500"
+                className="mt-2 truncate text-xs text-[rgb(var(--tone-muted))]"
                 aria-live="polite"
               >
-                <span className="text-slate-600">{zhCN.shell.completeHint}: </span>
+                <span className="text-[rgb(var(--tone-hint))]">{zhCN.shell.completeHint}: </span>
                 {completeCandidates.join("  ")}
-                <span className="ml-2 text-slate-600">
+                <span className="ml-2 text-[rgb(var(--tone-hint))]">
                   ({zhCN.shell.completeCycle})
                 </span>
               </p>
