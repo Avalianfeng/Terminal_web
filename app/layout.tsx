@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PaletteBootstrap } from "@/components/palette-bootstrap";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -21,7 +22,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN" data-palette="cool-atelier">
-      <body>{children}</body>
+      <body>
+        <PaletteBootstrap />
+        {children}
+      </body>
     </html>
   );
 }

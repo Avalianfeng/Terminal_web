@@ -316,8 +316,11 @@ textarea {
   overflow: hidden;
 }
 
-.archive-xterm .xterm {
-  height: 100%;
+.archive-xterm .xterm,
+.archive-xterm .xterm-viewport,
+.archive-xterm .xterm-screen {
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .archive-xterm .xterm-viewport {

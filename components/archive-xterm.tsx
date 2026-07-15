@@ -9,6 +9,7 @@ import {
 import type { CompleteResult } from "@/lib/archive/complete";
 import { entryToAnsiLines } from "@/lib/archive/ansi";
 import { zhCN } from "@/lib/archive/i18n";
+import { readXtermThemeFromCss } from "@/lib/archive/palette";
 import type { TerminalEntry } from "@/lib/archive/types";
 
 export type ArchiveXtermHandle = {
@@ -86,17 +87,35 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       term.scrollToBottom();
     }
 
+    function syncThemeFromCss() {
+      const term = termRef.current;
+      if (!term) return;
+      term.options.theme = readXtermThemeFromCss();
+    }
+
+    /**
+     * FitAddon + lineHeight>1 时常多算 1 行，表现为末行半截裁切、怎么滚都露不全。
+     * 用 proposeDimensions 后主动 rows-1，再 scrollToBottom。
+     */
     function fitAndScroll() {
       const fitAddon = fitRef.current;
       const term = termRef.current;
       if (!fitAddon || !term || !readyRef.current) return;
       try {
-        fitAddon.fit();
+        const dims = fitAddon.proposeDimensions();
+        if (dims) {
+          const cols = Math.max(2, dims.cols);
+          const rows = Math.max(1, dims.rows - 1);
+          if (term.cols !== cols || term.rows !== rows) {
+            term.resize(cols, rows);
+          }
+        } else {
+          fitAddon.fit();
+        }
       } catch {
         /* 容器尚未有尺寸时忽略 */
       }
       scrollToPrompt();
-      // 再绘一行，避免 fit 后光标行落在裁切区外
       paintPromptLine();
       scrollToPrompt();
     }
@@ -251,6 +270,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
     useEffect(() => {
       let disposed = false;
       let resizeObserver: ResizeObserver | null = null;
+      let paletteObserver: MutationObserver | null = null;
       let dataDisposable: { dispose: () => void } | null = null;
 
       async function mount() {
@@ -273,30 +293,25 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
           fontFamily:
             '"JetBrains Mono", "IBM Plex Mono", "SFMono-Regular", Consolas, monospace',
           fontSize: 14,
-          lineHeight: 1.45,
+          // 接近 1，降低 FitAddon 行高估算误差；仍略大于 1 保持可读
+          lineHeight: 1.2,
           scrollback: 5000,
-          theme: {
-            background: "#090a0b",
-            foreground: "#dbe3eb",
-            cursor: "#b8c7d9",
-            cursorAccent: "#090a0b",
-            selectionBackground: "rgba(184, 199, 217, 0.28)",
-            selectionForeground: "#ffffff",
-          },
+          theme: readXtermThemeFromCss(),
         });
 
         const fitAddon = new FitAddon();
         term.loadAddon(fitAddon);
         term.open(host);
-        fitAddon.fit();
 
         termRef.current = term;
         fitRef.current = fitAddon;
         readyRef.current = true;
 
+        fitAndScroll();
         await writeEntries(bootRef.current, false);
         if (disposed) return;
         paintPromptLine();
+        fitAndScroll();
 
         term.attachCustomKeyEventHandler((event) => {
           if (event.type !== "keydown") return true;
@@ -368,9 +383,19 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
           fitAndScroll();
         });
         resizeObserver.observe(host);
-        // 同时观察壳层，阅读面板出现导致整页重排时也能 fit
         const shell = host.closest(".terminal-shell");
         if (shell) resizeObserver.observe(shell);
+
+        // 接缝：palette 切换时同步 xterm 色，并重新 fit
+        paletteObserver = new MutationObserver(() => {
+          syncThemeFromCss();
+          fitAndScroll();
+        });
+        paletteObserver.observe(document.documentElement, {
+          attributes: true,
+          attributeFilter: ["data-palette"],
+        });
+
         term.focus();
       }
 
@@ -381,6 +406,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
         readyRef.current = false;
         writeQueueRef.current += 1;
         resizeObserver?.disconnect();
+        paletteObserver?.disconnect();
         dataDisposable?.dispose();
         termRef.current?.dispose();
         termRef.current = null;

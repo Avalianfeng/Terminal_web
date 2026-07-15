@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-
-export type WorkspacePalette = "cool-atelier" | "warm-folio" | "ledger-bright";
+import {
+  applyWorkspacePalette,
+  readStoredPalette,
+  type WorkspacePalette,
+} from "@/lib/archive/palette";
 
 const palettes: {
   id: WorkspacePalette;
@@ -20,7 +23,7 @@ const palettes: {
     id: "cool-atelier",
     name: "Cool Atelier",
     nameZh: "冷灰阅读室",
-    status: "default on this branch",
+    status: "default",
     shell: "Blue-gray command shell",
     surface: "Frosted archive paper",
     description:
@@ -69,37 +72,18 @@ const palettes: {
   },
 ];
 
-const STORAGE_KEY = "archive-workspace-palette";
-
-function applyPalette(id: WorkspacePalette) {
-  document.documentElement.dataset.palette = id;
-  try {
-    localStorage.setItem(STORAGE_KEY, id);
-  } catch {
-    /* ignore */
-  }
-}
-
 export function PaletteLab() {
   const [active, setActive] = useState<WorkspacePalette>("cool-atelier");
 
   useEffect(() => {
-    let initial: WorkspacePalette = "cool-atelier";
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY) as WorkspacePalette | null;
-      if (stored && palettes.some((p) => p.id === stored)) {
-        initial = stored;
-      }
-    } catch {
-      /* ignore */
-    }
+    const initial = readStoredPalette() ?? "cool-atelier";
     setActive(initial);
-    applyPalette(initial);
+    applyWorkspacePalette(initial);
   }, []);
 
   function selectPalette(id: WorkspacePalette) {
     setActive(id);
-    applyPalette(id);
+    applyWorkspacePalette(id);
   }
 
   return (
@@ -117,14 +101,12 @@ export function PaletteLab() {
             Workspace palette lab
           </h1>
           <p className="mt-5 max-w-[62ch] text-base leading-7 text-neutral-600">
-            Three Dual Phase directions for the outer workspace, reading paper, and dark
-            terminal shell. Click a card to preview live on this page and persist in
-            localStorage.
+            三套 Dual Phase 方向。点击卡片会写入 localStorage，并立刻作用到本页与返回首页后的档案壳（含
+            xterm 表面色）。
           </p>
           <p className="mt-3 max-w-[62ch] text-sm text-neutral-500">
-            Active: <span className="font-medium text-neutral-800">{active}</span>. Site
-            default is <code className="text-neutral-700">cool-atelier</code> via{" "}
-            <code className="text-neutral-700">html[data-palette]</code> in layout.
+            当前：<span className="font-medium text-neutral-800">{active}</span>
+            。默认 <code className="text-neutral-700">cool-atelier</code>。
           </p>
         </div>
 
@@ -183,23 +165,6 @@ export function PaletteLab() {
               </article>
             );
           })}
-        </div>
-
-        <div className="mt-10 max-w-[72ch] rounded-md border border-black/10 bg-white/45 p-5 text-sm leading-6 text-neutral-600">
-          <p className="font-medium text-neutral-800">Switch on the main archive</p>
-          <p className="mt-2">
-            Set{" "}
-            <code className="text-neutral-800">data-palette=&quot;warm-folio&quot;</code>{" "}
-            or{" "}
-            <code className="text-neutral-800">
-              data-palette=&quot;ledger-bright&quot;
-            </code>{" "}
-            on the <code className="text-neutral-800">&lt;html&gt;</code> element in{" "}
-            <code className="text-neutral-800">app/layout.tsx</code>. Or run in DevTools:{" "}
-            <code className="text-neutral-800">
-              document.documentElement.dataset.palette = &apos;warm-folio&apos;
-            </code>
-          </p>
         </div>
       </section>
     </main>
