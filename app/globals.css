@@ -1,17 +1,119 @@
 @import "tailwindcss";
 
-:root {
+/* —— 默认：冷灰阅读室 cool-atelier —— */
+:root,
+[data-palette="cool-atelier"] {
   color-scheme: light;
-  --workspace-bg: #ece8e1;
-  --workspace-bg-deep: #e3ddd3;
-  --archive-black: #090a0b;
-  --archive-ink: #111418;
-  --archive-paper: #f7f4ee;
-  --archive-paper-ink: #181818;
-  --archive-line: rgb(24 24 24 / 0.1);
-  --archive-muted: #6b7280;
-  --archive-accent: #b8c7d9;
-  --terminal-border: rgb(255 255 255 / 0.1);
+  --workspace-bg: #e2e7ec;
+  --workspace-bg-deep: #d2d9e1;
+  --workspace-gradient-top: #eef1f5;
+  --workspace-grid-opacity: 0.024;
+  --workspace-text: #1a1f24;
+  --workspace-selection-bg: rgb(45 75 105 / 0.16);
+
+  --archive-black: #0a0c10;
+  --archive-ink: #12161c;
+  --archive-paper: #f3f5f8;
+  --archive-paper-ink: #14181e;
+  --archive-paper-chrome: rgb(255 255 255 / 0.52);
+  --archive-line: rgb(18 22 28 / 0.1);
+  --archive-muted: #64748b;
+  --archive-accent: #4a7a9b;
+
+  --reading-border: rgb(12 18 28 / 0.11);
+  --reading-shadow: 0 1px 0 rgb(255 255 255 / 0.72) inset,
+    0 20px 52px rgb(30 45 65 / 0.14);
+
+  --terminal-bg: rgb(10 12 16 / 0.95);
+  --terminal-border: rgb(255 255 255 / 0.09);
+  --terminal-shadow: 0 1px 0 rgb(255 255 255 / 0.05) inset,
+    0 28px 80px rgb(20 30 45 / 0.26);
+  --terminal-selection-bg: rgb(120 165 200 / 0.26);
+
+  --tone-normal: 219 227 235;
+  --tone-prompt: 146 173 199;
+  --tone-command: 206 225 247;
+  --tone-hint: 150 166 181;
+  --tone-error: 244 139 139;
+  --tone-success: 152 219 174;
+  --tone-path: 137 196 255;
+  --tone-muted: 120 131 144;
+}
+
+/* —— 暖纸档案 warm-folio —— */
+[data-palette="warm-folio"] {
+  --workspace-bg: #e6e0d4;
+  --workspace-bg-deep: #d9d0c0;
+  --workspace-gradient-top: #f0ebe2;
+  --workspace-grid-opacity: 0.032;
+  --workspace-text: #1c1915;
+  --workspace-selection-bg: rgb(90 60 35 / 0.14);
+
+  --archive-black: #0c0b09;
+  --archive-ink: #161412;
+  --archive-paper: #f5f0e6;
+  --archive-paper-ink: #1a1712;
+  --archive-paper-chrome: rgb(255 252 245 / 0.55);
+  --archive-line: rgb(28 22 16 / 0.1);
+  --archive-muted: #7a6f62;
+  --archive-accent: #b85c38;
+
+  --reading-border: rgb(40 28 18 / 0.12);
+  --reading-shadow: 0 1px 0 rgb(255 255 255 / 0.65) inset,
+    0 22px 54px rgb(55 35 18 / 0.16);
+
+  --terminal-bg: rgb(11 10 9 / 0.94);
+  --terminal-border: rgb(255 248 235 / 0.08);
+  --terminal-shadow: 0 1px 0 rgb(255 255 255 / 0.04) inset,
+    0 28px 76px rgb(30 18 10 / 0.3);
+  --terminal-selection-bg: rgb(200 150 90 / 0.24);
+
+  --tone-normal: 230 222 210;
+  --tone-prompt: 196 158 110;
+  --tone-command: 235 220 195;
+  --tone-hint: 165 148 128;
+  --tone-error: 235 140 120;
+  --tone-success: 155 200 145;
+  --tone-path: 210 175 120;
+  --tone-muted: 130 118 105;
+}
+
+/* —— 高对比纸面 ledger-bright —— */
+[data-palette="ledger-bright"] {
+  --workspace-bg: #ececea;
+  --workspace-bg-deep: #dededc;
+  --workspace-gradient-top: #f8f8f6;
+  --workspace-grid-opacity: 0.018;
+  --workspace-text: #0a0a0a;
+  --workspace-selection-bg: rgb(20 90 60 / 0.14);
+
+  --archive-black: #050505;
+  --archive-ink: #0a0a0a;
+  --archive-paper: #ffffff;
+  --archive-paper-ink: #0a0a0a;
+  --archive-paper-chrome: rgb(255 255 255 / 0.88);
+  --archive-line: rgb(0 0 0 / 0.12);
+  --archive-muted: #525252;
+  --archive-accent: #146b4a;
+
+  --reading-border: rgb(0 0 0 / 0.16);
+  --reading-shadow: 0 1px 0 rgb(255 255 255 / 0.9) inset,
+    0 24px 56px rgb(0 0 0 / 0.12);
+
+  --terminal-bg: rgb(6 6 6 / 0.97);
+  --terminal-border: rgb(255 255 255 / 0.12);
+  --terminal-shadow: 0 1px 0 rgb(255 255 255 / 0.07) inset,
+    0 32px 88px rgb(0 0 0 / 0.32);
+  --terminal-selection-bg: rgb(40 180 120 / 0.28);
+
+  --tone-normal: 235 235 235;
+  --tone-prompt: 100 200 150;
+  --tone-command: 220 245 230;
+  --tone-hint: 150 150 150;
+  --tone-error: 255 120 120;
+  --tone-success: 100 220 150;
+  --tone-path: 80 200 140;
+  --tone-muted: 130 130 130;
 }
 
 * {
@@ -26,11 +128,15 @@ html {
 body {
   min-height: 100dvh;
   margin: 0;
-  /* 外区浅亮 Surface：衬阅读面板 Elevation，而不是第二块黑终端 */
   background:
     radial-gradient(circle at 18% 0%, rgb(255 255 255 / 0.55), transparent 28rem),
-    linear-gradient(180deg, #f3efe8 0%, var(--workspace-bg) 42%, var(--workspace-bg-deep) 100%);
-  color: #1c1c1c;
+    linear-gradient(
+      180deg,
+      var(--workspace-gradient-top) 0%,
+      var(--workspace-bg) 42%,
+      var(--workspace-bg-deep) 100%
+    );
+  color: var(--workspace-text);
   font-family:
     "JetBrains Mono",
     "IBM Plex Mono",
@@ -46,8 +152,12 @@ body::before {
   inset: 0;
   pointer-events: none;
   background-image:
-    linear-gradient(rgb(0 0 0 / 0.028) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(0 0 0 / 0.02) 1px, transparent 1px);
+    linear-gradient(rgb(0 0 0 / var(--workspace-grid-opacity)) 1px, transparent 1px),
+    linear-gradient(
+      90deg,
+      rgb(0 0 0 / calc(var(--workspace-grid-opacity) * 0.72)) 1px,
+      transparent 1px
+    );
   background-size: 48px 48px;
   mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.35), transparent 85%);
 }
@@ -59,8 +169,8 @@ textarea {
 }
 
 ::selection {
-  background: rgb(40 50 60 / 0.18);
-  color: #111;
+  background: var(--workspace-selection-bg);
+  color: var(--workspace-text);
 }
 
 /* —— A. 工作区 —— */
@@ -98,13 +208,11 @@ textarea {
   max-height: min(52dvh, 520px);
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid rgb(0 0 0 / 0.12);
+  border: 1px solid var(--reading-border);
   border-radius: 4px;
   background: var(--archive-paper);
   color: var(--archive-paper-ink);
-  box-shadow:
-    0 1px 0 rgb(255 255 255 / 0.7) inset,
-    0 18px 48px rgb(40 30 20 / 0.14);
+  box-shadow: var(--reading-shadow);
   animation: reading-panel-in var(--panel-fade-ms, 420ms) cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -113,8 +221,8 @@ textarea {
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  border-bottom: 1px solid rgb(0 0 0 / 0.08);
-  background: rgb(255 255 255 / 0.45);
+  border-bottom: 1px solid var(--archive-line);
+  background: var(--archive-paper-chrome);
   padding: 0.9rem 1rem;
 }
 
@@ -132,35 +240,35 @@ textarea {
   font-weight: 600;
   letter-spacing: -0.03em;
   line-height: 1.25;
-  color: #111;
+  color: var(--archive-paper-ink);
 }
 
 .reading-panel__path {
   margin: 0.35rem 0 0;
   font-size: 12px;
-  color: #7a7a7a;
+  color: var(--archive-muted);
 }
 
 .reading-panel__close {
   flex-shrink: 0;
   width: 2rem;
   height: 2rem;
-  border: 1px solid rgb(0 0 0 / 0.12);
+  border: 1px solid var(--reading-border);
   border-radius: 2px;
-  background: rgb(255 255 255 / 0.7);
-  color: #333;
+  background: var(--archive-paper-chrome);
+  color: var(--archive-paper-ink);
   font-size: 1.25rem;
   line-height: 1;
   cursor: pointer;
 }
 
 .reading-panel__close:hover {
-  background: #fff;
-  border-color: rgb(0 0 0 / 0.22);
+  background: var(--archive-paper);
+  border-color: var(--archive-line);
 }
 
 .reading-panel__close:focus-visible {
-  outline: 2px solid rgb(80 100 120 / 0.45);
+  outline: 2px solid color-mix(in srgb, var(--archive-accent) 45%, transparent);
   outline-offset: 2px;
 }
 
@@ -180,16 +288,14 @@ textarea {
   overflow: hidden;
   border: 1px solid var(--terminal-border);
   border-radius: 6px;
-  background: rgb(9 10 11 / 0.94);
-  color: #e8edf2;
-  box-shadow:
-    0 1px 0 rgb(255 255 255 / 0.06) inset,
-    0 28px 80px rgb(20 16 12 / 0.28);
+  background: var(--terminal-bg);
+  color: rgb(var(--tone-normal));
+  box-shadow: var(--terminal-shadow);
   color-scheme: dark;
 }
 
 .terminal-shell ::selection {
-  background: rgb(184 199 217 / 0.28);
+  background: var(--terminal-selection-bg);
   color: #fff;
 }
 
@@ -232,35 +338,35 @@ textarea {
 }
 
 .terminal-tone-normal {
-  color: rgb(219 227 235);
+  color: rgb(var(--tone-normal));
 }
 
 .terminal-tone-prompt {
-  color: rgb(146 173 199);
+  color: rgb(var(--tone-prompt));
 }
 
 .terminal-tone-command {
-  color: rgb(206 225 247);
+  color: rgb(var(--tone-command));
 }
 
 .terminal-tone-hint {
-  color: rgb(150 166 181);
+  color: rgb(var(--tone-hint));
 }
 
 .terminal-tone-error {
-  color: rgb(244 139 139);
+  color: rgb(var(--tone-error));
 }
 
 .terminal-tone-success {
-  color: rgb(152 219 174);
+  color: rgb(var(--tone-success));
 }
 
 .terminal-tone-path {
-  color: rgb(137 196 255);
+  color: rgb(var(--tone-path));
 }
 
 .terminal-tone-muted {
-  color: rgb(120 131 144);
+  color: rgb(var(--tone-muted));
 }
 
 @keyframes archive-output-in {
