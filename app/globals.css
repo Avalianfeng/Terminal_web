@@ -181,6 +181,25 @@ textarea {
   color: #fff;
 }
 
+/* xterm 表面：占满壳内除标题/候选条外的区域 */
+.archive-xterm {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  padding: 0.75rem 0.85rem;
+  overflow: hidden;
+  cursor: text;
+}
+
+.archive-xterm .xterm {
+  height: 100%;
+}
+
+.archive-xterm .xterm-viewport {
+  overflow-y: auto !important;
+}
+
 .terminal-entry {
   animation: archive-output-in var(--output-fade-ms, 320ms) cubic-bezier(0.16, 1, 0.3, 1)
     both;

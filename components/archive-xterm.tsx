@@ -1,0 +1,368 @@
+"use client";
+
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+} from "react";
+import type { CompleteResult } from "@/lib/archive/complete";
+import { entryToAnsiLines } from "@/lib/archive/ansi";
+import { zhCN } from "@/lib/archive/i18n";
+import type { TerminalEntry } from "@/lib/archive/types";
+
+export type ArchiveXtermHandle = {
+  focus: () => void;
+  /** cwd 变化后重绘当前输入行 prompt */
+  refreshPrompt: () => void;
+};
+
+type ArchiveXtermProps = {
+  bootEntries: TerminalEntry[];
+  lineDelayMs: number;
+  getPrompt: () => string;
+  getComplete: (input: string, cycle: number | null) => CompleteResult;
+  onCommand: (command: string) => {
+    entries: TerminalEntry[];
+    clear?: boolean;
+  };
+  onCandidatesChange: (candidates: string[]) => void;
+  /** Esc：先清候选；若返回 true 表示已处理（如关阅读面板） */
+  onEscape: () => boolean;
+};
+
+/**
+ * 档位 1 终端表面：xterm 单缓冲 + 行编辑。
+ * Runtime（命令/VFS）仍在外侧；此处只负责 write / onData / scrollback。
+ */
+export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
+  function ArchiveXterm(
+    {
+      bootEntries,
+      lineDelayMs,
+      getPrompt,
+      getComplete,
+      onCommand,
+      onCandidatesChange,
+      onEscape,
+    },
+    ref,
+  ) {
+    const hostRef = useRef<HTMLDivElement>(null);
+    const termRef = useRef<import("@xterm/xterm").Terminal | null>(null);
+    const fitRef = useRef<import("@xterm/addon-fit").FitAddon | null>(null);
+    const bufferRef = useRef("");
+    const historyRef = useRef<string[]>([]);
+    const historyIndexRef = useRef<number | null>(null);
+    const completeCycleRef = useRef<number | null>(null);
+    const writeQueueRef = useRef(0);
+    const readyRef = useRef(false);
+    const candidatesRef = useRef<string[]>([]);
+    const bootRef = useRef(bootEntries);
+    bootRef.current = bootEntries;
+
+    const callbacksRef = useRef({
+      getPrompt,
+      getComplete,
+      onCommand,
+      onCandidatesChange,
+      onEscape,
+      lineDelayMs,
+    });
+    callbacksRef.current = {
+      getPrompt,
+      getComplete,
+      onCommand,
+      onCandidatesChange,
+      onEscape,
+      lineDelayMs,
+    };
+
+    function paintPromptLine() {
+      const term = termRef.current;
+      if (!term) return;
+      const prompt = callbacksRef.current.getPrompt();
+      term.write(`\r\x1b[2K${prompt} ${bufferRef.current}`);
+    }
+
+    function setCandidates(next: string[]) {
+      candidatesRef.current = next;
+      callbacksRef.current.onCandidatesChange(next);
+    }
+
+    function resetCompletion() {
+      completeCycleRef.current = null;
+      setCandidates([]);
+    }
+
+    function applyTab() {
+      const input = bufferRef.current;
+      let cycle = completeCycleRef.current;
+      let result = callbacksRef.current.getComplete(input, cycle);
+
+      if (!result.applied && result.candidates.length > 1) {
+        const startIndex = cycle ?? 0;
+        result = callbacksRef.current.getComplete(input, startIndex);
+        completeCycleRef.current = startIndex + 1;
+      } else if (result.applied && result.candidates.length > 1 && cycle !== null) {
+        completeCycleRef.current = cycle + 1;
+      } else if (result.candidates.length <= 1) {
+        completeCycleRef.current = null;
+      }
+
+      if (result.applied) {
+        bufferRef.current = result.input;
+        paintPromptLine();
+      }
+      setCandidates(result.candidates.length > 1 ? result.candidates : []);
+    }
+
+    async function writeEntries(entries: TerminalEntry[], skipCommandEcho: boolean) {
+      const term = termRef.current;
+      if (!term) return;
+
+      const queueId = ++writeQueueRef.current;
+      const list = skipCommandEcho
+        ? entries.filter((entry) => entry.kind !== "command")
+        : entries;
+
+      const reduced =
+        typeof window !== "undefined" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const delay =
+        reduced || list.length <= 1 ? 0 : callbacksRef.current.lineDelayMs;
+
+      for (let i = 0; i < list.length; i += 1) {
+        if (writeQueueRef.current !== queueId) return;
+        const lines = entryToAnsiLines(list[i]!);
+        for (const line of lines) {
+          term.writeln(line);
+        }
+        if (delay > 0 && i < list.length - 1) {
+          await new Promise((resolve) => window.setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    async function submitLine() {
+      const term = termRef.current;
+      if (!term) return;
+
+      const command = bufferRef.current.trim();
+      term.write("\r\n");
+      bufferRef.current = "";
+      resetCompletion();
+      historyIndexRef.current = null;
+
+      if (!command) {
+        paintPromptLine();
+        return;
+      }
+
+      historyRef.current = [...historyRef.current, command];
+      const result = callbacksRef.current.onCommand(command);
+
+      if (result.clear) {
+        writeQueueRef.current += 1;
+        term.clear();
+        term.writeln(
+          `\x1b[38;2;120;131;144m${zhCN.shell.cleared}\x1b[0m`,
+        );
+        paintPromptLine();
+        return;
+      }
+
+      await writeEntries(result.entries, true);
+      paintPromptLine();
+    }
+
+    function handleHistory(direction: "up" | "down") {
+      const history = historyRef.current;
+      if (history.length === 0) return;
+
+      if (direction === "up") {
+        const next =
+          historyIndexRef.current === null
+            ? history.length - 1
+            : Math.max(0, historyIndexRef.current - 1);
+        historyIndexRef.current = next;
+        bufferRef.current = history[next] ?? "";
+        resetCompletion();
+        paintPromptLine();
+        return;
+      }
+
+      if (historyIndexRef.current === null) return;
+      const next = historyIndexRef.current + 1;
+      if (next >= history.length) {
+        historyIndexRef.current = null;
+        bufferRef.current = "";
+        resetCompletion();
+        paintPromptLine();
+        return;
+      }
+      historyIndexRef.current = next;
+      bufferRef.current = history[next] ?? "";
+      resetCompletion();
+      paintPromptLine();
+    }
+
+    useImperativeHandle(ref, () => ({
+      focus: () => termRef.current?.focus(),
+      refreshPrompt: () => {
+        if (readyRef.current) paintPromptLine();
+      },
+    }));
+
+    useEffect(() => {
+      let disposed = false;
+      let resizeObserver: ResizeObserver | null = null;
+      let dataDisposable: { dispose: () => void } | null = null;
+
+      async function mount() {
+        const host = hostRef.current;
+        if (!host) return;
+
+        const [{ Terminal }, { FitAddon }] = await Promise.all([
+          import("@xterm/xterm"),
+          import("@xterm/addon-fit"),
+        ]);
+        await import("@xterm/xterm/css/xterm.css");
+
+        if (disposed || !hostRef.current) return;
+
+        const term = new Terminal({
+          convertEol: true,
+          cursorBlink: true,
+          cursorStyle: "block",
+          disableStdin: false,
+          fontFamily:
+            '"JetBrains Mono", "IBM Plex Mono", "SFMono-Regular", Consolas, monospace',
+          fontSize: 14,
+          lineHeight: 1.45,
+          scrollback: 5000,
+          theme: {
+            background: "#090a0b",
+            foreground: "#dbe3eb",
+            cursor: "#b8c7d9",
+            cursorAccent: "#090a0b",
+            selectionBackground: "rgba(184, 199, 217, 0.28)",
+            selectionForeground: "#ffffff",
+          },
+        });
+
+        const fitAddon = new FitAddon();
+        term.loadAddon(fitAddon);
+        term.open(host);
+        fitAddon.fit();
+
+        termRef.current = term;
+        fitRef.current = fitAddon;
+        readyRef.current = true;
+
+        await writeEntries(bootRef.current, false);
+        if (disposed) return;
+        paintPromptLine();
+
+        term.attachCustomKeyEventHandler((event) => {
+          if (event.type !== "keydown") return true;
+
+          if (event.key === "Tab") {
+            event.preventDefault();
+            applyTab();
+            return false;
+          }
+
+          if (event.key === "Escape") {
+            event.preventDefault();
+            if (candidatesRef.current.length > 0) {
+              resetCompletion();
+              return false;
+            }
+            callbacksRef.current.onEscape();
+            return false;
+          }
+
+          if (event.key === "ArrowUp") {
+            event.preventDefault();
+            handleHistory("up");
+            return false;
+          }
+
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            handleHistory("down");
+            return false;
+          }
+
+          return true;
+        });
+
+        dataDisposable = term.onData((data) => {
+          if (data === "\r") {
+            void submitLine();
+            return;
+          }
+
+          if (data === "\u007f") {
+            if (bufferRef.current.length === 0) return;
+            bufferRef.current = bufferRef.current.slice(0, -1);
+            resetCompletion();
+            paintPromptLine();
+            return;
+          }
+
+          if (data === "\u0003") {
+            bufferRef.current = "";
+            resetCompletion();
+            term.write("^C\r\n");
+            paintPromptLine();
+            return;
+          }
+
+          // 忽略其余 CSI / 控制序列（方向键已在 key handler 处理）
+          if (data.startsWith("\x1b")) return;
+
+          if (data.length > 0) {
+            bufferRef.current += data;
+            resetCompletion();
+            paintPromptLine();
+          }
+        });
+
+        resizeObserver = new ResizeObserver(() => {
+          try {
+            fitAddon.fit();
+          } catch {
+            /* 容器尚未有尺寸时忽略 */
+          }
+        });
+        resizeObserver.observe(host);
+        term.focus();
+      }
+
+      void mount();
+
+      return () => {
+        disposed = true;
+        readyRef.current = false;
+        writeQueueRef.current += 1;
+        resizeObserver?.disconnect();
+        dataDisposable?.dispose();
+        termRef.current?.dispose();
+        termRef.current = null;
+        fitRef.current = null;
+      };
+      // 仅挂载一次；回调走 ref
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    return (
+      <div
+        ref={hostRef}
+        className="archive-xterm"
+        onClick={() => termRef.current?.focus()}
+      />
+    );
+  },
+);
