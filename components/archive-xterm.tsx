@@ -93,25 +93,13 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       term.options.theme = readXtermThemeFromCss();
     }
 
-    /**
-     * FitAddon + lineHeight>1 时常多算 1 行，表现为末行半截裁切、怎么滚都露不全。
-     * 用 proposeDimensions 后主动 rows-1，再 scrollToBottom。
-     */
+    /** 容器尺寸变了才 fit；lineHeight=1 时 FitAddon 可直接用，无需 rows 常数修正。 */
     function fitAndScroll() {
       const fitAddon = fitRef.current;
       const term = termRef.current;
       if (!fitAddon || !term || !readyRef.current) return;
       try {
-        const dims = fitAddon.proposeDimensions();
-        if (dims) {
-          const cols = Math.max(2, dims.cols);
-          const rows = Math.max(1, dims.rows - 1);
-          if (term.cols !== cols || term.rows !== rows) {
-            term.resize(cols, rows);
-          }
-        } else {
-          fitAddon.fit();
-        }
+        fitAddon.fit();
       } catch {
         /* 容器尚未有尺寸时忽略 */
       }
@@ -218,10 +206,6 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       await writeEntries(result.entries, true);
       paintPromptLine();
       scrollToPrompt();
-      // open 后面板可能改变外区高度：等布局后再 fit
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => fitAndScroll());
-      });
     }
 
     function handleHistory(direction: "up" | "down") {
@@ -293,8 +277,8 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
           fontFamily:
             '"JetBrains Mono", "IBM Plex Mono", "SFMono-Regular", Consolas, monospace',
           fontSize: 14,
-          // 接近 1，降低 FitAddon 行高估算误差；仍略大于 1 保持可读
-          lineHeight: 1.2,
+          // =1：与 FitAddon 行高测量一致；行距交给 CSS/字体 metrics
+          lineHeight: 1,
           scrollback: 5000,
           theme: readXtermThemeFromCss(),
         });

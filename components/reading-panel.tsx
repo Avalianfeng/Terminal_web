@@ -80,13 +80,15 @@ function TimelineBody({ entries }: { entries: TimelineEntry[] }) {
 }
 
 /**
- * C0 阅读表面：layout=floating。
- * 关键词：Containment（明确窗框）/ Elevation（相对外区抬升）/ Focal point（打开时可读，关后焦点回终端）。
+ * C0 阅读表面：文档流挂在终端下方（非叠层抢视口）。
+ * 关键词：Containment / Elevation / Focal point；多窗时继续向下叠即可。
  */
 export function ReadingPanel({ surface, onClose }: ReadingPanelProps) {
+  const panelRef = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
+    panelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     closeRef.current?.focus();
   }, [surface]);
 
@@ -118,8 +120,9 @@ export function ReadingPanel({ surface, onClose }: ReadingPanelProps) {
 
   return (
     <aside
+      ref={panelRef}
       className="reading-panel"
-      data-layout="floating"
+      data-layout="stack"
       role="dialog"
       aria-modal="false"
       aria-label={zhCN.reading.panelLabel}

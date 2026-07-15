@@ -32,23 +32,22 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
   sessionRef.current = session;
   readingRef.current = reading;
 
+  // 候选条改变终端内容区高度时，交给 xterm 宿主 ResizeObserver 自行 fit
   useEffect(() => {
+    if (completeCandidates.length === 0) return;
     xtermRef.current?.relayout();
-  }, [reading, completeCandidates.length]);
+  }, [completeCandidates.length]);
 
   function closeReading() {
     setReading(null);
     requestAnimationFrame(() => {
-      xtermRef.current?.relayout();
       xtermRef.current?.focus();
     });
   }
 
   return (
     <main
-      className={`archive-workspace motion-level-${motionLevel}${
-        reading ? " is-reading" : ""
-      }`}
+      className={`archive-workspace motion-level-${motionLevel}`}
       style={
         {
           "--output-fade-ms": `${motionSpec.outputFadeMs}ms`,
@@ -59,8 +58,7 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
       }
     >
       <div className="archive-workspace__stage">
-        {reading ? <ReadingPanel surface={reading} onClose={closeReading} /> : null}
-
+        {/* 终端在上、阅读在下：终端尺寸不随 open 收缩，避免 FitAddon 常数补丁 */}
         <section className="terminal-shell">
           <header className="flex h-14 shrink-0 items-center justify-between border-b border-[color:var(--terminal-border)] px-4 md:px-5">
             <div>
@@ -137,6 +135,8 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
             ) : null}
           </div>
         </section>
+
+        {reading ? <ReadingPanel surface={reading} onClose={closeReading} /> : null}
       </div>
     </main>
   );

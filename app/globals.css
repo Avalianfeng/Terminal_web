@@ -188,32 +188,19 @@ textarea {
   gap: 1.25rem;
 }
 
-/* 阅读面板打开时：舞台限制在视口内，终端可收缩，避免末行被裁切且滚不到 */
-.archive-workspace.is-reading .archive-workspace__stage {
-  min-height: calc(100dvh - 2 * clamp(1rem, 3vw, 2rem));
-}
-
-.archive-workspace.is-reading .terminal-shell {
-  flex: 1 1 auto;
-  height: auto;
-  min-height: 240px;
-  max-height: min(52dvh, 560px);
-}
-
-/* —— C. 阅读面板（floating）—— */
+/* —— C. 阅读面板（终端下方文档流；高度随内容，页面滚动，不抢终端）—— */
 .reading-panel {
   position: relative;
   z-index: 2;
   display: flex;
-  max-height: min(52dvh, 520px);
   flex-direction: column;
-  overflow: hidden;
   border: 1px solid var(--reading-border);
   border-radius: 4px;
   background: var(--archive-paper);
   color: var(--archive-paper-ink);
   box-shadow: var(--reading-shadow);
   animation: reading-panel-in var(--panel-fade-ms, 420ms) cubic-bezier(0.16, 1, 0.3, 1) both;
+  scroll-margin-block: 1.25rem;
 }
 
 .reading-panel__chrome {
@@ -273,7 +260,6 @@ textarea {
 }
 
 .reading-panel__body {
-  overflow-y: auto;
   padding: clamp(1rem, 2.5vw, 1.5rem);
 }
 
@@ -282,8 +268,9 @@ textarea {
   position: relative;
   z-index: 1;
   display: flex;
+  /* 稳定视口占比；min 用 dvh 上限，避免小屏被 480px 常数撑爆 */
   height: min(72dvh, 720px);
-  min-height: 480px;
+  min-height: min(480px, 58dvh);
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--terminal-border);
@@ -387,7 +374,7 @@ textarea {
 @keyframes reading-panel-in {
   from {
     opacity: 0;
-    transform: translateY(-10px);
+    transform: translateY(12px);
   }
 
   to {
@@ -422,9 +409,5 @@ textarea {
 @media (min-width: 960px) {
   .archive-workspace__stage {
     gap: 1.5rem;
-  }
-
-  .reading-panel {
-    max-height: min(46dvh, 480px);
   }
 }
