@@ -2,9 +2,11 @@ import type { TerminalEntry, TerminalLine, TerminalToken, TerminalTone } from ".
 
 const RESET = "\x1b[0m";
 
-/** 档位 1：有限真彩，对齐现有 tone，不做 256 色展台。 */
-const TONE_ANSI: Record<TerminalTone, string> = {
+/** SSR / 无 DOM 时的冷灰默认真彩。 */
+const TONE_ANSI_FALLBACK: Record<TerminalTone, string> = {
   prompt: "\x1b[38;2;146;173;199m",
+  user: "\x1b[38;2;126;214;178m",
+  host: "\x1b[38;2;168;196;222m",
   command: "\x1b[38;2;206;225;247m",
   normal: "\x1b[38;2;219;227;235m",
   hint: "\x1b[38;2;150;166;181m",
@@ -14,13 +16,28 @@ const TONE_ANSI: Record<TerminalTone, string> = {
   muted: "\x1b[38;2;120;131;144m",
 };
 
+function toneAnsi(tone: TerminalTone) {
+  if (typeof document !== "undefined") {
+    const raw = getComputedStyle(document.documentElement)
+      .getPropertyValue(`--tone-${tone}`)
+      .trim();
+    if (raw) {
+      const [r, g, b] = raw.split(/\s+/).map(Number);
+      if ([r, g, b].every((n) => Number.isFinite(n))) {
+        return `\x1b[38;2;${r};${g};${b}m`;
+      }
+    }
+  }
+  return TONE_ANSI_FALLBACK[tone];
+}
+
 function escapeForTerminal(text: string) {
   return text.replace(/\r/g, "");
 }
 
 export function tokenToAnsi(token: TerminalToken) {
   const tone = token.tone ?? "normal";
-  return `${TONE_ANSI[tone]}${escapeForTerminal(token.text)}${RESET}`;
+  return `${toneAnsi(tone)}${escapeForTerminal(token.text)}${RESET}`;
 }
 
 export function lineToAnsi(line: TerminalLine) {

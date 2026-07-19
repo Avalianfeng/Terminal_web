@@ -7,10 +7,11 @@ import {
   useRef,
 } from "react";
 import type { CompleteResult } from "@/lib/archive/complete";
-import { entryToAnsiLines } from "@/lib/archive/ansi";
+import { entryToAnsiLines, lineToAnsi } from "@/lib/archive/ansi";
 import { zhCN } from "@/lib/archive/i18n";
 import { readXtermThemeFromCss } from "@/lib/archive/palette";
-import type { TerminalEntry } from "@/lib/archive/types";
+import { formatInputTokens } from "@/lib/archive/shell-style";
+import type { TerminalEntry, TerminalToken } from "@/lib/archive/types";
 
 export type ArchiveXtermHandle = {
   /** preventScroll：避免 focus 抢滚动，交给外层 scrollIntoView 编排 */
@@ -24,7 +25,8 @@ export type ArchiveXtermHandle = {
 type ArchiveXtermProps = {
   bootEntries: TerminalEntry[];
   lineDelayMs: number;
-  getPrompt: () => string;
+  /** 分段着色的 prompt token（不含尾随空格与输入缓冲）。 */
+  getPromptTokens: () => TerminalToken[];
   getComplete: (input: string, cycle: number | null) => CompleteResult;
   onCommand: (command: string) => {
     entries: TerminalEntry[];
@@ -44,7 +46,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
     {
       bootEntries,
       lineDelayMs,
-      getPrompt,
+      getPromptTokens,
       getComplete,
       onCommand,
       onCandidatesChange,
@@ -66,7 +68,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
     bootRef.current = bootEntries;
 
     const callbacksRef = useRef({
-      getPrompt,
+      getPromptTokens,
       getComplete,
       onCommand,
       onCandidatesChange,
@@ -74,7 +76,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       lineDelayMs,
     });
     callbacksRef.current = {
-      getPrompt,
+      getPromptTokens,
       getComplete,
       onCommand,
       onCandidatesChange,
@@ -112,8 +114,15 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
     function paintPromptLine() {
       const term = termRef.current;
       if (!term) return;
-      const prompt = callbacksRef.current.getPrompt();
-      term.write(`\r\x1b[2K${prompt} ${bufferRef.current}`);
+      const promptTokens = callbacksRef.current.getPromptTokens();
+      const painted = lineToAnsi({
+        tokens: [
+          ...promptTokens,
+          { text: " ", tone: "muted" },
+          ...formatInputTokens(bufferRef.current),
+        ],
+      });
+      term.write(`\r\x1b[2K${painted}`);
     }
 
     function setCandidates(next: string[]) {
@@ -128,7 +137,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
 
     function applyTab() {
       const input = bufferRef.current;
-      let cycle = completeCycleRef.current;
+      const cycle = completeCycleRef.current;
       let result = callbacksRef.current.getComplete(input, cycle);
 
       if (!result.applied && result.candidates.length > 1) {

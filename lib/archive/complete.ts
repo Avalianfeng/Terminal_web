@@ -1,6 +1,6 @@
 import type { ArchiveSnapshot } from "./types";
 import { resolveAlias } from "./aliases";
-import { createVfs, listNode, resolveVfsPath } from "./vfs";
+import { createVfs, listNode, resolveVfsPath, type VfsNode } from "./vfs";
 
 /** 主命令名（不含 alias）；与 help 对齐。 */
 export const PRIMARY_COMMANDS = [
@@ -25,8 +25,6 @@ export const PRIMARY_COMMANDS = [
 const ALIAS_COMMANDS = ["?", "cls", "dir", "ll"] as const;
 
 const PATH_ARG_COMMANDS = new Set(["cd", "ls", "cat", "tree", "open"]);
-const DIR_ONLY_COMMANDS = new Set(["cd"]);
-const OPEN_EXTRA = ["timeline", "person"] as const;
 
 export type CompleteResult = {
   /** 补全后的整行输入 */
@@ -36,6 +34,8 @@ export type CompleteResult = {
   /** 是否改写了输入 */
   applied: boolean;
 };
+
+type PathFilter = "all" | "dirs" | "files";
 
 function longestCommonPrefix(values: string[]) {
   if (values.length === 0) return "";
@@ -57,20 +57,32 @@ function filterPrefix(values: readonly string[], prefix: string) {
   return values.filter((value) => value.toLowerCase().startsWith(needle));
 }
 
-function documentSlugs(snapshot: ArchiveSnapshot) {
-  return [...snapshot.projects, ...snapshot.thoughts].map((item) => item.slug);
-}
-
 function joinCompletion(parentPrefix: string, name: string, isDir: boolean) {
   const joined = parentPrefix ? `${parentPrefix}${name}` : name;
   return isDir ? `${joined}/` : joined;
 }
 
+function isDirNode(node: VfsNode) {
+  return node.type === "dir";
+}
+
+function matchesFilter(node: VfsNode, filter: PathFilter) {
+  if (filter === "dirs") return isDirNode(node);
+  if (filter === "files") return !isDirNode(node);
+  return true;
+}
+
+/**
+ * 路径补全。
+ * - dirs：仅目录（cd）
+ * - files：仅文件；目录带 `/` 仅作下钻前缀（cat）
+ * - all：目录 + 文件（ls / tree / open）
+ */
 function pathCandidates(
   snapshot: ArchiveSnapshot,
   cwd: string,
   partial: string,
-  dirsOnly: boolean,
+  filter: PathFilter,
 ) {
   const root = createVfs(snapshot);
   const slash = partial.lastIndexOf("/");
@@ -87,23 +99,61 @@ function pathCandidates(
   const parent = resolveVfsPath(root, cwd, parentPath);
   if (!parent || parent.type !== "dir") return [];
 
+  const needle = namePrefix.toLowerCase();
+
   return listNode(parent)
-    .filter((child) => (dirsOnly ? child.type === "dir" : true))
-    .filter((child) => child.name.toLowerCase().startsWith(namePrefix.toLowerCase()))
+    .filter((child) => child.name.toLowerCase().startsWith(needle))
+    .filter((child) => {
+      // cat：文件可选；目录仅作带 / 的下钻前缀
+      if (filter === "files") return true;
+      return matchesFilter(child, filter);
+    })
     .map((child) =>
-      joinCompletion(parentPrefix, child.name, child.type === "dir"),
+      joinCompletion(
+        parentPrefix,
+        child.name,
+        filter === "dirs" ? true : isDirNode(child),
+      ),
     );
 }
 
+/** cat：唯一目录时自动下钻，直到文件或分叉。 */
+function catCandidates(snapshot: ArchiveSnapshot, cwd: string, partial: string) {
+  let current = partial;
+  let guard = 0;
+
+  while (guard < 8) {
+    guard += 1;
+    const candidates = uniqueSorted(
+      pathCandidates(snapshot, cwd, current, "files"),
+    );
+
+    if (candidates.length === 1 && candidates[0]!.endsWith("/")) {
+      current = candidates[0]!;
+      continue;
+    }
+
+    // 已在目录尾 `foo/` 且只有文件：直接返回文件路径
+    if (current.endsWith("/") && candidates.length > 0) {
+      return candidates;
+    }
+
+    return candidates;
+  }
+
+  return uniqueSorted(pathCandidates(snapshot, cwd, current, "files"));
+}
+
 function openCandidates(snapshot: ArchiveSnapshot, cwd: string, partial: string) {
-  const fromPath = pathCandidates(snapshot, cwd, partial, false);
+  const fromPath = pathCandidates(snapshot, cwd, partial, "all");
 
   if (partial.includes("/")) {
     return uniqueSorted(fromPath);
   }
 
-  const fromSlug = filterPrefix([...OPEN_EXTRA, ...documentSlugs(snapshot)], partial);
-  return uniqueSorted([...fromPath, ...fromSlug]);
+  // Tab 只推当前目录；跨目录仍可手打
+  const localExtras = filterPrefix(["*", "."], partial);
+  return uniqueSorted([...fromPath, ...localExtras]);
 }
 
 function argumentCandidates(
@@ -114,17 +164,20 @@ function argumentCandidates(
 ) {
   const resolved = resolveAlias(command.toLowerCase());
 
-  if (resolved === "open" || resolved === "cat") {
+  if (resolved === "cat") {
+    return catCandidates(snapshot, cwd, partial);
+  }
+
+  if (resolved === "open") {
     return openCandidates(snapshot, cwd, partial);
   }
 
+  if (resolved === "cd") {
+    return uniqueSorted(pathCandidates(snapshot, cwd, partial, "dirs"));
+  }
+
   if (PATH_ARG_COMMANDS.has(resolved)) {
-    return pathCandidates(
-      snapshot,
-      cwd,
-      partial,
-      DIR_ONLY_COMMANDS.has(resolved),
-    );
+    return uniqueSorted(pathCandidates(snapshot, cwd, partial, "all"));
   }
 
   return [];
@@ -187,12 +240,10 @@ function parseInput(raw: string): ParsedInput {
 }
 
 /**
- * Tab 补全：命令名 / 路径 / open|cat 的 slug。
- *
- * 使用时你会碰到：
- * - prefix match：按前缀筛候选
- * - longest common prefix：多候选先补公共前缀
- * - cycle：公共前缀已满时，再按 Tab 轮换完整候选
+ * Tab 补全：命令名 / 路径。
+ * - cd → 仅目录
+ * - cat → 仅文件（唯一目录自动下钻）
+ * - open / ls / tree → 目录 + 文件
  */
 export function completeInput(
   rawInput: string,

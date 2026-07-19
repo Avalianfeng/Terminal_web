@@ -37,6 +37,8 @@ export type ArchiveSnapshot = {
 
 export type TerminalTone =
   | "prompt"
+  | "user"
+  | "host"
   | "command"
   | "normal"
   | "hint"
@@ -66,16 +68,16 @@ export type TerminalEntry = {
   lines: TerminalLine[];
 };
 
-  /** 阅读表面内容。Phase 2：main 主槽 + rail 侧栏。 */
-  export type ReadingSurface =
-    | {
-        kind: "document";
-        document: ArchiveDocument;
-      }
-    | {
-        kind: "timeline";
-        entries: TimelineEntry[];
-      };
+/** 阅读表面内容。main 主槽 + rail 侧栏。 */
+export type ReadingSurface =
+  | {
+      kind: "document";
+      document: ArchiveDocument;
+    }
+  | {
+      kind: "timeline";
+      entries: TimelineEntry[];
+    };
 
-  /** main=主槽文档流；rail=已打开侧栏。 */
-  export type ReadingLayout = "main" | "rail";
+/** main=主槽文档流；rail=已打开侧栏。 */
+export type ReadingLayout = "main" | "rail";

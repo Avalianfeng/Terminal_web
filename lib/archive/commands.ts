@@ -9,28 +9,35 @@ import type {
 } from "./types";
 import { zhCN } from "./i18n";
 import { resolveAlias } from "./aliases";
+import { RAIL_MAX } from "./reading-state";
+import { formatInputTokens } from "./shell-style";
 import {
   createSession,
   createVfs,
-  formatShellPrompt,
+  formatShellPromptTokens,
   listNode,
   resolveVfsPath,
+  suggestVfsPaths,
   treeLines,
+  type VfsNode,
 } from "./vfs";
+
+/** 单篇或批量打开；数组时最后一项进 main（见 docs/05）。 */
+type ReadingPayload = ReadingSurface | ReadingSurface[];
 
 type CommandResult = {
   entries: TerminalEntry[];
   clear?: boolean;
   session: TerminalSession;
   /** 打开外区阅读面板；与终端输出分离（Spatial separation）。 */
-  reading?: ReadingSurface | null;
+  reading?: ReadingPayload | null;
 };
 
 type LinuxHandlerResult = {
   entries: TerminalEntry[];
   session: TerminalSession;
   handled: boolean;
-  reading?: ReadingSurface | null;
+  reading?: ReadingPayload | null;
 };
 
 function id(prefix: string) {
@@ -152,16 +159,136 @@ function toDocumentEntry(snapshot: ArchiveSnapshot, nodePath: string) {
   return null;
 }
 
+function surfaceFromNode(
+  snapshot: ArchiveSnapshot,
+  node: VfsNode,
+): ReadingSurface | null {
+  if (node.type === "timeline") {
+    return { kind: "timeline", entries: snapshot.timeline };
+  }
+  if (node.type === "project" || node.type === "thought") {
+    const document = toDocumentEntry(snapshot, node.path);
+    return document ? { kind: "document", document } : null;
+  }
+  return null;
+}
+
+/** 目录下可进阅读面板的节点（不含 person；不含嵌套子目录）。 */
+function openableInDir(
+  snapshot: ArchiveSnapshot,
+  dir: VfsNode,
+): ReadingSurface[] {
+  if (dir.type !== "dir") {
+    const alone = surfaceFromNode(snapshot, dir);
+    return alone ? [alone] : [];
+  }
+  return listNode(dir)
+    .map((child) => surfaceFromNode(snapshot, child))
+    .filter((surface): surface is ReadingSurface => surface !== null);
+}
+
+/**
+ * 解析单个 open 参数。
+ * - `.` / `*` → 当前目录批量
+ * - 目录路径 → 该目录批量
+ * - 文件 / timeline / slug → 单篇
+ * - person → 终端摘要（不进面板），用特殊标记
+ */
+type OpenResolve =
+  | { kind: "surfaces"; surfaces: ReadingSurface[]; batch: boolean }
+  | { kind: "person" }
+  | { kind: "empty-dir"; path: string }
+  | { kind: "missing"; token: string }
+  | { kind: "unreadable"; token: string };
+
+function resolveOpenToken(
+  snapshot: ArchiveSnapshot,
+  cwd: string,
+  rawToken: string,
+): OpenResolve {
+  const token = rawToken.trim();
+  if (!token) return { kind: "missing", token: rawToken };
+
+  const root = createVfs(snapshot);
+  const lower = normalize(token);
+
+  if (lower === "person") {
+    return { kind: "person" };
+  }
+  if (lower === "timeline") {
+    return {
+      kind: "surfaces",
+      surfaces: [{ kind: "timeline", entries: snapshot.timeline }],
+      batch: false,
+    };
+  }
+
+  const isGlob = token === "*" || token === ".";
+  const node = isGlob
+    ? resolveVfsPath(root, cwd, ".")
+    : resolveVfsPath(root, cwd, token);
+
+  if (node) {
+    if (node.type === "person") {
+      return { kind: "person" };
+    }
+    if (node.type === "dir" || isGlob) {
+      const surfaces = openableInDir(snapshot, node);
+      if (surfaces.length === 0) {
+        return { kind: "empty-dir", path: node.path };
+      }
+      return { kind: "surfaces", surfaces, batch: true };
+    }
+    const surface = surfaceFromNode(snapshot, node);
+    if (surface) {
+      return { kind: "surfaces", surfaces: [surface], batch: false };
+    }
+    return { kind: "unreadable", token };
+  }
+
+  const document = findDocument(snapshot, token);
+  if (document) {
+    return {
+      kind: "surfaces",
+      surfaces: [{ kind: "document", document }],
+      batch: false,
+    };
+  }
+
+  return { kind: "missing", token };
+}
+
+const OPEN_SLOT_MAX = RAIL_MAX + 1;
+
+function capSurfaces(surfaces: ReadingSurface[]) {
+  if (surfaces.length <= OPEN_SLOT_MAX) {
+    return { surfaces, truncated: 0 };
+  }
+  return {
+    surfaces: surfaces.slice(0, OPEN_SLOT_MAX),
+    truncated: surfaces.length - OPEN_SLOT_MAX,
+  };
+}
+
+/** 目录批量：首项 main → 传入 openReadingMany 时把首项放到最后。 */
+function orderForBatchMainFirst(surfaces: ReadingSurface[]) {
+  if (surfaces.length <= 1) return surfaces;
+  return [...surfaces.slice(1), surfaces[0]!];
+}
+
 function echoCommand(command: string, cwd: string): TerminalEntry {
   return {
     id: id("command"),
     kind: "command",
-    lines: lines(
-      [
-        token(`${formatShellPrompt(cwd)} `, "prompt"),
-        token(command, "command"),
-      ],
-    ),
+    lines: [
+      {
+        tokens: [
+          ...formatShellPromptTokens(cwd),
+          token(" ", "muted"),
+          ...formatInputTokens(command),
+        ],
+      },
+    ],
   };
 }
 
@@ -175,6 +302,25 @@ function systemError(message: string, hint?: string) {
   const rows = [line([token(message, "error")])];
   if (hint) rows.push(line([token(hint, "hint")]));
   return lineEntry(rows);
+}
+
+function pathMissingError(
+  root: VfsNode,
+  cwd: string,
+  target: string,
+  extraHint?: string,
+) {
+  const suggestions = suggestVfsPaths(root, cwd, target);
+  const hintParts = [
+    suggestions.length > 0
+      ? `${zhCN.errors.didYouMean} ${suggestions.join(", ")}`
+      : undefined,
+    extraHint,
+  ].filter(Boolean);
+  return systemError(
+    `${zhCN.errors.invalidPath}: ${target}`,
+    hintParts.length > 0 ? hintParts.join(" · ") : undefined,
+  );
 }
 
 function handleLinuxCommand(
@@ -207,19 +353,27 @@ function handleLinuxCommand(
     const node = resolveVfsPath(root, session.cwd, target);
     if (!node) {
       return {
-        entries: [systemError(`${zhCN.errors.invalidPath}: ${target}`)],
+        entries: [pathMissingError(root, session.cwd, target)],
         session,
         handled: true,
       };
     }
 
     if (node.type === "dir") {
-      const entries = listNode(node).map((child) =>
-        line([
-          token(child.name, child.type === "dir" ? "path" : "normal"),
+      const entries = listNode(node).map((child) => {
+        const nameTone =
+          child.type === "dir"
+            ? "path"
+            : child.type === "timeline"
+              ? "success"
+              : child.type === "person"
+                ? "user"
+                : "command";
+        return line([
+          token(child.name, nameTone),
           token(child.type === "dir" ? "/" : "", "muted"),
-        ]),
-      );
+        ]);
+      });
       return {
         entries: [lineEntry(entries.length > 0 ? entries : lines([token("(empty)", "muted")]))],
         session,
@@ -239,7 +393,7 @@ function handleLinuxCommand(
     const node = resolveVfsPath(root, session.cwd, target);
     if (!node) {
       return {
-        entries: [systemError(`${zhCN.errors.invalidPath}: ${target}`)],
+        entries: [pathMissingError(root, session.cwd, target)],
         session,
         handled: true,
       };
@@ -263,7 +417,7 @@ function handleLinuxCommand(
     const node = resolveVfsPath(root, session.cwd, target);
     if (!node) {
       return {
-        entries: [systemError(`${zhCN.errors.invalidPath}: ${target}`)],
+        entries: [pathMissingError(root, session.cwd, target)],
         session,
         handled: true,
       };
@@ -285,9 +439,34 @@ function handleLinuxCommand(
       };
     }
     const node = resolveVfsPath(root, session.cwd, target);
+
+    const openDocument = (document: ArchiveDocument, selectedPath?: string) => ({
+      entries: [
+        lineEntry(
+          lines([
+            token(zhCN.reading.openedPrefix, "hint"),
+            token(document.title, "path"),
+          ]),
+        ),
+      ],
+      session: {
+        ...session,
+        selectedPath: selectedPath ?? document.path,
+      },
+      handled: true as const,
+      reading: { kind: "document" as const, document },
+    });
+
     if (!node) {
       return {
-        entries: [systemError(`${zhCN.errors.invalidPath}: ${target}`)],
+        entries: [pathMissingError(root, session.cwd, target)],
+        session,
+        handled: true,
+      };
+    }
+    if (node.type === "dir") {
+      return {
+        entries: [systemError(zhCN.errors.isDirectory)],
         session,
         handled: true,
       };
@@ -327,19 +506,7 @@ function handleLinuxCommand(
       };
     }
 
-    return {
-      entries: [
-        lineEntry(
-          lines([
-            token(zhCN.reading.openedPrefix, "hint"),
-            token(document.title, "path"),
-          ]),
-        ),
-      ],
-      session: { ...session, selectedPath: node.path },
-      handled: true,
-      reading: { kind: "document", document },
-    };
+    return openDocument(document, node.path);
   }
 
   if (command === "whoami") {
@@ -517,96 +684,168 @@ export function runCommand(
         };
       }
 
-      const root = createVfs(snapshot);
-      const byVfsPath = resolveVfsPath(root, nextSession.cwd, rest);
-      const targetName = normalize(rest);
+      const tokens = args.length > 0 ? args : rest.split(/\s+/).filter(Boolean);
+      const collected: ReadingSurface[] = [];
+      const notes: TerminalLine[] = [];
+      let sawPerson = false;
+      let dirBatchAlone = false;
+      const multiExplicit = tokens.length > 1;
 
-      if (
-        byVfsPath?.type === "timeline" ||
-        targetName === "timeline"
-      ) {
+      for (const raw of tokens) {
+        const resolved = resolveOpenToken(snapshot, nextSession.cwd, raw);
+
+        if (resolved.kind === "person") {
+          sawPerson = true;
+          continue;
+        }
+        if (resolved.kind === "empty-dir") {
+          notes.push(
+            line([
+              token(`${zhCN.errors.emptyDir}: `, "error"),
+              token(resolved.path, "path"),
+            ]),
+          );
+          continue;
+        }
+        if (resolved.kind === "missing" || resolved.kind === "unreadable") {
+          notes.push(
+            line([
+              token(`${zhCN.errors.cannotOpen}: "`, "error"),
+              token(resolved.token, "path"),
+              token(`".`, "error"),
+            ]),
+          );
+          if (resolved.kind === "missing") {
+            const suggestions = suggestVfsPaths(
+              createVfs(snapshot),
+              nextSession.cwd,
+              resolved.token,
+            );
+            if (suggestions.length > 0) {
+              notes.push(
+                line([
+                  token(
+                    `${zhCN.errors.didYouMean} ${suggestions.join(", ")}`,
+                    "hint",
+                  ),
+                ]),
+              );
+            }
+          }
+          continue;
+        }
+
+        if (resolved.batch && !multiExplicit) {
+          dirBatchAlone = true;
+        }
+        collected.push(...resolved.surfaces);
+      }
+
+      if (sawPerson) {
+        notes.push(
+          line([token(`${zhCN.about.name} `, "muted"), token(snapshot.person.name)]),
+          line([
+            token(`${zhCN.about.description} `, "muted"),
+            token(snapshot.person.description),
+          ]),
+          line([
+            token(`${zhCN.about.focus} `, "muted"),
+            token(snapshot.person.currentFocus),
+          ]),
+        );
+      }
+
+      if (collected.length === 0) {
+        if (sawPerson) {
+          return {
+            entries: [commandEcho, lineEntry(notes)],
+            session: { ...nextSession, selectedPath: "/person" },
+          };
+        }
         return {
           entries: [
             commandEcho,
-            lineEntry(lines([token(zhCN.reading.openedTimeline, "hint")])),
+            notes.length > 0
+              ? lineEntry([
+                  ...notes,
+                  line(""),
+                  line([token(openSuggestions(snapshot), "hint")]),
+                ])
+              : systemError(zhCN.errors.usageOpen, openSuggestions(snapshot)),
           ],
-          session: {
-            ...nextSession,
-            selectedPath: "/timeline",
-          },
-          reading: { kind: "timeline", entries: snapshot.timeline },
+          session: nextSession,
         };
       }
 
-      if (byVfsPath?.type === "person" || targetName === "person") {
-        return {
-          entries: [
-            commandEcho,
-            lineEntry(
-              lines(
-                [token(`${zhCN.about.name} `, "muted"), token(snapshot.person.name)],
-                [
-                  token(`${zhCN.about.description} `, "muted"),
-                  token(snapshot.person.description),
-                ],
-                [
-                  token(`${zhCN.about.focus} `, "muted"),
-                  token(snapshot.person.currentFocus),
-                ],
+      // 单目录/通配：首项 → main；多目标：末项 → main
+      const ordered = dirBatchAlone
+        ? orderForBatchMainFirst(collected)
+        : collected;
+      const { surfaces: capped, truncated } = capSurfaces(ordered);
+
+      const summaryLines: TerminalLine[] =
+        capped.length === 1
+          ? [
+              line([
+                token(zhCN.reading.openedPrefix, "hint"),
+                token(
+                  capped[0]!.kind === "document"
+                    ? capped[0]!.document.title
+                    : zhCN.labels.timeline,
+                  "path",
+                ),
+              ]),
+            ]
+          : [
+              line([
+                token(zhCN.reading.openedBatchPrefix, "hint"),
+                token(String(capped.length), "success"),
+                token(zhCN.reading.openedBatchSuffix, "hint"),
+              ]),
+              ...capped.map((surface) =>
+                line([
+                  token("  · ", "muted"),
+                  token(
+                    surface.kind === "document"
+                      ? surface.document.title
+                      : zhCN.labels.timeline,
+                    "path",
+                  ),
+                ]),
               ),
+            ];
+
+      if (truncated > 0) {
+        summaryLines.push(
+          line([
+            token(
+              `${zhCN.reading.openedTruncated} ${truncated}（${zhCN.reading.railCapHint} ${OPEN_SLOT_MAX}）`,
+              "hint",
             ),
-          ],
-          session: {
-            ...nextSession,
-            selectedPath: "/person",
-          },
-        };
+          ]),
+        );
       }
 
-      if (byVfsPath?.type === "dir") {
-        return {
-          entries: [
-            commandEcho,
-            systemError(
-              `${zhCN.errors.cannotOpen}: "${rest}".`,
-              zhCN.errors.isDirectory,
-            ),
-          ],
-          session: nextSession,
-        };
-      }
-
-      const bySlug = findDocument(snapshot, rest);
-      const document =
-        (byVfsPath ? toDocumentEntry(snapshot, byVfsPath.path) : null) ?? bySlug;
-      if (!document) {
-        return {
-          entries: [
-            commandEcho,
-            systemError(
-              `${zhCN.errors.cannotOpen}: "${rest}".`,
-              openSuggestions(snapshot),
-            ),
-          ],
-          session: nextSession,
-        };
-      }
+      const mainSurface = capped[capped.length - 1]!;
+      const selectedPath =
+        mainSurface.kind === "document"
+          ? `/${mainSurface.document.path}`
+          : "/timeline";
 
       return {
         entries: [
           commandEcho,
-          lineEntry(
-            lines([
-              token(zhCN.reading.openedPrefix, "hint"),
-              token(document.title, "path"),
-            ]),
-          ),
+          lineEntry([
+            ...notes,
+            ...(notes.length ? [line("")] : []),
+            ...summaryLines,
+          ]),
         ],
         session: {
           ...nextSession,
-          selectedPath: `/${document.path}`,
+          selectedPath,
         },
-        reading: { kind: "document", document },
+        reading: capped.length === 1 ? capped[0]! : capped,
       };
     }
 

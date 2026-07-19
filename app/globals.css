@@ -32,6 +32,9 @@
 
   --tone-normal: 219 227 235;
   --tone-prompt: 146 173 199;
+  /* user@host：传统 PS1 亮绿；host 变量保留备用 */
+  --tone-user: 85 230 140;
+  --tone-host: 85 230 140;
   --tone-command: 206 225 247;
   --tone-hint: 150 166 181;
   --tone-error: 244 139 139;
@@ -70,6 +73,8 @@
 
   --tone-normal: 230 222 210;
   --tone-prompt: 196 158 110;
+  --tone-user: 168 210 140;
+  --tone-host: 214 178 126;
   --tone-command: 235 220 195;
   --tone-hint: 165 148 128;
   --tone-error: 235 140 120;
@@ -108,6 +113,8 @@
 
   --tone-normal: 235 235 235;
   --tone-prompt: 100 200 150;
+  --tone-user: 140 240 180;
+  --tone-host: 120 210 170;
   --tone-command: 220 245 230;
   --tone-hint: 150 150 150;
   --tone-error: 255 120 120;
@@ -563,6 +570,14 @@ textarea {
 
 .terminal-tone-prompt {
   color: rgb(var(--tone-prompt));
+}
+
+.terminal-tone-user {
+  color: rgb(var(--tone-user));
+}
+
+.terminal-tone-host {
+  color: rgb(var(--tone-host));
 }
 
 .terminal-tone-command {

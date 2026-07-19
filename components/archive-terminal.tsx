@@ -24,10 +24,11 @@ import {
   closeRailItem,
   emptyReadingState,
   openReading,
+  openReadingMany,
   readingSurfaceKey,
   type ReadingState,
 } from "@/lib/archive/reading-state";
-import { createSession, formatShellPrompt } from "@/lib/archive/vfs";
+import { createSession, formatShellPromptTokens } from "@/lib/archive/vfs";
 import type {
   ArchiveSnapshot,
   ReadingSurface,
@@ -133,18 +134,26 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
   }
 
   /** Phase 2b：有旧主槽且换文时，幽灵 demote + 新主槽 Phase 1 进场并行 */
-  function swapReading(next: ReadingSurface) {
+  function swapReading(surfaces: ReadingSurface[]) {
+    if (surfaces.length === 0) return;
+
     if (leavingRef.current) {
       finishLeave();
     }
 
     const prevMain = readingStateRef.current.main;
+    const opened =
+      surfaces.length === 1
+        ? openReading(readingStateRef.current, surfaces[0]!)
+        : openReadingMany(readingStateRef.current, surfaces);
+
+    const nextMain = opened.main;
     const willDemote =
       Boolean(prevMain) &&
-      readingSurfaceKey(prevMain!) !== readingSurfaceKey(next) &&
+      Boolean(nextMain) &&
+      readingSurfaceKey(prevMain!) !== readingSurfaceKey(nextMain!) &&
       resolveDemoteMs(motionLevel) > 0;
 
-    const opened = openReading(readingStateRef.current, next);
     commitReadingState(opened);
     setLeaving(false);
     leavingRef.current = false;
@@ -158,7 +167,7 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
     }
   }
 
-  function applyReading(next: ReadingSurface | null) {
+  function applyReading(next: ReadingSurface | ReadingSurface[] | null) {
     if (next === null) {
       setDemoting(null);
       // clear：立刻清空 rail，主槽走退场
@@ -175,12 +184,12 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
       return;
     }
 
-    swapReading(next);
+    swapReading(Array.isArray(next) ? next : [next]);
   }
 
   function promoteFromRail(surface: ReadingSurface) {
     if (leavingRef.current) return;
-    swapReading(surface);
+    swapReading([surface]);
   }
 
   function dismissRailItem(key: string) {
@@ -247,7 +256,9 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
               lineDelayMs={
                 motionLevel === 0 ? 0 : motionSpec.lineDelayMs
               }
-              getPrompt={() => formatShellPrompt(sessionRef.current.cwd)}
+              getPromptTokens={() =>
+                formatShellPromptTokens(sessionRef.current.cwd)
+              }
               getComplete={(input, cycle) =>
                 completeInput(input, snapshot, sessionRef.current.cwd, cycle)
               }

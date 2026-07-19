@@ -39,7 +39,7 @@ function pushRail(rail: ReadingSurface[], item: ReadingSurface): ReadingSurface[
   return [item, ...filtered].slice(0, RAIL_MAX);
 }
 
-/** 打开 / 换文 / 从 rail 提升（命令层仍只给一篇） */
+/** 打开 / 换文 / 从 rail 提升 */
 export function openReading(
   state: ReadingState,
   next: ReadingSurface,
@@ -63,6 +63,48 @@ export function openReading(
     main: next,
     rail: pushRail(withoutNext, state.main),
   };
+}
+
+/**
+ * 批量打开：`surfaces` 最后一项进 main，其余进 rail（去重保留最后一次）。
+ * 调用方约定：多目标 open a b c → 按参数序；目录批量 → 把拟 main 放最后，或先排好再传入。
+ */
+export function openReadingMany(
+  state: ReadingState,
+  surfaces: ReadingSurface[],
+): ReadingState {
+  if (surfaces.length === 0) return state;
+  if (surfaces.length === 1) {
+    return openReading(state, surfaces[0]!);
+  }
+
+  const ordered: ReadingSurface[] = [];
+  const seen = new Set<string>();
+  for (let index = surfaces.length - 1; index >= 0; index -= 1) {
+    const surface = surfaces[index]!;
+    const key = readingSurfaceKey(surface);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    ordered.unshift(surface);
+  }
+
+  const main = ordered[ordered.length - 1]!;
+  const batchRail = ordered.slice(0, -1);
+  const mainKey = readingSurfaceKey(main);
+
+  let rail = state.rail.filter((entry) => !seen.has(readingSurfaceKey(entry)));
+  if (state.main) {
+    const prevKey = readingSurfaceKey(state.main);
+    if (prevKey !== mainKey && !seen.has(prevKey)) {
+      rail = pushRail(rail, state.main);
+    }
+  }
+
+  for (const item of batchRail) {
+    rail = pushRail(rail, item);
+  }
+
+  return { main, rail: rail.slice(0, RAIL_MAX) };
 }
 
 /** 关闭主槽：有 rail 则晋升首位，否则清空 */
