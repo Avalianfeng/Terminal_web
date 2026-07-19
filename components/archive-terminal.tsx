@@ -4,10 +4,27 @@ import Link from "next/link";
 import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { ArchiveXterm, type ArchiveXtermHandle } from "@/components/archive-xterm";
 import { ReadingPanel } from "@/components/reading-panel";
+import { ReadingRail } from "@/components/reading-rail";
 import { completeInput } from "@/lib/archive/complete";
 import { initialEntries, runCommand } from "@/lib/archive/commands";
 import { zhCN } from "@/lib/archive/i18n";
-import { motionSpec, resolveMotionLevel } from "@/lib/archive/motion-spec";
+import {
+  motionSpec,
+  resolveMotionLevel,
+  resolvePanelEnterMs,
+  resolvePanelLeaveMs,
+  resolveScrollBehavior,
+  type MotionLevel,
+} from "@/lib/archive/motion-spec";
+import {
+  clearReadingState,
+  closeMain,
+  closeRailItem,
+  emptyReadingState,
+  openReading,
+  readingSurfaceKey,
+  type ReadingState,
+} from "@/lib/archive/reading-state";
 import { createSession, formatShellPrompt } from "@/lib/archive/vfs";
 import type {
   ArchiveSnapshot,
@@ -19,31 +36,141 @@ type ArchiveTerminalProps = {
   snapshot: ArchiveSnapshot;
 };
 
+type LeaveIntent = "close" | "clear" | null;
+
 export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
-  const motionLevel = resolveMotionLevel();
+  const [motionLevel, setMotionLevel] = useState<MotionLevel>(1);
   const bootEntries = useMemo(() => initialEntries(snapshot), [snapshot]);
 
   const [session, setSession] = useState<TerminalSession>(() => createSession());
-  const [reading, setReading] = useState<ReadingSurface | null>(null);
+  const [readingState, setReadingState] = useState<ReadingState>(emptyReadingState);
+  const [leaving, setLeaving] = useState(false);
   const [completeCandidates, setCompleteCandidates] = useState<string[]>([]);
   const xtermRef = useRef<ArchiveXtermHandle>(null);
+  const terminalShellRef = useRef<HTMLElement>(null);
   const sessionRef = useRef(session);
-  const readingRef = useRef(reading);
+  const readingStateRef = useRef(readingState);
+  const leavingRef = useRef(leaving);
+  const leaveFinishedRef = useRef(false);
+  const leaveIntentRef = useRef<LeaveIntent>(null);
   sessionRef.current = session;
-  readingRef.current = reading;
+  readingStateRef.current = readingState;
+  leavingRef.current = leaving;
 
-  // 候选条改变终端内容区高度时，交给 xterm 宿主 ResizeObserver 自行 fit
+  useEffect(() => {
+    setMotionLevel(resolveMotionLevel());
+  }, []);
+
   useEffect(() => {
     if (completeCandidates.length === 0) return;
     xtermRef.current?.relayout();
   }, [completeCandidates.length]);
 
-  function closeReading() {
-    setReading(null);
-    requestAnimationFrame(() => {
-      xtermRef.current?.focus();
+  function revealTerminal() {
+    terminalShellRef.current?.scrollIntoView({
+      behavior: resolveScrollBehavior(motionLevel),
+      block: "start",
+      inline: "nearest",
     });
+    xtermRef.current?.focus({ preventScroll: true });
   }
+
+  function commitReadingState(next: ReadingState) {
+    readingStateRef.current = next;
+    setReadingState(next);
+  }
+
+  function finishLeave() {
+    if (leaveFinishedRef.current) return;
+    leaveFinishedRef.current = true;
+    setLeaving(false);
+    leavingRef.current = false;
+
+    const intent = leaveIntentRef.current;
+    leaveIntentRef.current = null;
+
+    if (intent === "clear") {
+      commitReadingState(clearReadingState());
+      xtermRef.current?.focus({ preventScroll: true });
+      return;
+    }
+
+    // close main：有 rail 则晋升，否则清空并回终端
+    const next = closeMain(readingStateRef.current);
+    commitReadingState(next);
+    if (!next.main) {
+      xtermRef.current?.focus({ preventScroll: true });
+    }
+  }
+
+  function beginLeaveMain(intent: Exclude<LeaveIntent, null>) {
+    if (!readingStateRef.current.main || leavingRef.current) return;
+    leaveFinishedRef.current = false;
+    leaveIntentRef.current = intent;
+
+    const willPromote =
+      intent === "close" && readingStateRef.current.rail.length > 0;
+
+    if (resolvePanelLeaveMs(motionLevel) <= 0) {
+      if (!willPromote) revealTerminal();
+      finishLeave();
+      return;
+    }
+
+    setLeaving(true);
+    leavingRef.current = true;
+    if (!willPromote) {
+      revealTerminal();
+    }
+  }
+
+  function closeReading() {
+    beginLeaveMain("close");
+  }
+
+  function applyReading(next: ReadingSurface | null) {
+    if (next === null) {
+      // clear：立刻清空 rail，主槽走退场
+      commitReadingState({
+        main: readingStateRef.current.main,
+        rail: [],
+      });
+      if (!readingStateRef.current.main) {
+        commitReadingState(clearReadingState());
+        revealTerminal();
+        return;
+      }
+      beginLeaveMain("clear");
+      return;
+    }
+
+    // 打开中若主槽正在退场，先落地退场结果再打开
+    if (leavingRef.current) {
+      finishLeave();
+    }
+
+    const opened = openReading(readingStateRef.current, next);
+    commitReadingState(opened);
+    setLeaving(false);
+    leavingRef.current = false;
+    leaveFinishedRef.current = false;
+    leaveIntentRef.current = null;
+  }
+
+  function promoteFromRail(surface: ReadingSurface) {
+    if (leavingRef.current) return;
+    const opened = openReading(readingStateRef.current, surface);
+    commitReadingState(opened);
+  }
+
+  function dismissRailItem(key: string) {
+    commitReadingState(closeRailItem(readingStateRef.current, key));
+  }
+
+  const panelEnterMs = resolvePanelEnterMs(motionLevel);
+  const panelLeaveMs = resolvePanelLeaveMs(motionLevel);
+  const main = readingState.main;
+  const hasReading = Boolean(main) || readingState.rail.length > 0;
 
   return (
     <main
@@ -53,13 +180,13 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
           "--output-fade-ms": `${motionSpec.outputFadeMs}ms`,
           "--output-distance": `${motionSpec.outputDistancePx}px`,
           "--cursor-blink-ms": `${motionSpec.cursorBlinkMs}ms`,
-          "--panel-fade-ms": `${motionSpec.cardFadeMs}ms`,
+          "--panel-fade-ms": `${panelEnterMs}ms`,
+          "--panel-leave-ms": `${panelLeaveMs}ms`,
         } as CSSProperties
       }
     >
       <div className="archive-workspace__stage">
-        {/* 终端在上、阅读在下：终端尺寸不随 open 收缩，避免 FitAddon 常数补丁 */}
-        <section className="terminal-shell">
+        <section ref={terminalShellRef} className="terminal-shell">
           <header className="flex h-14 shrink-0 items-center justify-between border-b border-[color:var(--terminal-border)] px-4 md:px-5">
             <div>
               <p className="text-sm tracking-[-0.02em] text-[rgb(var(--tone-normal))]">
@@ -90,7 +217,9 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
             <ArchiveXterm
               ref={xtermRef}
               bootEntries={bootEntries}
-              lineDelayMs={motionSpec.lineDelayMs}
+              lineDelayMs={
+                motionLevel === 0 ? 0 : motionSpec.lineDelayMs
+              }
               getPrompt={() => formatShellPrompt(sessionRef.current.cwd)}
               getComplete={(input, cycle) =>
                 completeInput(input, snapshot, sessionRef.current.cwd, cycle)
@@ -101,7 +230,7 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
                 setSession(result.session);
 
                 if (result.reading !== undefined) {
-                  setReading(result.reading);
+                  applyReading(result.reading);
                 }
 
                 return {
@@ -111,7 +240,7 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
               }}
               onCandidatesChange={setCompleteCandidates}
               onEscape={() => {
-                if (readingRef.current) {
+                if (readingStateRef.current.main) {
                   closeReading();
                   return true;
                 }
@@ -136,7 +265,26 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
           </div>
         </section>
 
-        {reading ? <ReadingPanel surface={reading} onClose={closeReading} /> : null}
+        {hasReading ? (
+          <div className="reading-row">
+            <div className="reading-row__main">
+              {main ? (
+                <ReadingPanel
+                  key={readingSurfaceKey(main)}
+                  surface={main}
+                  leaving={leaving}
+                  onClose={closeReading}
+                  onLeaveDone={finishLeave}
+                />
+              ) : null}
+            </div>
+            <ReadingRail
+              items={readingState.rail}
+              onPromote={promoteFromRail}
+              onDismiss={dismissRailItem}
+            />
+          </div>
+        ) : null}
       </div>
     </main>
   );

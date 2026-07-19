@@ -1,23 +1,34 @@
 ---
 title: "personal_archive"
-summary: "A knowledge project about how to understand a concrete person through layered records."
-status: "active development"
+summary: "人物档案是载体与验证场：真正在构建的是「如何认识一个具体的人」的分析体系。"
+status: "活跃开发 (WIP)"
 tags: "archive, person, cognition, questions"
 ---
 
 # personal_archive
 
-`personal_archive` is the deeper research layer behind the public website.
+核心目的不是「更好的人格测试」或「更漂亮的档案模板」，而是在现实约束下搭建一套可发展、可接触其他思想传统的认识框架——哲学与心理学是参照而非定论，项目过程本身也在重塑构建者。
 
-Its center is not a test result or a static profile. It asks how a concrete person can be read through records, context, time, and multiple partial perspectives.
+当前目的与分层设计已清晰（宪法 ✅、题库 ✅、阅读契约 ✅），最大断裂点是：认识论正在从「静态档案」转向「时间堆叠 + 对话式发掘」，但批注尚未编译进 design 契约，题库与档案之间仍缺中间层规格。
 
-## Current shape
+认识方向补充：从试图全面，转向尽可能多的片面——用已有解读视角（如萨特、休谟、维特根斯坦、康德等）与社会存在的「片面」归类来描述；全面的片面，是在已知不可能全面之下的最简可行性。
 
-- Person-centered archive design.
-- Question library and intake research.
-- Frame and Moment metadata for understanding context.
-- Movement from one final report toward a layered archive library.
+## 已完成
 
-## Relationship to cylf.me
+- 确立核心认识论：人物档案是载体与验证场；建档优先于测评，解读带署名性、溶解于档案而非独立报告，拒绝把活人标签化
+- 完成认识坐标系与阅读契约分层：维度本体与档案怎么读、每侧面怎么写的职责边界已写清
+- 确立 Frame / Moment 语境层语义：填写动机、诚实度预期、此刻状态等元信息是理解证据的前置条件
+- 问题知识层 V2 全链路落地：1331 题（1297 active）入库，覆盖 12+ 来源；工具链与 Agent 审计视图已可运转
+- 废止旧「intake → 单报告」流水线，转向多文件档案群形态；新增思想入口文档
 
-The website is one display surface of this larger archive idea. The terminal is the first public interface, while the underlying archive can keep growing through Markdown, Git, and future applications.
+## 下一步
+
+1. 消化立意与维度地图中的批注——尤其档案版本堆叠，正式写入 design 契约并走同步检查
+2. 闭合「题库 → 档案」断裂点：定义追问触发、不一致可信度权重、跳过/拒答语义与题库到档案槽位的映射
+3. 提交并同步文档层，刷新项目状态；为关键工具补若干回归用例
+
+## 遗留问题
+
+- 纯文字仓库 + Python 工具链；可执行引擎已移出，引擎闭环尚未实施
+- 立意/维度文档含大量未处理批注，表明认识仍在变动
+- README 与题库统计不同步；金样仅本地

@@ -13,7 +13,8 @@ import { readXtermThemeFromCss } from "@/lib/archive/palette";
 import type { TerminalEntry } from "@/lib/archive/types";
 
 export type ArchiveXtermHandle = {
-  focus: () => void;
+  /** preventScroll：避免 focus 抢滚动，交给外层 scrollIntoView 编排 */
+  focus: (options?: FocusOptions) => void;
   /** cwd 变化后重绘当前输入行 prompt */
   refreshPrompt: () => void;
   /** 外区布局变化（阅读面板开关等）后重新 fit 并滚到输入行 */
@@ -240,7 +241,22 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
     }
 
     useImperativeHandle(ref, () => ({
-      focus: () => termRef.current?.focus(),
+      focus: (options) => {
+        const host = hostRef.current;
+        const helper = host?.querySelector(
+          "textarea.xterm-helper-textarea",
+        ) as HTMLTextAreaElement | null;
+        if (helper) {
+          helper.focus(options);
+          return;
+        }
+        termRef.current?.focus();
+        if (options?.preventScroll) {
+          // xterm.focus 无 preventScroll 时，抵消可能的跳动
+          const y = window.scrollY;
+          requestAnimationFrame(() => window.scrollTo({ top: y }));
+        }
+      },
       refreshPrompt: () => {
         if (readyRef.current) paintPromptLine();
       },

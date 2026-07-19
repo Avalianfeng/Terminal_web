@@ -48,6 +48,9 @@ export const zhCN = {
     openedTimeline: "已在阅读面板打开时间线。",
     typeDocument: "文档",
     typeTimeline: "时间线",
+    railLabel: "已打开",
+    railPromote: "打开为正文",
+    railClose: "从列表移除",
   },
   labels: {
     slug: "slug",
