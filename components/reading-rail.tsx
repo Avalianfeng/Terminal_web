@@ -11,14 +11,21 @@ import type { ReadingSurface } from "@/lib/archive/types";
 
 type ReadingRailProps = {
   items: ReadingSurface[];
+  arrivingKey?: string | null;
   onPromote: (surface: ReadingSurface) => void;
   onDismiss: (key: string) => void;
 };
 
 /**
  * Phase 2a：已打开列表。桌面右侧窄列，窄屏主槽下方横向条。
+ * Phase 2b：`arrivingKey` 对应项短时 scale 进场，承接 demote。
  */
-export function ReadingRail({ items, onPromote, onDismiss }: ReadingRailProps) {
+export function ReadingRail({
+  items,
+  arrivingKey = null,
+  onPromote,
+  onDismiss,
+}: ReadingRailProps) {
   if (items.length === 0) return null;
 
   return (
@@ -34,9 +41,13 @@ export function ReadingRail({ items, onPromote, onDismiss }: ReadingRailProps) {
           const title = surfaceTitle(surface);
           const path = surfacePath(surface);
           const meta = surfaceMetaType(surface);
+          const arriving = arrivingKey === key;
 
           return (
-            <li key={key} className="reading-rail__item">
+            <li
+              key={key}
+              className={`reading-rail__item${arriving ? " is-arriving" : ""}`}
+            >
               <button
                 type="button"
                 className="reading-rail__card"

@@ -194,7 +194,7 @@ textarea {
   }
 }
 
-/* —— C. 阅读区：主槽 + rail（Phase 2a）—— */
+/* —— C. 阅读区：主槽 + rail（Phase 2a/2b）—— */
 .reading-row {
   display: flex;
   flex-direction: column;
@@ -209,8 +209,64 @@ textarea {
 }
 
 .reading-row__main {
+  position: relative;
   min-width: 0;
   flex: 1 1 auto;
+}
+
+/* Phase 2b：旧主槽幽灵 → 向右（桌面）/ 向下（窄屏）缩进 rail */
+.reading-demote-ghost {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 0.35rem;
+  padding: 1rem 1.15rem;
+  overflow: hidden;
+  border: 1px solid var(--reading-border);
+  border-radius: 4px;
+  background: var(--archive-paper);
+  color: var(--archive-paper-ink);
+  box-shadow: var(--reading-shadow);
+  pointer-events: none;
+  transform-origin: top center;
+  animation: reading-demote-down var(--panel-demote-ms, 520ms)
+    cubic-bezier(0.33, 0, 0.2, 1) both;
+
+  @media (min-width: 960px) {
+    transform-origin: top right;
+    animation-name: reading-demote-right;
+  }
+}
+
+.reading-demote-ghost__meta {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--archive-muted);
+}
+
+.reading-demote-ghost__title {
+  margin: 0;
+  font-size: clamp(1.05rem, 2.2vw, 1.4rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.25;
+}
+
+.reading-demote-ghost__path {
+  margin: 0;
+  font-size: 12px;
+  color: var(--archive-muted);
+  font-family: "JetBrains Mono", "IBM Plex Mono", Consolas, monospace;
+}
+
+.motion-level-0 .reading-demote-ghost,
+.motion-level-0 .reading-rail__item.is-arriving {
+  animation: none !important;
 }
 
 /* 窄屏：rail 在主槽下方横向条；≥960px 右侧窄列 */
@@ -261,6 +317,11 @@ textarea {
   @media (min-width: 960px) {
     width: 100%;
   }
+}
+
+.reading-rail__item.is-arriving {
+  animation: reading-rail-arrive var(--panel-demote-ms, 520ms)
+    cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .reading-rail__card {
@@ -357,7 +418,7 @@ textarea {
 
 /* 进场/退场拆开：退场不用「改 animation-name」，避免 fill-mode 结束后不重播 */
 .reading-panel.is-entering {
-  animation: reading-panel-in var(--panel-fade-ms, 560ms) cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: reading-panel-in var(--panel-fade-ms, 720ms) cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .reading-panel.is-leaving {
@@ -484,7 +545,7 @@ textarea {
 }
 
 .terminal-entry {
-  animation: archive-output-in var(--output-fade-ms, 320ms) cubic-bezier(0.16, 1, 0.3, 1)
+  animation: archive-output-in var(--output-fade-ms, 420ms) cubic-bezier(0.16, 1, 0.3, 1)
     both;
 }
 
@@ -565,6 +626,43 @@ textarea {
   }
 }
 
+/* Phase 2b：旧主槽缩向 rail（窄屏向下 / 桌面向右）；非 FLIP */
+@keyframes reading-demote-down {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(0.32) translateY(42%);
+  }
+}
+
+@keyframes reading-demote-right {
+  from {
+    opacity: 1;
+    transform: scale(1) translate(0, 0);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(0.28) translate(36%, 6%);
+  }
+}
+
+@keyframes reading-rail-arrive {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 @keyframes archive-cursor {
   0%,
   45% {
@@ -588,7 +686,9 @@ textarea {
   }
 
   .reading-panel.is-entering,
-  .reading-panel.is-leaving {
+  .reading-panel.is-leaving,
+  .reading-demote-ghost,
+  .reading-rail__item.is-arriving {
     animation: none !important;
     transition: none !important;
     opacity: 1 !important;

@@ -1,13 +1,15 @@
 export const motionSpec = {
-  outputFadeMs: 320,
+  outputFadeMs: 420,
   outputDistancePx: 8,
   /** 阅读面板进场（自顶展开 + 淡入） */
-  cardFadeMs: 560,
+  cardFadeMs: 720,
   /** 阅读面板退场（向上收起 + 淡出） */
-  panelLeaveMs: 360,
+  panelLeaveMs: 480,
+  /** 旧主槽 demote 进 rail（scale + 位移；位移感最强，宜偏慢） */
+  demoteMs: 520,
   cursorBlinkMs: 1120,
   /** 多条输出之间的短间隔，模拟 streaming output 的加载感（非真流式）。 */
-  lineDelayMs: 48,
+  lineDelayMs: 64,
   scrollBehavior: "smooth" as ScrollBehavior,
 };
 
@@ -34,4 +36,8 @@ export function resolvePanelLeaveMs(level: MotionLevel = resolveMotionLevel()): 
 
 export function resolvePanelEnterMs(level: MotionLevel = resolveMotionLevel()): number {
   return level === 0 ? 0 : motionSpec.cardFadeMs;
+}
+
+export function resolveDemoteMs(level: MotionLevel = resolveMotionLevel()): number {
+  return level === 0 ? 0 : motionSpec.demoteMs;
 }

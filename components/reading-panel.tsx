@@ -96,7 +96,7 @@ function TimelineBody({ entries }: { entries: TimelineEntry[] }) {
 
 /**
  * 主阅读槽：文档流在终端下方。
- * Phase 1：擦除/淡入淡出开合；Phase 2 再接右侧 rail（见 docs/04）。
+ * Phase 1：展开/收起开合；换文 demote 见 ReadingDemoteGhost（docs/04 Phase 2b）。
  */
 export function ReadingPanel({
   surface,

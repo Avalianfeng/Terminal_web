@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { ArchiveXterm, type ArchiveXtermHandle } from "@/components/archive-xterm";
+import { ReadingDemoteGhost } from "@/components/reading-demote-ghost";
 import { ReadingPanel } from "@/components/reading-panel";
 import { ReadingRail } from "@/components/reading-rail";
 import { completeInput } from "@/lib/archive/complete";
@@ -10,6 +11,7 @@ import { initialEntries, runCommand } from "@/lib/archive/commands";
 import { zhCN } from "@/lib/archive/i18n";
 import {
   motionSpec,
+  resolveDemoteMs,
   resolveMotionLevel,
   resolvePanelEnterMs,
   resolvePanelLeaveMs,
@@ -45,6 +47,7 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
   const [session, setSession] = useState<TerminalSession>(() => createSession());
   const [readingState, setReadingState] = useState<ReadingState>(emptyReadingState);
   const [leaving, setLeaving] = useState(false);
+  const [demoting, setDemoting] = useState<ReadingSurface | null>(null);
   const [completeCandidates, setCompleteCandidates] = useState<string[]>([]);
   const xtermRef = useRef<ArchiveXtermHandle>(null);
   const terminalShellRef = useRef<HTMLElement>(null);
@@ -125,11 +128,39 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
   }
 
   function closeReading() {
+    setDemoting(null);
     beginLeaveMain("close");
+  }
+
+  /** Phase 2b：有旧主槽且换文时，幽灵 demote + 新主槽 Phase 1 进场并行 */
+  function swapReading(next: ReadingSurface) {
+    if (leavingRef.current) {
+      finishLeave();
+    }
+
+    const prevMain = readingStateRef.current.main;
+    const willDemote =
+      Boolean(prevMain) &&
+      readingSurfaceKey(prevMain!) !== readingSurfaceKey(next) &&
+      resolveDemoteMs(motionLevel) > 0;
+
+    const opened = openReading(readingStateRef.current, next);
+    commitReadingState(opened);
+    setLeaving(false);
+    leavingRef.current = false;
+    leaveFinishedRef.current = false;
+    leaveIntentRef.current = null;
+
+    if (willDemote && prevMain) {
+      setDemoting(prevMain);
+    } else {
+      setDemoting(null);
+    }
   }
 
   function applyReading(next: ReadingSurface | null) {
     if (next === null) {
+      setDemoting(null);
       // clear：立刻清空 rail，主槽走退场
       commitReadingState({
         main: readingStateRef.current.main,
@@ -144,33 +175,28 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
       return;
     }
 
-    // 打开中若主槽正在退场，先落地退场结果再打开
-    if (leavingRef.current) {
-      finishLeave();
-    }
-
-    const opened = openReading(readingStateRef.current, next);
-    commitReadingState(opened);
-    setLeaving(false);
-    leavingRef.current = false;
-    leaveFinishedRef.current = false;
-    leaveIntentRef.current = null;
+    swapReading(next);
   }
 
   function promoteFromRail(surface: ReadingSurface) {
     if (leavingRef.current) return;
-    const opened = openReading(readingStateRef.current, surface);
-    commitReadingState(opened);
+    swapReading(surface);
   }
 
   function dismissRailItem(key: string) {
     commitReadingState(closeRailItem(readingStateRef.current, key));
   }
 
+  function finishDemote() {
+    setDemoting(null);
+  }
+
   const panelEnterMs = resolvePanelEnterMs(motionLevel);
   const panelLeaveMs = resolvePanelLeaveMs(motionLevel);
+  const demoteMs = resolveDemoteMs(motionLevel);
   const main = readingState.main;
-  const hasReading = Boolean(main) || readingState.rail.length > 0;
+  const hasReading = Boolean(main) || readingState.rail.length > 0 || Boolean(demoting);
+  const arrivingKey = demoting ? readingSurfaceKey(demoting) : null;
 
   return (
     <main
@@ -182,6 +208,7 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
           "--cursor-blink-ms": `${motionSpec.cursorBlinkMs}ms`,
           "--panel-fade-ms": `${panelEnterMs}ms`,
           "--panel-leave-ms": `${panelLeaveMs}ms`,
+          "--panel-demote-ms": `${demoteMs}ms`,
         } as CSSProperties
       }
     >
@@ -268,6 +295,13 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
         {hasReading ? (
           <div className="reading-row">
             <div className="reading-row__main">
+              {demoting ? (
+                <ReadingDemoteGhost
+                  key={`demote-${readingSurfaceKey(demoting)}`}
+                  surface={demoting}
+                  onDone={finishDemote}
+                />
+              ) : null}
               {main ? (
                 <ReadingPanel
                   key={readingSurfaceKey(main)}
@@ -280,6 +314,7 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
             </div>
             <ReadingRail
               items={readingState.rail}
+              arrivingKey={arrivingKey}
               onPromote={promoteFromRail}
               onDismiss={dismissRailItem}
             />
