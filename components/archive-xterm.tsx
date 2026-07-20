@@ -8,6 +8,12 @@ import {
 } from "react";
 import type { CompleteResult } from "@/lib/archive/complete";
 import { entryToAnsiLines, lineToAnsi } from "@/lib/archive/ansi";
+import {
+  displayWidth,
+  indexAtDisplayColumn,
+  moveIndexLeft,
+  moveIndexRight,
+} from "@/lib/archive/display-width";
 import { zhCN } from "@/lib/archive/i18n";
 import { readXtermThemeFromCss } from "@/lib/archive/palette";
 import { formatInputTokens } from "@/lib/archive/shell-style";
@@ -58,6 +64,12 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
     const termRef = useRef<import("@xterm/xterm").Terminal | null>(null);
     const fitRef = useRef<import("@xterm/addon-fit").FitAddon | null>(null);
     const bufferRef = useRef("");
+    /** UTF-16 索引：插入点在 buffer 中的位置 */
+    const cursorRef = useRef(0);
+    /** 上次输入行占用的物理行数（用于换行后重绘清残行） */
+    const lastPaintRowsRef = useRef(1);
+    /** 上次光标相对输入块首的行偏移 */
+    const lastCursorRowOffRef = useRef(0);
     const historyRef = useRef<string[]>([]);
     const historyIndexRef = useRef<number | null>(null);
     const completeCycleRef = useRef<number | null>(null);
@@ -111,18 +123,81 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       scrollToPrompt();
     }
 
+    function promptPrefixPlain() {
+      return (
+        callbacksRef.current.getPromptTokens().map((token) => token.text).join("") +
+        " "
+      );
+    }
+
+    function clampCursor() {
+      cursorRef.current = Math.max(
+        0,
+        Math.min(cursorRef.current, bufferRef.current.length),
+      );
+    }
+
+    function setBuffer(next: string, cursor: number) {
+      bufferRef.current = next;
+      cursorRef.current = Math.max(0, Math.min(cursor, next.length));
+    }
+
+    /**
+     * 重绘当前输入行，并把光标放到 buffer 内 cursor 对应的显示列。
+     * 用显示宽度（含 CJK 双宽）计算，避免方块光标偏格。
+     */
     function paintPromptLine() {
       const term = termRef.current;
       if (!term) return;
+
+      clampCursor();
       const promptTokens = callbacksRef.current.getPromptTokens();
+      const buffer = bufferRef.current;
+      const cursor = cursorRef.current;
+      const promptPlain = promptPrefixPlain();
+      const cols = Math.max(1, term.cols);
+
       const painted = lineToAnsi({
         tokens: [
           ...promptTokens,
           { text: " ", tone: "muted" },
-          ...formatInputTokens(bufferRef.current),
+          ...formatInputTokens(buffer),
         ],
       });
-      term.write(`\r\x1b[2K${painted}`);
+
+      const endW = displayWidth(promptPlain + buffer);
+      const contentRows =
+        endW === 0 ? 1 : Math.floor((endW - 1) / cols) + 1;
+      const prevRows = lastPaintRowsRef.current;
+      const prevCursorRowOff = lastCursorRowOffRef.current;
+      const rowsBelow = Math.max(0, prevRows - 1 - prevCursorRowOff);
+
+      // 先到块末行，再向上清残行，避免光标在中间时误清上方历史
+      let clearSeq = "";
+      if (rowsBelow > 0) clearSeq += `\x1b[${rowsBelow}B`;
+      clearSeq += "\r";
+      for (let i = 0; i < prevRows - 1; i += 1) {
+        clearSeq += "\x1b[2K\x1b[1A";
+      }
+      clearSeq += "\x1b[2K\r";
+      term.write(`${clearSeq}${painted}`);
+
+      const cursorW = displayWidth(promptPlain + buffer.slice(0, cursor));
+      const writtenRow = Math.floor(endW / cols);
+      const targetRow = Math.floor(cursorW / cols);
+      const targetCol = cursorW % cols;
+      const up = writtenRow - targetRow;
+
+      let moveSeq = "";
+      if (up > 0) moveSeq += `\x1b[${up}A`;
+      else if (up < 0) moveSeq += `\x1b[${-up}B`;
+      if (cursorW !== endW || up !== 0) {
+        moveSeq += `\x1b[${targetCol + 1}G`;
+      }
+      if (moveSeq) term.write(moveSeq);
+
+      lastPaintRowsRef.current = contentRows;
+      lastCursorRowOffRef.current = targetRow;
     }
 
     function setCandidates(next: string[]) {
@@ -151,7 +226,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       }
 
       if (result.applied) {
-        bufferRef.current = result.input;
+        setBuffer(result.input, result.input.length);
         paintPromptLine();
       }
       setCandidates(result.candidates.length > 1 ? result.candidates : []);
@@ -191,7 +266,9 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
 
       const command = bufferRef.current.trim();
       term.write("\r\n");
-      bufferRef.current = "";
+      setBuffer("", 0);
+      lastPaintRowsRef.current = 1;
+      lastCursorRowOffRef.current = 0;
       resetCompletion();
       historyIndexRef.current = null;
 
@@ -205,6 +282,8 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
 
       if (result.clear) {
         writeQueueRef.current += 1;
+        lastPaintRowsRef.current = 1;
+        lastCursorRowOffRef.current = 0;
         term.clear();
         term.writeln(
           `\x1b[38;2;120;131;144m${zhCN.shell.cleared}\x1b[0m`,
@@ -228,7 +307,8 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
             ? history.length - 1
             : Math.max(0, historyIndexRef.current - 1);
         historyIndexRef.current = next;
-        bufferRef.current = history[next] ?? "";
+        const line = history[next] ?? "";
+        setBuffer(line, line.length);
         resetCompletion();
         paintPromptLine();
         return;
@@ -238,15 +318,113 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       const next = historyIndexRef.current + 1;
       if (next >= history.length) {
         historyIndexRef.current = null;
-        bufferRef.current = "";
+        setBuffer("", 0);
         resetCompletion();
         paintPromptLine();
         return;
       }
       historyIndexRef.current = next;
-      bufferRef.current = history[next] ?? "";
+      const line = history[next] ?? "";
+      setBuffer(line, line.length);
       resetCompletion();
       paintPromptLine();
+    }
+
+    function moveCursor(to: number) {
+      cursorRef.current = Math.max(0, Math.min(to, bufferRef.current.length));
+      paintPromptLine();
+    }
+
+    function deleteBeforeCursor() {
+      const cursor = cursorRef.current;
+      if (cursor === 0) return;
+      const buffer = bufferRef.current;
+      const left = moveIndexLeft(buffer, cursor);
+      setBuffer(buffer.slice(0, left) + buffer.slice(cursor), left);
+      resetCompletion();
+      paintPromptLine();
+    }
+
+    function deleteAtCursor() {
+      const cursor = cursorRef.current;
+      const buffer = bufferRef.current;
+      if (cursor >= buffer.length) return;
+      const right = moveIndexRight(buffer, cursor);
+      setBuffer(buffer.slice(0, cursor) + buffer.slice(right), cursor);
+      resetCompletion();
+      paintPromptLine();
+    }
+
+    function insertAtCursor(data: string) {
+      if (!data) return;
+      const cursor = cursorRef.current;
+      const buffer = bufferRef.current;
+      setBuffer(
+        buffer.slice(0, cursor) + data + buffer.slice(cursor),
+        cursor + data.length,
+      );
+      resetCompletion();
+      paintPromptLine();
+    }
+
+    /** 点击输入行时，按显示列落到最近码点边界。 */
+    function placeCursorFromClick(clientX: number, clientY: number) {
+      const term = termRef.current;
+      const screen = term?.element?.querySelector(
+        ".xterm-screen",
+      ) as HTMLElement | null;
+      if (!term || !screen) return;
+
+      const rect = screen.getBoundingClientRect();
+      if (
+        clientX < rect.left ||
+        clientX > rect.right ||
+        clientY < rect.top ||
+        clientY > rect.bottom
+      ) {
+        return;
+      }
+
+      const cols = Math.max(1, term.cols);
+      const rows = Math.max(1, term.rows);
+      const col = Math.min(
+        cols - 1,
+        Math.max(0, Math.floor((clientX - rect.left) / (rect.width / cols))),
+      );
+      const row = Math.min(
+        rows - 1,
+        Math.max(0, Math.floor((clientY - rect.top) / (rect.height / rows))),
+      );
+
+      const buf = term.buffer.active;
+      const promptPlain = promptPrefixPlain();
+      const buffer = bufferRef.current;
+      const prefixW = displayWidth(promptPlain);
+      const fullW = prefixW + displayWidth(buffer);
+      const cursorW = displayWidth(promptPlain + buffer.slice(0, cursorRef.current));
+      const cursorRowOff = Math.floor(cursorW / cols);
+      const contentStartRow = buf.cursorY - cursorRowOff;
+      const clickRowOff = row - contentStartRow;
+
+      if (clickRowOff < 0) return;
+      const contentRows =
+        fullW === 0 ? 1 : Math.floor((fullW - 1) / cols) + 1;
+      if (clickRowOff >= contentRows) {
+        moveCursor(buffer.length);
+        return;
+      }
+
+      const clickAbsCol = clickRowOff * cols + col;
+      if (clickAbsCol <= prefixW) {
+        moveCursor(0);
+        return;
+      }
+      if (clickAbsCol >= fullW) {
+        moveCursor(buffer.length);
+        return;
+      }
+      moveCursor(indexAtDisplayColumn(buffer, clickAbsCol - prefixW));
+      term.clearSelection();
     }
 
     useImperativeHandle(ref, () => ({
@@ -281,6 +459,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       let resizeObserver: ResizeObserver | null = null;
       let paletteObserver: MutationObserver | null = null;
       let dataDisposable: { dispose: () => void } | null = null;
+      let clickCleanup: (() => void) | null = null;
 
       async function mount() {
         const host = hostRef.current;
@@ -353,6 +532,36 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
             return false;
           }
 
+          if (event.key === "ArrowLeft") {
+            event.preventDefault();
+            moveCursor(moveIndexLeft(bufferRef.current, cursorRef.current));
+            return false;
+          }
+
+          if (event.key === "ArrowRight") {
+            event.preventDefault();
+            moveCursor(moveIndexRight(bufferRef.current, cursorRef.current));
+            return false;
+          }
+
+          if (event.key === "Home") {
+            event.preventDefault();
+            moveCursor(0);
+            return false;
+          }
+
+          if (event.key === "End") {
+            event.preventDefault();
+            moveCursor(bufferRef.current.length);
+            return false;
+          }
+
+          if (event.key === "Delete") {
+            event.preventDefault();
+            deleteAtCursor();
+            return false;
+          }
+
           return true;
         });
 
@@ -363,30 +572,51 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
           }
 
           if (data === "\u007f") {
-            if (bufferRef.current.length === 0) return;
-            bufferRef.current = bufferRef.current.slice(0, -1);
-            resetCompletion();
-            paintPromptLine();
+            deleteBeforeCursor();
             return;
           }
 
           if (data === "\u0003") {
-            bufferRef.current = "";
+            setBuffer("", 0);
+            lastPaintRowsRef.current = 1;
+            lastCursorRowOffRef.current = 0;
             resetCompletion();
             term.write("^C\r\n");
             paintPromptLine();
             return;
           }
 
-          // 忽略其余 CSI / 控制序列（方向键已在 key handler 处理）
+          // 忽略其余 CSI / 控制序列（方向键等已在 key handler 处理）
           if (data.startsWith("\x1b")) return;
 
           if (data.length > 0) {
-            bufferRef.current += data;
-            resetCompletion();
-            paintPromptLine();
+            insertAtCursor(data);
           }
         });
+
+        // 单击定位光标；拖拽选区则不抢
+        let down: { x: number; y: number } | null = null;
+        const onMouseDown = (event: MouseEvent) => {
+          if (event.button !== 0) return;
+          down = { x: event.clientX, y: event.clientY };
+        };
+        const onMouseUp = (event: MouseEvent) => {
+          if (!down || event.button !== 0) {
+            down = null;
+            return;
+          }
+          const dx = Math.abs(event.clientX - down.x);
+          const dy = Math.abs(event.clientY - down.y);
+          down = null;
+          if (dx > 4 || dy > 4) return;
+          placeCursorFromClick(event.clientX, event.clientY);
+        };
+        host.addEventListener("mousedown", onMouseDown);
+        window.addEventListener("mouseup", onMouseUp);
+        clickCleanup = () => {
+          host.removeEventListener("mousedown", onMouseDown);
+          window.removeEventListener("mouseup", onMouseUp);
+        };
 
         resizeObserver = new ResizeObserver(() => {
           fitAndScroll();
@@ -417,6 +647,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
         resizeObserver?.disconnect();
         paletteObserver?.disconnect();
         dataDisposable?.dispose();
+        clickCleanup?.();
         termRef.current?.dispose();
         termRef.current = null;
         fitRef.current = null;
