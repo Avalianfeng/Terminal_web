@@ -35,7 +35,8 @@
   /* user@host：传统 PS1 亮绿；host 变量保留备用 */
   --tone-user: 85 230 140;
   --tone-host: 85 230 140;
-  --tone-command: 206 225 247;
+  /* 相对 normal 拉高对比：琥珀金，与 path 蓝拉开 */
+  --tone-command: 245 190 72;
   --tone-hint: 150 166 181;
   --tone-error: 244 139 139;
   --tone-success: 152 219 174;
@@ -75,7 +76,8 @@
   --tone-prompt: 196 158 110;
   --tone-user: 168 210 140;
   --tone-host: 214 178 126;
-  --tone-command: 235 220 195;
+  /* 相对 normal / path 更亮的琥珀 */
+  --tone-command: 250 175 78;
   --tone-hint: 165 148 128;
   --tone-error: 235 140 120;
   --tone-success: 155 200 145;
@@ -115,7 +117,8 @@
   --tone-prompt: 100 200 150;
   --tone-user: 140 240 180;
   --tone-host: 120 210 170;
-  --tone-command: 220 245 230;
+  /* 相对 normal / path 绿拉开：暖金 */
+  --tone-command: 255 200 90;
   --tone-hint: 150 150 150;
   --tone-error: 255 120 120;
   --tone-success: 100 220 150;

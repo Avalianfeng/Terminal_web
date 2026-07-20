@@ -7,7 +7,7 @@ const TONE_ANSI_FALLBACK: Record<TerminalTone, string> = {
   prompt: "\x1b[38;2;146;173;199m",
   user: "\x1b[38;2;126;214;178m",
   host: "\x1b[38;2;168;196;222m",
-  command: "\x1b[38;2;206;225;247m",
+  command: "\x1b[38;2;245;190;72m",
   normal: "\x1b[38;2;219;227;235m",
   hint: "\x1b[38;2;150;166;181m",
   error: "\x1b[38;2;244;139;139m",
