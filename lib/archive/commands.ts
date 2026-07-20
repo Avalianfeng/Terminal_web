@@ -147,6 +147,105 @@ function search(snapshot: ArchiveSnapshot, query: string) {
   );
 }
 
+function collectOpenableNodes(node: VfsNode): VfsNode[] {
+  if (node.type === "dir") {
+    return (node.children ?? []).flatMap((child) => collectOpenableNodes(child));
+  }
+  return [node];
+}
+
+function nodeLabel(node: VfsNode) {
+  if (node.type === "timeline") return zhCN.labels.timeline;
+  if (node.type === "person") return zhCN.vfs.person;
+  return node.refSlug ?? node.name;
+}
+
+/** 路径 / 名称检索；不搜正文（正文用 search）。空查询列出全部可打开节点。 */
+function findPaths(snapshot: ArchiveSnapshot, query: string) {
+  const root = createVfs(snapshot);
+  const nodes = collectOpenableNodes(root);
+  const target = normalize(query);
+
+  const hits = target
+    ? nodes.filter((node) => {
+        const haystack = normalize(
+          [node.path, node.name, node.refSlug ?? "", nodeLabel(node)].join(" "),
+        );
+        return haystack.includes(target);
+      })
+    : nodes;
+
+  if (hits.length === 0) {
+    return lineEntry([
+      line([
+        token(
+          target
+            ? `${zhCN.errors.emptyFind}: "${query}"`
+            : zhCN.errors.emptyFind,
+          "error",
+        ),
+      ]),
+      line([token(zhCN.errors.usageFind, "hint")]),
+    ]);
+  }
+
+  const header = target
+    ? `${zhCN.labels.findResults}: "${query}"`
+    : zhCN.labels.findAll;
+
+  return lineEntry([
+    line([token(header, "success")]),
+    line([token(zhCN.labels.findHint, "hint")]),
+    line(""),
+    ...hits.map((node) =>
+      line([
+        token(node.path, "path"),
+        token(`  ${node.type}`, "muted"),
+      ]),
+    ),
+  ]);
+}
+
+function archiveStatus(snapshot: ArchiveSnapshot) {
+  const indexTime = snapshot.generatedAt.replace("T", " ").replace(/\.\d+Z$/, " UTC");
+  return lineEntry(
+    lines(
+      [token(zhCN.labels.statusTitle, "success")],
+      "",
+      [
+        token(`${zhCN.labels.statusPerson}: `, "muted"),
+        token(snapshot.person.name, "success"),
+      ],
+      [
+        token(`${zhCN.labels.statusFocus}: `, "muted"),
+        token(snapshot.person.currentFocus),
+      ],
+      "",
+      [
+        token(`${zhCN.labels.statusProjects}: `, "muted"),
+        token(`${snapshot.projects.length} ${zhCN.labels.countUnit}`, "path"),
+      ],
+      [
+        token(`${zhCN.labels.statusThoughts}: `, "muted"),
+        token(`${snapshot.thoughts.length} ${zhCN.labels.countUnit}`, "path"),
+      ],
+      [
+        token(`${zhCN.labels.statusTimeline}: `, "muted"),
+        token(
+          `${snapshot.timeline.length} ${zhCN.labels.timelineUnit}`,
+          "path",
+        ),
+      ],
+      [
+        token(`${zhCN.labels.statusIndex}: `, "muted"),
+        token(indexTime, "hint"),
+      ],
+      "",
+      [token(zhCN.labels.statusHint, "hint")],
+    ),
+  );
+}
+
 function toDocumentEntry(snapshot: ArchiveSnapshot, nodePath: string) {
   if (nodePath.startsWith("/projects/")) {
     const slug = nodePath.replace("/projects/", "");
@@ -595,24 +694,28 @@ export function runCommand(
             lines(
               [token(zhCN.help.title, "success")],
               "",
-              zhCN.help.about,
-              zhCN.help.projects,
-              zhCN.help.thoughts,
-              zhCN.help.timeline,
-              zhCN.help.search,
-              zhCN.help.open,
-              zhCN.help.themes,
-              zhCN.help.clear,
-              "",
-              [token(zhCN.help.vfsTitle, "success")],
-              "",
+              [token(zhCN.help.exploreTitle, "success")],
               zhCN.help.ls,
               zhCN.help.cd,
-              zhCN.help.cat,
               zhCN.help.pwd,
               zhCN.help.tree,
+              zhCN.help.find,
               zhCN.help.whoami,
+              zhCN.help.status,
               zhCN.help.history,
+              "",
+              [token(zhCN.help.readTitle, "success")],
+              zhCN.help.open,
+              zhCN.help.cat,
+              zhCN.help.timeline,
+              zhCN.help.search,
+              zhCN.help.projects,
+              zhCN.help.thoughts,
+              zhCN.help.about,
+              "",
+              [token(zhCN.help.sessionTitle, "success")],
+              zhCN.help.clear,
+              zhCN.help.themes,
             ),
           ),
         ],
@@ -673,6 +776,18 @@ export function runCommand(
     case "search":
       return {
         entries: [commandEcho, search(snapshot, rest)],
+        session: nextSession,
+      };
+
+    case "find":
+      return {
+        entries: [commandEcho, findPaths(snapshot, rest)],
+        session: nextSession,
+      };
+
+    case "status":
+      return {
+        entries: [commandEcho, archiveStatus(snapshot)],
         session: nextSession,
       };
 

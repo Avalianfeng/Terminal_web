@@ -28,14 +28,11 @@ function MarkdownBody({ document }: { document: ArchiveDocument }) {
   const lines = document.body.split("\n");
 
   return (
-    <div className="space-y-4 text-[15px] leading-7 text-[color:var(--archive-paper-ink)]/85">
+    <div className="reading-panel__prose">
       {lines.map((line, index) => {
         if (line.startsWith("# ")) {
           return (
-            <h3
-              key={`${line}-${index}`}
-              className="pt-3 text-2xl font-semibold tracking-[-0.03em] text-[color:var(--archive-paper-ink)]"
-            >
+            <h3 key={`${line}-${index}`} className="reading-panel__prose-h1">
               {line.replace(/^#\s+/, "")}
             </h3>
           );
@@ -43,10 +40,7 @@ function MarkdownBody({ document }: { document: ArchiveDocument }) {
 
         if (line.startsWith("## ")) {
           return (
-            <h4
-              key={`${line}-${index}`}
-              className="pt-4 text-lg font-semibold tracking-[-0.02em] text-[color:var(--archive-paper-ink)]"
-            >
+            <h4 key={`${line}-${index}`} className="reading-panel__prose-h2">
               {line.replace(/^##\s+/, "")}
             </h4>
           );
@@ -54,18 +48,22 @@ function MarkdownBody({ document }: { document: ArchiveDocument }) {
 
         if (line.startsWith("- ")) {
           return (
-            <p key={`${line}-${index}`} className="pl-4 text-[color:var(--archive-paper-ink)]/80">
-              <span className="mr-2 text-[color:var(--archive-muted)]">-</span>
+            <p key={`${line}-${index}`} className="reading-panel__prose-li">
+              <span className="reading-panel__prose-bullet">-</span>
               {line.replace(/^-\s+/, "")}
             </p>
           );
         }
 
         if (!line.trim()) {
-          return <div key={`space-${index}`} className="h-2" />;
+          return <div key={`space-${index}`} className="reading-panel__prose-gap" />;
         }
 
-        return <p key={`${line}-${index}`}>{line}</p>;
+        return (
+          <p key={`${line}-${index}`} className="reading-panel__prose-p">
+            {line}
+          </p>
+        );
       })}
     </div>
   );
@@ -73,20 +71,16 @@ function MarkdownBody({ document }: { document: ArchiveDocument }) {
 
 function TimelineBody({ entries }: { entries: TimelineEntry[] }) {
   return (
-    <div className="space-y-7">
+    <div className="reading-panel__timeline">
       {entries.map((item) => (
         <section
           key={`${item.date}-${item.title}`}
-          className="grid gap-2 border-t border-[color:var(--archive-line)] pt-5 md:grid-cols-[9rem_1fr]"
+          className="reading-panel__timeline-item"
         >
-          <time className="text-sm text-[color:var(--archive-muted)]">{item.date}</time>
+          <time className="reading-panel__timeline-date">{item.date}</time>
           <div>
-            <h3 className="text-xl font-semibold tracking-[-0.03em] text-[color:var(--archive-paper-ink)]">
-              {item.title}
-            </h3>
-            <p className="mt-2 max-w-[68ch] text-[15px] leading-7 text-[color:var(--archive-paper-ink)]/80">
-              {item.body}
-            </p>
+            <h3 className="reading-panel__timeline-title">{item.title}</h3>
+            <p className="reading-panel__timeline-body">{item.body}</p>
           </div>
         </section>
       ))}
@@ -122,7 +116,6 @@ export function ReadingPanel({
     const el = panelRef.current;
     if (!el) return;
 
-    // 等布局稳定后再滚：把阅读区顶到视口上方，从而把终端推上去
     const frame = requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         el.scrollIntoView({
@@ -137,10 +130,6 @@ export function ReadingPanel({
     return () => cancelAnimationFrame(frame);
   }, [surface, leaving]);
 
-  /**
-   * 退场必须先钉住「展开终态」再开 transition。
-   * 若同一帧里关掉 enter 动画并设收起目标，浏览器常会跳过过渡 → 看起来像没退场。
-   */
   useLayoutEffect(() => {
     if (!leaving) return;
     const el = panelRef.current;
@@ -228,7 +217,7 @@ export function ReadingPanel({
       onTransitionEnd={onTransitionEnd}
     >
       <header className="reading-panel__chrome">
-        <div className="min-w-0">
+        <div className="reading-panel__chrome-text">
           <p className="reading-panel__eyebrow">
             {zhCN.reading.panelLabel} · {metaType}
           </p>
@@ -253,14 +242,10 @@ export function ReadingPanel({
         {surface.kind === "document" ? (
           <>
             {surface.document.status ? (
-              <p className="mb-5 w-fit rounded border border-[color:var(--archive-line)] px-2.5 py-1 text-xs text-[color:var(--archive-muted)]">
-                {surface.document.status}
-              </p>
+              <p className="reading-panel__status">{surface.document.status}</p>
             ) : null}
             {surface.document.summary ? (
-              <p className="mb-8 max-w-[62ch] text-base leading-7 text-[color:var(--archive-paper-ink)]/80">
-                {surface.document.summary}
-              </p>
+              <p className="reading-panel__summary">{surface.document.summary}</p>
             ) : null}
             <MarkdownBody document={surface.document} />
           </>

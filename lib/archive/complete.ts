@@ -10,6 +10,8 @@ export const PRIMARY_COMMANDS = [
   "thoughts",
   "timeline",
   "search",
+  "find",
+  "status",
   "open",
   "themes",
   "clear",

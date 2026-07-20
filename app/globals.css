@@ -136,21 +136,26 @@ body {
   min-height: 100dvh;
   margin: 0;
   background:
-    radial-gradient(circle at 18% 0%, rgb(255 255 255 / 0.55), transparent 28rem),
+    radial-gradient(circle at 16% 0%, rgb(255 255 255 / 0.48), transparent 26rem),
     linear-gradient(
       180deg,
       var(--workspace-gradient-top) 0%,
-      var(--workspace-bg) 42%,
+      var(--workspace-bg) 44%,
       var(--workspace-bg-deep) 100%
     );
   color: var(--workspace-text);
+  /* Dual Phase：外区纸面；中文回落到系统宋体栈 */
   font-family:
-    "JetBrains Mono",
-    "IBM Plex Mono",
-    "SFMono-Regular",
-    Consolas,
-    "Liberation Mono",
-    monospace;
+    var(--font-paper),
+    "Songti SC",
+    "Noto Serif CJK SC",
+    "Source Han Serif SC",
+    Georgia,
+    "Times New Roman",
+    serif;
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
 }
 
 body::before {
@@ -165,8 +170,9 @@ body::before {
       rgb(0 0 0 / calc(var(--workspace-grid-opacity) * 0.72)) 1px,
       transparent 1px
     );
-  background-size: 48px 48px;
-  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.35), transparent 85%);
+  background-size: 52px 52px;
+  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.28), transparent 78%);
+  opacity: 0.9;
 }
 
 button,
@@ -184,7 +190,10 @@ textarea {
 .archive-workspace {
   position: relative;
   min-height: 100dvh;
-  padding: clamp(1rem, 3vw, 2rem);
+  padding-top: max(clamp(0.85rem, 2.8vw, 1.75rem), env(safe-area-inset-top, 0px));
+  padding-right: max(clamp(0.85rem, 2.8vw, 1.75rem), env(safe-area-inset-right, 0px));
+  padding-bottom: max(clamp(1rem, 3vw, 2rem), env(safe-area-inset-bottom, 0px));
+  padding-left: max(clamp(0.85rem, 2.8vw, 1.75rem), env(safe-area-inset-left, 0px));
 }
 
 .archive-workspace__stage {
@@ -192,9 +201,8 @@ textarea {
   display: flex;
   max-width: 1120px;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1.15rem;
 
-  /* 嵌套写法：避免 Tailwind v4 吞掉顶层 @media 里的自定义规则 */
   @media (min-width: 960px) {
     gap: 1.5rem;
     max-width: 1280px;
@@ -268,7 +276,12 @@ textarea {
   margin: 0;
   font-size: 12px;
   color: var(--archive-muted);
-  font-family: "JetBrains Mono", "IBM Plex Mono", Consolas, monospace;
+  font-family:
+    var(--font-mono),
+    "JetBrains Mono",
+    "IBM Plex Mono",
+    Consolas,
+    monospace;
 }
 
 .motion-level-0 .reading-demote-ghost,
@@ -306,20 +319,23 @@ textarea {
   padding: 0;
   list-style: none;
   overflow-x: auto;
-  padding-bottom: 0.15rem;
+  padding-bottom: 0.25rem;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 
   @media (min-width: 960px) {
     flex-direction: column;
     overflow-x: visible;
     overflow-y: auto;
     max-height: min(70dvh, 640px);
+    padding-bottom: 0;
   }
 }
 
 .reading-rail__item {
   position: relative;
   flex: 0 0 auto;
-  width: min(11.5rem, 70vw);
+  width: min(12rem, 78vw);
 
   @media (min-width: 960px) {
     width: 100%;
@@ -334,14 +350,15 @@ textarea {
 .reading-rail__card {
   display: flex;
   width: 100%;
+  min-height: 4.25rem;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.25rem;
   align-items: flex-start;
   border: 1px solid var(--reading-border);
-  border-radius: 4px;
+  border-radius: 3px;
   background: var(--archive-paper);
   box-shadow: var(--reading-shadow);
-  padding: 0.65rem 1.75rem 0.65rem 0.7rem;
+  padding: 0.75rem 2rem 0.75rem 0.8rem;
   text-align: left;
   cursor: pointer;
   color: var(--archive-paper-ink);
@@ -362,13 +379,19 @@ textarea {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--archive-muted);
+  font-family:
+    var(--font-mono),
+    "JetBrains Mono",
+    "IBM Plex Mono",
+    Consolas,
+    monospace;
 }
 
 .reading-rail__title {
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   font-weight: 600;
   letter-spacing: -0.02em;
-  line-height: 1.3;
+  line-height: 1.35;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -378,7 +401,12 @@ textarea {
 .reading-rail__path {
   font-size: 11px;
   color: var(--archive-muted);
-  font-family: "JetBrains Mono", "IBM Plex Mono", Consolas, monospace;
+  font-family:
+    var(--font-mono),
+    "JetBrains Mono",
+    "IBM Plex Mono",
+    Consolas,
+    monospace;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -387,15 +415,17 @@ textarea {
 
 .reading-rail__dismiss {
   position: absolute;
-  top: 0.3rem;
-  right: 0.3rem;
-  width: 1.35rem;
-  height: 1.35rem;
+  top: 0;
+  right: 0;
+  width: 2.75rem;
+  height: 2.75rem;
+  display: grid;
+  place-items: center;
   border: 1px solid transparent;
   border-radius: 2px;
   background: transparent;
   color: var(--archive-muted);
-  font-size: 1rem;
+  font-size: 1.1rem;
   line-height: 1;
   cursor: pointer;
 }
@@ -414,22 +444,19 @@ textarea {
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--reading-border);
-  border-radius: 4px;
+  border-radius: 3px;
   background: var(--archive-paper);
   color: var(--archive-paper-ink);
   box-shadow: var(--reading-shadow);
   transform-origin: top center;
-  /* block:start 时留一点顶距，避免贴死视口上沿 */
-  scroll-margin-block: 1.5rem;
+  scroll-margin-block: 1.25rem;
 }
 
-/* 进场/退场拆开：退场不用「改 animation-name」，避免 fill-mode 结束后不重播 */
 .reading-panel.is-entering {
   animation: reading-panel-in var(--panel-fade-ms, 720ms) cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .reading-panel.is-leaving {
-  /* 退场过渡由 ReadingPanel 的 useLayoutEffect 写 inline，避免与 enter fill-mode 冲突 */
   animation: none;
   pointer-events: none;
 }
@@ -446,41 +473,61 @@ textarea {
   gap: 1rem;
   border-bottom: 1px solid var(--archive-line);
   background: var(--archive-paper-chrome);
-  padding: 0.9rem 1rem;
+  padding: 1rem 1.1rem 1rem 1.15rem;
+}
+
+.reading-panel__chrome-text {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .reading-panel__eyebrow {
   margin: 0;
-  font-size: 11px;
-  letter-spacing: 0.14em;
+  font-size: 10px;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--archive-muted);
+  font-family:
+    var(--font-mono),
+    "JetBrains Mono",
+    "IBM Plex Mono",
+    Consolas,
+    monospace;
 }
 
 .reading-panel__title {
-  margin: 0.35rem 0 0;
-  font-size: clamp(1.15rem, 2.4vw, 1.55rem);
-  font-weight: 600;
+  margin: 0.45rem 0 0;
+  font-size: clamp(1.25rem, 3.2vw, 1.7rem);
+  font-weight: 650;
   letter-spacing: -0.03em;
-  line-height: 1.25;
+  line-height: 1.22;
   color: var(--archive-paper-ink);
 }
 
 .reading-panel__path {
-  margin: 0.35rem 0 0;
+  margin: 0.4rem 0 0;
   font-size: 12px;
   color: var(--archive-muted);
+  font-family:
+    var(--font-mono),
+    "JetBrains Mono",
+    "IBM Plex Mono",
+    Consolas,
+    monospace;
 }
 
 .reading-panel__close {
   flex-shrink: 0;
-  width: 2rem;
-  height: 2rem;
+  box-sizing: content-box;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0.55rem;
+  margin: -0.35rem -0.25rem 0 0;
   border: 1px solid var(--reading-border);
   border-radius: 2px;
   background: var(--archive-paper-chrome);
   color: var(--archive-paper-ink);
-  font-size: 1.25rem;
+  font-size: 1.2rem;
   line-height: 1;
   cursor: pointer;
 }
@@ -496,7 +543,127 @@ textarea {
 }
 
 .reading-panel__body {
-  padding: clamp(1rem, 2.5vw, 1.5rem);
+  padding: clamp(1.1rem, 3vw, 1.75rem) clamp(1.1rem, 3vw, 1.85rem)
+    clamp(1.35rem, 3.5vw, 2rem);
+}
+
+.reading-panel__status {
+  margin: 0 0 1.1rem;
+  width: fit-content;
+  border: 1px solid var(--archive-line);
+  border-radius: 2px;
+  padding: 0.3rem 0.65rem;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--archive-muted);
+  font-family:
+    var(--font-mono),
+    "JetBrains Mono",
+    "IBM Plex Mono",
+    Consolas,
+    monospace;
+}
+
+.reading-panel__summary {
+  margin: 0 0 1.5rem;
+  max-width: 66ch;
+  font-size: 1.05rem;
+  line-height: 1.65;
+  color: color-mix(in srgb, var(--archive-paper-ink) 78%, transparent);
+}
+
+.reading-panel__prose {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  max-width: 66ch;
+  font-size: 1.02rem;
+  line-height: 1.7;
+  color: color-mix(in srgb, var(--archive-paper-ink) 88%, transparent);
+}
+
+.reading-panel__prose-h1 {
+  margin: 0.55rem 0 0;
+  padding-top: 0.35rem;
+  font-size: clamp(1.35rem, 2.6vw, 1.65rem);
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.25;
+  color: var(--archive-paper-ink);
+}
+
+.reading-panel__prose-h2 {
+  margin: 0.85rem 0 0;
+  padding-top: 0.25rem;
+  font-size: clamp(1.12rem, 2.1vw, 1.28rem);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  color: var(--archive-paper-ink);
+}
+
+.reading-panel__prose-p {
+  margin: 0;
+}
+
+.reading-panel__prose-li {
+  margin: 0;
+  padding-left: 0.85rem;
+  color: color-mix(in srgb, var(--archive-paper-ink) 82%, transparent);
+}
+
+.reading-panel__prose-bullet {
+  margin-right: 0.45rem;
+  color: var(--archive-muted);
+}
+
+.reading-panel__prose-gap {
+  height: 0.45rem;
+}
+
+.reading-panel__timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.reading-panel__timeline-item {
+  display: grid;
+  gap: 0.45rem;
+  border-top: 1px solid var(--archive-line);
+  padding-top: 1.15rem;
+
+  @media (min-width: 720px) {
+    grid-template-columns: 8.5rem 1fr;
+    gap: 1rem;
+  }
+}
+
+.reading-panel__timeline-date {
+  font-size: 0.85rem;
+  color: var(--archive-muted);
+  font-family:
+    var(--font-mono),
+    "JetBrains Mono",
+    "IBM Plex Mono",
+    Consolas,
+    monospace;
+}
+
+.reading-panel__timeline-title {
+  margin: 0;
+  font-size: clamp(1.15rem, 2.2vw, 1.35rem);
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  color: var(--archive-paper-ink);
+}
+
+.reading-panel__timeline-body {
+  margin: 0.45rem 0 0;
+  max-width: 66ch;
+  font-size: 1.02rem;
+  line-height: 1.7;
+  color: color-mix(in srgb, var(--archive-paper-ink) 80%, transparent);
 }
 
 /* —— B. 终端壳 —— */
@@ -504,18 +671,30 @@ textarea {
   position: relative;
   z-index: 1;
   display: flex;
-  /* 稳定视口占比；min 用 dvh 上限，避免小屏被 480px 常数撑爆 */
-  height: min(72dvh, 720px);
-  min-height: min(480px, 58dvh);
+  /* 窄屏压低占高，给下方纸面留入口；桌面仍可较高 */
+  height: min(58dvh, 640px);
+  min-height: min(320px, 48dvh);
   flex-direction: column;
-  scroll-margin-block: 1.5rem;
+  scroll-margin-block: 1.25rem;
   overflow: hidden;
   border: 1px solid var(--terminal-border);
-  border-radius: 6px;
+  border-radius: 5px;
   background: var(--terminal-bg);
   color: rgb(var(--tone-normal));
   box-shadow: var(--terminal-shadow);
   color-scheme: dark;
+  font-family:
+    var(--font-mono),
+    "JetBrains Mono",
+    "IBM Plex Mono",
+    "SFMono-Regular",
+    Consolas,
+    monospace;
+
+  @media (min-width: 960px) {
+    height: min(72dvh, 720px);
+    min-height: min(480px, 58dvh);
+  }
 }
 
 .terminal-shell ::selection {
