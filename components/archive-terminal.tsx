@@ -75,13 +75,13 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
 
   useEffect(() => {
     xtermRef.current?.relayout();
-    if (fullscreen) {
-      terminalShellRef.current?.scrollIntoView({
-        behavior: resolveScrollBehavior(motionLevel),
-        block: "start",
-        inline: "nearest",
-      });
-    }
+    if (!fullscreen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
   }, [fullscreen, motionLevel]);
 
   /** 焦点不在 xterm 时仍可用 Esc 退出 fullscreen（阅读面板优先由自身处理 Esc） */
@@ -101,6 +101,12 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
 
   function toggleFullscreen() {
     setFullscreen((current) => !current);
+  }
+
+  function exitFullscreen() {
+    if (fullscreenRef.current) {
+      setFullscreen(false);
+    }
   }
 
   function revealTerminal() {
@@ -217,6 +223,8 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
       return;
     }
 
+    // 全屏沉浸让位于 Dual Phase：阅读纸面需要浅色外区
+    exitFullscreen();
     swapReading(Array.isArray(next) ? next : [next]);
   }
 
