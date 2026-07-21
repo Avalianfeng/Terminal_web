@@ -50,6 +50,18 @@ type PagerState = {
   index: number;
 };
 
+/** 多行粘贴非空行上限；超过则拒绝，避免误跑大段文本。 */
+const PASTE_LINE_CAP = 20;
+
+function splitPasteLines(text: string): string[] {
+  return text
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .filter((line) => line.trim().length > 0);
+}
+
 /**
  * 档位 1 终端表面：xterm 单缓冲 + 行编辑。
  * Runtime（命令/VFS）仍在外侧；此处只负责 write / onData / scrollback。
@@ -84,6 +96,13 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
     const readyRef = useRef(false);
     const candidatesRef = useRef<string[]>([]);
     const pagerRef = useRef<PagerState | null>(null);
+    /** 多行粘贴确认：待执行行；与 pager 互斥。 */
+    const pasteConfirmRef = useRef<{ lines: string[] } | null>(null);
+    /** 确认后待串行执行的命令队列（pager 会暂停，退出后继续）。 */
+    const pasteQueueRef = useRef<string[]>([]);
+    const pasteBusyRef = useRef(false);
+    /** 防止 Ctrl+V 与原生 paste→onData 双触发。 */
+    const pasteGuardRef = useRef(0);
     const bootRef = useRef(bootEntries);
     bootRef.current = bootEntries;
 
@@ -127,7 +146,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
         /* 容器尚未有尺寸时忽略 */
       }
       scrollToPrompt();
-      if (pagerRef.current) return;
+      if (pagerRef.current || pasteConfirmRef.current) return;
       paintPromptLine();
       scrollToPrompt();
     }
@@ -157,7 +176,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
      */
     function paintPromptLine() {
       const term = termRef.current;
-      if (!term || pagerRef.current) return;
+      if (!term || pagerRef.current || pasteConfirmRef.current) return;
 
       clampCursor();
       const promptTokens = callbacksRef.current.getPromptTokens();
@@ -292,6 +311,10 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       lastCursorRowOffRef.current = 0;
       if (!term) return;
       term.writeln(mutedAnsi(zhCN.pager.end));
+      if (pasteQueueRef.current.length > 0) {
+        void drainPasteQueue();
+        return;
+      }
       paintPromptLine();
       scrollToPrompt();
     }
@@ -304,6 +327,10 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       lastPaintRowsRef.current = 1;
       lastCursorRowOffRef.current = 0;
       if (!term) return;
+      if (pasteQueueRef.current.length > 0) {
+        void drainPasteQueue();
+        return;
+      }
       paintPromptLine();
       scrollToPrompt();
     }
@@ -363,22 +390,13 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       scrollToPrompt();
     }
 
-    async function submitLine() {
+    /**
+     * 已在新行上：写入历史、跑命令、输出结果。
+     * 调用前须已 `\r\n` 离开输入行并清空 buffer。
+     */
+    async function runCommandLineCore(command: string) {
       const term = termRef.current;
-      if (!term || pagerRef.current) return;
-
-      const command = bufferRef.current.trim();
-      term.write("\r\n");
-      setBuffer("", 0);
-      lastPaintRowsRef.current = 1;
-      lastCursorRowOffRef.current = 0;
-      resetCompletion();
-      historyIndexRef.current = null;
-
-      if (!command) {
-        paintPromptLine();
-        return;
-      }
+      if (!term) return;
 
       historyRef.current = [...historyRef.current, command];
       const result = callbacksRef.current.onCommand(command);
@@ -388,6 +406,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
         lastPaintRowsRef.current = 1;
         lastCursorRowOffRef.current = 0;
         pagerRef.current = null;
+        pasteQueueRef.current = [];
         term.clear();
         term.writeln(
           `\x1b[38;2;120;131;144m${zhCN.shell.cleared}\x1b[0m`,
@@ -403,8 +422,167 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
         return;
       }
 
+      if (pasteQueueRef.current.length === 0) {
+        paintPromptLine();
+        scrollToPrompt();
+      }
+    }
+
+    /** 画出 prompt+命令并提交（供粘贴队列逐行调用）。 */
+    async function runCommandLine(command: string) {
+      const term = termRef.current;
+      if (!term || pagerRef.current || pasteConfirmRef.current) return;
+
+      setBuffer(command, command.length);
+      paintPromptLine();
+      term.write("\r\n");
+      setBuffer("", 0);
+      lastPaintRowsRef.current = 1;
+      lastCursorRowOffRef.current = 0;
+      resetCompletion();
+      historyIndexRef.current = null;
+
+      await runCommandLineCore(command);
+    }
+
+    async function drainPasteQueue() {
+      if (pasteBusyRef.current) return;
+      pasteBusyRef.current = true;
+      try {
+        while (pasteQueueRef.current.length > 0) {
+          if (pagerRef.current) break;
+          const line = pasteQueueRef.current.shift()!;
+          await runCommandLine(line);
+          if (pagerRef.current) break;
+        }
+        if (!pagerRef.current && pasteQueueRef.current.length === 0) {
+          paintPromptLine();
+          scrollToPrompt();
+        }
+      } finally {
+        pasteBusyRef.current = false;
+      }
+    }
+
+    function clearPaintedInputBlock() {
+      const term = termRef.current;
+      if (!term) return;
+      const prevRows = lastPaintRowsRef.current;
+      const prevCursorRowOff = lastCursorRowOffRef.current;
+      const rowsBelow = Math.max(0, prevRows - 1 - prevCursorRowOff);
+      let clearSeq = "";
+      if (rowsBelow > 0) clearSeq += `\x1b[${rowsBelow}B`;
+      clearSeq += "\r";
+      for (let i = 0; i < prevRows - 1; i += 1) {
+        clearSeq += "\x1b[2K\x1b[1A";
+      }
+      clearSeq += "\x1b[2K\r";
+      term.write(clearSeq);
+      lastPaintRowsRef.current = 1;
+      lastCursorRowOffRef.current = 0;
+    }
+
+    function writePasteConfirmStatus(count: number) {
+      const term = termRef.current;
+      if (!term) return;
+      const msg = zhCN.clipboard.multiConfirm.replace("{n}", String(count));
+      term.write(`\r\x1b[2K${mutedAnsi(msg)}`);
+    }
+
+    function cancelPasteConfirm(writeInterrupt = false) {
+      const term = termRef.current;
+      if (!pasteConfirmRef.current) return;
+      pasteConfirmRef.current = null;
+      if (!term) return;
+      if (writeInterrupt) {
+        term.write("^C\r\n");
+      } else {
+        term.write("\r\x1b[2K");
+      }
+      lastPaintRowsRef.current = 1;
+      lastCursorRowOffRef.current = 0;
       paintPromptLine();
       scrollToPrompt();
+    }
+
+    function acceptPasteConfirm() {
+      const confirm = pasteConfirmRef.current;
+      if (!confirm) return;
+      pasteConfirmRef.current = null;
+      const term = termRef.current;
+      if (term) term.write("\r\x1b[2K");
+      lastPaintRowsRef.current = 1;
+      lastCursorRowOffRef.current = 0;
+      setBuffer("", 0);
+      resetCompletion();
+      historyIndexRef.current = null;
+      pasteQueueRef.current = [...confirm.lines];
+      void drainPasteQueue();
+    }
+
+    function handlePaste(text: string) {
+      const now = Date.now();
+      if (now - pasteGuardRef.current < 80) return;
+      pasteGuardRef.current = now;
+
+      if (
+        pagerRef.current ||
+        pasteConfirmRef.current ||
+        pasteBusyRef.current
+      ) {
+        return;
+      }
+
+      const nonempty = splitPasteLines(text);
+      if (nonempty.length === 0) return;
+
+      if (nonempty.length === 1) {
+        insertAtCursor(nonempty[0]!);
+        return;
+      }
+
+      const term = termRef.current;
+      if (!term) return;
+
+      if (nonempty.length > PASTE_LINE_CAP) {
+        clearPaintedInputBlock();
+        term.writeln(mutedAnsi(zhCN.clipboard.refused));
+        paintPromptLine();
+        scrollToPrompt();
+        return;
+      }
+
+      clearPaintedInputBlock();
+      pasteConfirmRef.current = { lines: nonempty };
+      writePasteConfirmStatus(nonempty.length);
+      scrollToPrompt();
+    }
+
+    async function submitLine() {
+      const term = termRef.current;
+      if (
+        !term ||
+        pagerRef.current ||
+        pasteConfirmRef.current ||
+        pasteBusyRef.current
+      ) {
+        return;
+      }
+
+      const command = bufferRef.current.trim();
+      term.write("\r\n");
+      setBuffer("", 0);
+      lastPaintRowsRef.current = 1;
+      lastCursorRowOffRef.current = 0;
+      resetCompletion();
+      historyIndexRef.current = null;
+
+      if (!command) {
+        paintPromptLine();
+        return;
+      }
+
+      await runCommandLineCore(command);
     }
 
     function handleHistory(direction: "up" | "down") {
@@ -479,7 +657,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
 
     /** 点击输入行时，按显示列落到最近码点边界。 */
     function placeCursorFromClick(clientX: number, clientY: number) {
-      if (pagerRef.current) return;
+      if (pagerRef.current || pasteConfirmRef.current) return;
       const term = termRef.current;
       const screen = term?.element?.querySelector(
         ".xterm-screen",
@@ -556,7 +734,13 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
         }
       },
       refreshPrompt: () => {
-        if (readyRef.current && !pagerRef.current) paintPromptLine();
+        if (
+          readyRef.current &&
+          !pagerRef.current &&
+          !pasteConfirmRef.current
+        ) {
+          paintPromptLine();
+        }
       },
       relayout: () => {
         requestAnimationFrame(() => {
@@ -615,6 +799,9 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
         term.attachCustomKeyEventHandler((event) => {
           if (event.type !== "keydown") return true;
 
+          const mod = event.ctrlKey || event.metaKey;
+          const key = event.key;
+
           if (pagerRef.current) {
             if (event.key === "Enter" || event.key === " ") {
               event.preventDefault();
@@ -631,6 +818,55 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
               return false;
             }
             event.preventDefault();
+            return false;
+          }
+
+          if (pasteConfirmRef.current) {
+            if (key === "y" || key === "Y") {
+              event.preventDefault();
+              acceptPasteConfirm();
+              return false;
+            }
+            if (key === "n" || key === "N" || key === "Escape") {
+              event.preventDefault();
+              cancelPasteConfirm(false);
+              return false;
+            }
+            if (mod && (key === "c" || key === "C") && !event.shiftKey) {
+              // Ctrl+C / Meta+C：中断确认（不当复制）
+              event.preventDefault();
+              cancelPasteConfirm(true);
+              return false;
+            }
+            event.preventDefault();
+            return false;
+          }
+
+          // 有选区：Ctrl+Shift+C 或 Mac Meta+C 复制
+          if (
+            mod &&
+            (key === "c" || key === "C") &&
+            (event.shiftKey || (event.metaKey && !event.ctrlKey))
+          ) {
+            const selection = term.getSelection();
+            if (selection) {
+              event.preventDefault();
+              void navigator.clipboard.writeText(selection).catch(() => {});
+              return false;
+            }
+            if (event.shiftKey) {
+              event.preventDefault();
+              return false;
+            }
+          }
+
+          // Ctrl+V / Ctrl+Shift+V / Meta+V 粘贴
+          if (mod && (key === "v" || key === "V")) {
+            event.preventDefault();
+            void navigator.clipboard
+              .readText()
+              .then((text) => handlePaste(text))
+              .catch(() => {});
             return false;
           }
 
@@ -712,6 +948,31 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
             return;
           }
 
+          if (pasteConfirmRef.current) {
+            if (data === "y" || data === "Y") {
+              acceptPasteConfirm();
+              return;
+            }
+            if (data === "n" || data === "N") {
+              cancelPasteConfirm(false);
+              return;
+            }
+            if (data === "\u0003") {
+              cancelPasteConfirm(true);
+              return;
+            }
+            return;
+          }
+
+          // 浏览器原生粘贴可能整段进 onData（含换行）
+          if (
+            data.length > 1 &&
+            (data.includes("\n") || data.includes("\r"))
+          ) {
+            handlePaste(data);
+            return;
+          }
+
           if (data === "\r") {
             void submitLine();
             return;
@@ -727,6 +988,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
             lastPaintRowsRef.current = 1;
             lastCursorRowOffRef.current = 0;
             resetCompletion();
+            pasteQueueRef.current = [];
             term.write("^C\r\n");
             paintPromptLine();
             return;

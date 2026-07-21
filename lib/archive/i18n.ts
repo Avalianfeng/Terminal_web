@@ -40,6 +40,12 @@ export const zhCN = {
     tree: "tree [路径]        目录树",
     whoami: "whoami             档案人物名",
     history: "history            命令历史",
+    shortcuts:
+      "快捷键              Ctrl+V 粘贴 · Ctrl+Shift+C 复制选区 · Ctrl+C 中断",
+  },
+  clipboard: {
+    multiConfirm: "剪贴板含 {n} 行。依次执行？ [y/N]",
+    refused: "粘贴超过 20 行已拒绝。",
   },
   about: {
     name: "姓名:",

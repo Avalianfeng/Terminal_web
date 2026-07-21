@@ -724,6 +724,7 @@ export function runCommand(
               [token(zhCN.help.sessionTitle, "success")],
               zhCN.help.clear,
               zhCN.help.themes,
+              zhCN.help.shortcuts,
             ),
           ),
         ],
