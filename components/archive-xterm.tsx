@@ -18,6 +18,7 @@ import { zhCN } from "@/lib/archive/i18n";
 import { readXtermThemeFromCss } from "@/lib/archive/palette";
 import { formatInputTokens } from "@/lib/archive/shell-style";
 import type { TerminalEntry, TerminalToken } from "@/lib/archive/types";
+import { wrapLogicalLines } from "@/lib/archive/wrap-lines";
 
 export type ArchiveXtermHandle = {
   /** preventScroll：避免 focus 抢滚动，交给外层 scrollIntoView 编排 */
@@ -37,10 +38,16 @@ type ArchiveXtermProps = {
   onCommand: (command: string) => {
     entries: TerminalEntry[];
     clear?: boolean;
+    pager?: { logicalLines: string[] } | null;
   };
   onCandidatesChange: (candidates: string[]) => void;
   /** Esc：先清候选；若返回 true 表示已处理（如关阅读面板） */
   onEscape: () => boolean;
+};
+
+type PagerState = {
+  lines: string[];
+  index: number;
 };
 
 /**
@@ -76,6 +83,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
     const writeQueueRef = useRef(0);
     const readyRef = useRef(false);
     const candidatesRef = useRef<string[]>([]);
+    const pagerRef = useRef<PagerState | null>(null);
     const bootRef = useRef(bootEntries);
     bootRef.current = bootEntries;
 
@@ -119,6 +127,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
         /* 容器尚未有尺寸时忽略 */
       }
       scrollToPrompt();
+      if (pagerRef.current) return;
       paintPromptLine();
       scrollToPrompt();
     }
@@ -148,7 +157,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
      */
     function paintPromptLine() {
       const term = termRef.current;
-      if (!term) return;
+      if (!term || pagerRef.current) return;
 
       clampCursor();
       const promptTokens = callbacksRef.current.getPromptTokens();
@@ -260,9 +269,103 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       }
     }
 
-    async function submitLine() {
+    function mutedAnsi(text: string) {
+      return lineToAnsi({ tokens: [{ text, tone: "muted" }] });
+    }
+
+    function writePagerStatus() {
       const term = termRef.current;
       if (!term) return;
+      term.write(`\r\x1b[2K${mutedAnsi(zhCN.pager.more)}`);
+    }
+
+    function clearPagerStatus() {
+      const term = termRef.current;
+      if (!term) return;
+      term.write("\r\x1b[2K");
+    }
+
+    function finishPager() {
+      const term = termRef.current;
+      pagerRef.current = null;
+      lastPaintRowsRef.current = 1;
+      lastCursorRowOffRef.current = 0;
+      if (!term) return;
+      term.writeln(mutedAnsi(zhCN.pager.end));
+      paintPromptLine();
+      scrollToPrompt();
+    }
+
+    function exitPager() {
+      const term = termRef.current;
+      if (!pagerRef.current) return;
+      clearPagerStatus();
+      pagerRef.current = null;
+      lastPaintRowsRef.current = 1;
+      lastCursorRowOffRef.current = 0;
+      if (!term) return;
+      paintPromptLine();
+      scrollToPrompt();
+    }
+
+    /** Enter / Space：清 status 后写出恰好一行。 */
+    function pagerAdvance() {
+      const term = termRef.current;
+      const pager = pagerRef.current;
+      if (!term || !pager) return;
+
+      clearPagerStatus();
+      const line = pager.lines[pager.index] ?? "";
+      pager.index += 1;
+      term.writeln(line);
+
+      if (pager.index >= pager.lines.length) {
+        finishPager();
+        return;
+      }
+
+      writePagerStatus();
+      scrollToPrompt();
+    }
+
+    function startPager(logicalLines: string[]) {
+      const term = termRef.current;
+      if (!term) return;
+
+      const cols = Math.max(1, term.cols);
+      const pageSize = Math.max(1, term.rows - 2);
+      const lines = wrapLogicalLines(logicalLines, cols);
+
+      if (lines.length <= pageSize) {
+        for (const row of lines) {
+          term.writeln(row);
+        }
+        paintPromptLine();
+        scrollToPrompt();
+        return;
+      }
+
+      let index = 0;
+      const first = Math.min(pageSize, lines.length);
+      for (; index < first; index += 1) {
+        term.writeln(lines[index]!);
+      }
+
+      if (index >= lines.length) {
+        term.writeln(mutedAnsi(zhCN.pager.end));
+        paintPromptLine();
+        scrollToPrompt();
+        return;
+      }
+
+      pagerRef.current = { lines, index };
+      writePagerStatus();
+      scrollToPrompt();
+    }
+
+    async function submitLine() {
+      const term = termRef.current;
+      if (!term || pagerRef.current) return;
 
       const command = bufferRef.current.trim();
       term.write("\r\n");
@@ -284,6 +387,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
         writeQueueRef.current += 1;
         lastPaintRowsRef.current = 1;
         lastCursorRowOffRef.current = 0;
+        pagerRef.current = null;
         term.clear();
         term.writeln(
           `\x1b[38;2;120;131;144m${zhCN.shell.cleared}\x1b[0m`,
@@ -293,6 +397,12 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       }
 
       await writeEntries(result.entries, true);
+
+      if (result.pager?.logicalLines) {
+        startPager(result.pager.logicalLines);
+        return;
+      }
+
       paintPromptLine();
       scrollToPrompt();
     }
@@ -369,6 +479,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
 
     /** 点击输入行时，按显示列落到最近码点边界。 */
     function placeCursorFromClick(clientX: number, clientY: number) {
+      if (pagerRef.current) return;
       const term = termRef.current;
       const screen = term?.element?.querySelector(
         ".xterm-screen",
@@ -445,7 +556,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
         }
       },
       refreshPrompt: () => {
-        if (readyRef.current) paintPromptLine();
+        if (readyRef.current && !pagerRef.current) paintPromptLine();
       },
       relayout: () => {
         requestAnimationFrame(() => {
@@ -503,6 +614,25 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
 
         term.attachCustomKeyEventHandler((event) => {
           if (event.type !== "keydown") return true;
+
+          if (pagerRef.current) {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              pagerAdvance();
+              return false;
+            }
+            if (
+              event.key === "q" ||
+              event.key === "Q" ||
+              event.key === "Escape"
+            ) {
+              event.preventDefault();
+              exitPager();
+              return false;
+            }
+            event.preventDefault();
+            return false;
+          }
 
           if (event.key === "Tab") {
             event.preventDefault();
@@ -566,6 +696,22 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
         });
 
         dataDisposable = term.onData((data) => {
+          if (pagerRef.current) {
+            if (data === "\r" || data === " ") {
+              pagerAdvance();
+              return;
+            }
+            if (data === "q" || data === "Q") {
+              exitPager();
+              return;
+            }
+            if (data === "\u0003") {
+              exitPager();
+              return;
+            }
+            return;
+          }
+
           if (data === "\r") {
             void submitLine();
             return;

@@ -1,6 +1,6 @@
 # Personal Archive System
 
-Feng 的个人数字档案公开站点，部署目标为 [cylf.me](https://cylf.me)。网站不以传统首页为入口，而是以**终端界面**作为访客浏览档案的主要方式。
+个人数字档案公开站点，部署目标为 [cylf.me](https://cylf.me)。网站不以传统首页为入口，而是以**终端界面**作为访客浏览档案的主要方式。
 
 当前版本：**v0.1**（`active development`）
 
@@ -12,20 +12,24 @@ Feng 的个人数字档案公开站点，部署目标为 [cylf.me](https://cylf.
 
 ## 技术栈
 
-| 类别 | 技术 |
-|------|------|
-| 框架 | Next.js 16（App Router + Turbopack） |
-| UI | React 19、Tailwind CSS 4 |
-| 语言 | TypeScript（ESM） |
-| 内容 | Markdown + JSON，构建时读取 |
-| 工具 | ESLint（flat config） |
+
+| 类别  | 技术                                 |
+| --- | ---------------------------------- |
+| 框架  | Next.js 16（App Router + Turbopack） |
+| UI  | React 19、Tailwind CSS 4            |
+| 语言  | TypeScript（ESM）                    |
+| 内容  | Markdown + JSON，构建时读取              |
+| 工具  | ESLint（flat config）                |
+
 
 ## 路由
 
-| 路径 | 说明 |
-|------|------|
-| `/` | 主终端界面，档案浏览入口 |
+
+| 路径        | 说明                |
+| --------- | ----------------- |
+| `/`       | 主终端界面，档案浏览入口      |
 | `/themes` | 视觉主题试验台，与稳定公开壳层隔离 |
+
 
 ## 终端功能
 
@@ -33,29 +37,35 @@ Feng 的个人数字档案公开站点，部署目标为 [cylf.me](https://cylf.
 
 ### 档案命令
 
-| 命令 | 说明 |
-|------|------|
-| `help` / `?` | 查看可用命令 |
-| `about` | 查看人物档案 |
-| `projects` | 列出公开项目 |
-| `thoughts` | 列出公开思考 |
-| `timeline` | 查看时间线 |
-| `search <关键词>` | 全文搜索档案 |
-| `open <slug>` | 打开项目或文章 |
-| `themes` | 提示主题试验台路径 |
-| `clear` / `cls` | 清空终端会话 |
+
+| 命令              | 说明        |
+| --------------- | --------- |
+| `help` / `?`    | 查看可用命令    |
+| `about`         | 查看人物档案    |
+| `projects`      | 列出公开项目    |
+| `thoughts`      | 列出公开思考    |
+| `timeline`      | 查看时间线     |
+| `search <关键词>`  | 全文搜索档案    |
+| `open <slug>`   | 打开项目或文章   |
+| `themes`        | 提示主题试验台路径 |
+| `clear` / `cls` | 清空终端会话    |
+
+
+
 
 ### Linux 风格命令
 
-| 命令 | 说明 |
-|------|------|
-| `pwd` | 显示当前目录 |
-| `ls` / `dir` / `ll` | 列出目录内容 |
-| `cd <路径>` | 切换工作目录 |
-| `tree` | 显示目录树 |
-| `cat <文件>` | 读取节点内容 |
-| `whoami` | 显示人物姓名 |
-| `history` | 显示会话命令历史 |
+
+| 命令                  | 说明       |
+| ------------------- | -------- |
+| `pwd`               | 显示当前目录   |
+| `ls` / `dir` / `ll` | 列出目录内容   |
+| `cd <路径>`           | 切换工作目录   |
+| `tree`              | 显示目录树    |
+| `cat <文件>`          | 读取节点内容   |
+| `whoami`            | 显示人物姓名   |
+| `history`           | 显示会话命令历史 |
+
 
 打开的记录以**浅色档案纸卡片**呈现，与深色终端壳层形成对比（Dual Phase Archive 视觉方向）。
 
@@ -84,6 +94,8 @@ Markdown 文件支持 YAML frontmatter（`title`、`summary`、`status`、`tags`
 └── person
 ```
 
+
+
 ## 视觉方向
 
 生产环境采用 **Dual Phase Archive**：黑色精确终端壳 + 浅色安静纸面卡片。
@@ -94,6 +106,8 @@ Markdown 文件支持 YAML frontmatter（`title`、`summary`、`status`、`tags`
 - Deep Console
 - White Archive
 - Reversal Chamber
+
+
 
 ## v0.1 边界
 
@@ -110,7 +124,9 @@ Markdown 文件支持 YAML frontmatter（`title`、`summary`、`status`、`tags`
 - 登录与权限
 - AI 解读
 - 多人档案权限
-- 全屏模式（按钮已占位，暂未启用）
+- （已做）终端 fullscreen：放大壳高；`open`/`cat` 仍走阅读面板
+
+
 
 ## 本地开发
 
@@ -133,3 +149,4 @@ lib/archive/            # 命令系统、VFS、内容加载、i18n
 content/                # 档案数据源
 .learnings/             # 开发过程记录
 ```
+

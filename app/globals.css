@@ -199,6 +199,19 @@ textarea {
   padding-left: max(clamp(0.85rem, 2.8vw, 1.75rem), env(safe-area-inset-left, 0px));
 }
 
+/* fullscreen：收紧舞台边距，终端壳占满视口高度；阅读区仍在下方，open/cat 语义不变 */
+.archive-workspace.is-terminal-fullscreen {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-right: max(0.5rem, env(safe-area-inset-right, 0px));
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+  padding-left: max(0.5rem, env(safe-area-inset-left, 0px));
+}
+
+.archive-workspace.is-terminal-fullscreen .archive-workspace__stage {
+  max-width: none;
+  gap: 0.85rem;
+}
+
 .archive-workspace__stage {
   margin: 0 auto;
   display: flex;
@@ -698,6 +711,15 @@ textarea {
     height: min(72dvh, 720px);
     min-height: min(480px, 58dvh);
   }
+}
+
+.archive-workspace.is-terminal-fullscreen .terminal-shell {
+  height: calc(
+    100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) -
+      0.75rem
+  );
+  min-height: 0;
+  border-radius: 0;
 }
 
 .terminal-shell ::selection {

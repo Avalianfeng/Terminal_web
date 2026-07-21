@@ -5,6 +5,9 @@ import { useEffect, useState } from "react";
 import {
   applyWorkspacePalette,
   readStoredPalette,
+  readTerminalToneSwatches,
+  TERMINAL_TONE_KEYS,
+  type TerminalToneKey,
   type WorkspacePalette,
 } from "@/lib/archive/palette";
 
@@ -74,16 +77,28 @@ const palettes: {
 
 export function PaletteLab() {
   const [active, setActive] = useState<WorkspacePalette>("cool-atelier");
+  const [tones, setTones] = useState<Record<TerminalToneKey, string> | null>(
+    null,
+  );
+
+  function refreshTones() {
+    setTones(readTerminalToneSwatches());
+  }
 
   useEffect(() => {
     const initial = readStoredPalette() ?? "cool-atelier";
     setActive(initial);
     applyWorkspacePalette(initial);
+    refreshTones();
   }, []);
 
   function selectPalette(id: WorkspacePalette) {
     setActive(id);
     applyWorkspacePalette(id);
+    // 等 CSS 变量落到计算样式后再读 tone
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => refreshTones());
+    });
   }
 
   return (
@@ -106,9 +121,38 @@ export function PaletteLab() {
           </p>
           <p className="mt-3 max-w-[62ch] text-sm text-neutral-500">
             当前：<span className="font-medium text-neutral-800">{active}</span>
-            。默认 <code className="text-neutral-700">cool-atelier</code>。
+            。默认 <code className="text-neutral-700">cool-atelier</code>
+            。此处只预览 token，不开放字体超市。
           </p>
         </div>
+
+        {tones ? (
+          <section className="mt-10 max-w-[760px] rounded-md border border-black/10 bg-white/45 p-5">
+            <h2 className="text-sm font-semibold tracking-[-0.02em] text-neutral-800">
+              Terminal tones（`--tone-*` → xterm ANSI）
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-neutral-500">
+              随上方 palette 切换实时取色；首页终端真彩与 16 色都从这组变量来。
+            </p>
+            <ul className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
+              {TERMINAL_TONE_KEYS.map((key) => (
+                <li
+                  key={key}
+                  className="flex items-center gap-2 rounded border border-black/8 bg-[var(--archive-black)] px-2.5 py-2"
+                >
+                  <span
+                    className="size-3 shrink-0 rounded-sm border border-white/15"
+                    style={{ background: tones[key] }}
+                    aria-hidden
+                  />
+                  <span className="font-mono text-[11px] text-[rgb(var(--tone-muted))]">
+                    {key}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
 
         <div className="mt-12 grid gap-5 lg:grid-cols-3">
           {palettes.map((palette) => {

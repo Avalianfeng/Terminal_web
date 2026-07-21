@@ -50,16 +50,19 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
   const [leaving, setLeaving] = useState(false);
   const [demoting, setDemoting] = useState<ReadingSurface | null>(null);
   const [completeCandidates, setCompleteCandidates] = useState<string[]>([]);
+  const [fullscreen, setFullscreen] = useState(false);
   const xtermRef = useRef<ArchiveXtermHandle>(null);
   const terminalShellRef = useRef<HTMLElement>(null);
   const sessionRef = useRef(session);
   const readingStateRef = useRef(readingState);
   const leavingRef = useRef(leaving);
+  const fullscreenRef = useRef(fullscreen);
   const leaveFinishedRef = useRef(false);
   const leaveIntentRef = useRef<LeaveIntent>(null);
   sessionRef.current = session;
   readingStateRef.current = readingState;
   leavingRef.current = leaving;
+  fullscreenRef.current = fullscreen;
 
   useEffect(() => {
     setMotionLevel(resolveMotionLevel());
@@ -69,6 +72,36 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
     if (completeCandidates.length === 0) return;
     xtermRef.current?.relayout();
   }, [completeCandidates.length]);
+
+  useEffect(() => {
+    xtermRef.current?.relayout();
+    if (fullscreen) {
+      terminalShellRef.current?.scrollIntoView({
+        behavior: resolveScrollBehavior(motionLevel),
+        block: "start",
+        inline: "nearest",
+      });
+    }
+  }, [fullscreen, motionLevel]);
+
+  /** 焦点不在 xterm 时仍可用 Esc 退出 fullscreen（阅读面板优先由自身处理 Esc） */
+  useEffect(() => {
+    if (!fullscreen) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      if (readingStateRef.current.main) return;
+      event.preventDefault();
+      setFullscreen(false);
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [fullscreen]);
+
+  function toggleFullscreen() {
+    setFullscreen((current) => !current);
+  }
 
   function revealTerminal() {
     terminalShellRef.current?.scrollIntoView({
@@ -209,7 +242,9 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
 
   return (
     <main
-      className={`archive-workspace motion-level-${motionLevel}`}
+      className={`archive-workspace motion-level-${motionLevel}${
+        fullscreen ? " is-terminal-fullscreen" : ""
+      }`}
       style={
         {
           "--output-fade-ms": `${motionSpec.outputFadeMs}ms`,
@@ -235,10 +270,13 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                disabled
-                className="rounded border border-[color:var(--terminal-border)] px-2.5 py-1 text-xs text-[rgb(var(--tone-muted))]"
+                aria-pressed={fullscreen}
+                onClick={toggleFullscreen}
+                className="rounded border border-[color:var(--terminal-border)] px-2.5 py-1 text-xs text-[rgb(var(--tone-normal))] transition hover:border-white/25 hover:text-white active:translate-y-px"
               >
-                fullscreen
+                {fullscreen
+                  ? zhCN.shell.fullscreenExit
+                  : zhCN.shell.fullscreen}
               </button>
               <Link
                 href="/themes"
@@ -274,12 +312,17 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
                 return {
                   entries: result.entries,
                   clear: result.clear,
+                  pager: result.pager,
                 };
               }}
               onCandidatesChange={setCompleteCandidates}
               onEscape={() => {
                 if (readingStateRef.current.main) {
                   closeReading();
+                  return true;
+                }
+                if (fullscreenRef.current) {
+                  setFullscreen(false);
                   return true;
                 }
                 return false;

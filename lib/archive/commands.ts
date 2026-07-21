@@ -31,6 +31,8 @@ type CommandResult = {
   session: TerminalSession;
   /** 打开外区阅读面板；与终端输出分离（Spatial separation）。 */
   reading?: ReadingPayload | null;
+  /** 终端 pager：未按列宽 wrap 的逻辑行（由 xterm 侧 wrap）。 */
+  pager?: { logicalLines: string[] } | null;
 };
 
 type LinuxHandlerResult = {
@@ -38,6 +40,7 @@ type LinuxHandlerResult = {
   session: TerminalSession;
   handled: boolean;
   reading?: ReadingPayload | null;
+  pager?: { logicalLines: string[] } | null;
 };
 
 function id(prefix: string) {
@@ -532,29 +535,12 @@ function handleLinuxCommand(
     const target = args[0];
     if (!target) {
       return {
-        entries: [systemError(zhCN.errors.usageOpen)],
+        entries: [systemError(zhCN.errors.usageCat)],
         session,
         handled: true,
       };
     }
     const node = resolveVfsPath(root, session.cwd, target);
-
-    const openDocument = (document: ArchiveDocument, selectedPath?: string) => ({
-      entries: [
-        lineEntry(
-          lines([
-            token(zhCN.reading.openedPrefix, "hint"),
-            token(document.title, "path"),
-          ]),
-        ),
-      ],
-      session: {
-        ...session,
-        selectedPath: selectedPath ?? document.path,
-      },
-      handled: true as const,
-      reading: { kind: "document" as const, document },
-    });
 
     if (!node) {
       return {
@@ -571,13 +557,19 @@ function handleLinuxCommand(
       };
     }
     if (node.type === "timeline") {
+      const logicalLines: string[] = [];
+      for (const entry of snapshot.timeline) {
+        if (logicalLines.length > 0) logicalLines.push("");
+        logicalLines.push(`${entry.date}  ${entry.title}`);
+        logicalLines.push(
+          ...entry.body.replace(/\r\n/g, "\n").split("\n"),
+        );
+      }
       return {
-        entries: [
-          lineEntry(lines([token(zhCN.reading.openedTimeline, "hint")])),
-        ],
+        entries: [],
         session: { ...session, selectedPath: node.path },
         handled: true,
-        reading: { kind: "timeline", entries: snapshot.timeline },
+        pager: { logicalLines },
       };
     }
     if (node.type === "person") {
@@ -605,7 +597,21 @@ function handleLinuxCommand(
       };
     }
 
-    return openDocument(document, node.path);
+    const logicalLines = [
+      document.title,
+      "",
+      ...document.body.replace(/\r\n/g, "\n").split("\n"),
+    ];
+
+    return {
+      entries: [],
+      session: {
+        ...session,
+        selectedPath: node.path,
+      },
+      handled: true,
+      pager: { logicalLines },
+    };
   }
 
   if (command === "whoami") {
@@ -676,12 +682,14 @@ export function runCommand(
         entries: [commandEcho],
         session: linuxResult.session,
         reading: null,
+        pager: null,
       };
     }
     return {
       entries: [commandEcho, ...linuxResult.entries],
       session: linuxResult.session,
       reading: linuxResult.reading,
+      pager: linuxResult.pager,
     };
   }
 

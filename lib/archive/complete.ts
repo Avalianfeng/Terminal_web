@@ -77,7 +77,7 @@ function matchesFilter(node: VfsNode, filter: PathFilter) {
 /**
  * 路径补全。
  * - dirs：仅目录（cd）
- * - files：仅文件；目录带 `/` 仅作下钻前缀（cat）
+ * - files：仅文件；目录带 `/` 仅作下钻前缀（cat 终端查看）
  * - all：目录 + 文件（ls / tree / open）
  */
 function pathCandidates(
@@ -244,7 +244,7 @@ function parseInput(raw: string): ParsedInput {
 /**
  * Tab 补全：命令名 / 路径。
  * - cd → 仅目录
- * - cat → 仅文件（唯一目录自动下钻）
+ * - cat → 终端查看文件（唯一目录自动下钻）
  * - open / ls / tree → 目录 + 文件
  */
 export function completeInput(

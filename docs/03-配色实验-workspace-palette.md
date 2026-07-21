@@ -44,3 +44,11 @@
 - 令牌集中在 `app/globals.css`，通过 `[data-palette="..."]` 覆盖 CSS 变量。
 - 终端 tone 使用 `rgb(var(--tone-*))` 分量，随 palette 微调色相。
 - 阴影按 palette 色调染色（冷蓝灰 / 暖褐 / 中性黑），避免纯黑 drop shadow。
+- `readXtermThemeFromCss()` 把 `--tone-*` 映射到 xterm 16 色 ANSI；`/themes` 展示 live tone 色板，**不加字体选择器**。
+
+---
+
+## 5. 不做
+
+- 再堆第四套以上皮肤当产品功能
+- 访客可选字体 / 「主题超市」
