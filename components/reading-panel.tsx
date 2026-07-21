@@ -8,6 +8,7 @@ import {
   useRef,
 } from "react";
 import { zhCN } from "@/lib/archive/i18n";
+import { MarkdownProse } from "@/lib/archive/markdown-prose";
 import {
   resolvePanelLeaveMs,
   resolveScrollBehavior,
@@ -25,48 +26,7 @@ type ReadingPanelProps = {
 };
 
 function MarkdownBody({ document }: { document: ArchiveDocument }) {
-  const lines = document.body.split("\n");
-
-  return (
-    <div className="reading-panel__prose">
-      {lines.map((line, index) => {
-        if (line.startsWith("# ")) {
-          return (
-            <h3 key={`${line}-${index}`} className="reading-panel__prose-h1">
-              {line.replace(/^#\s+/, "")}
-            </h3>
-          );
-        }
-
-        if (line.startsWith("## ")) {
-          return (
-            <h4 key={`${line}-${index}`} className="reading-panel__prose-h2">
-              {line.replace(/^##\s+/, "")}
-            </h4>
-          );
-        }
-
-        if (line.startsWith("- ")) {
-          return (
-            <p key={`${line}-${index}`} className="reading-panel__prose-li">
-              <span className="reading-panel__prose-bullet">-</span>
-              {line.replace(/^-\s+/, "")}
-            </p>
-          );
-        }
-
-        if (!line.trim()) {
-          return <div key={`space-${index}`} className="reading-panel__prose-gap" />;
-        }
-
-        return (
-          <p key={`${line}-${index}`} className="reading-panel__prose-p">
-            {line}
-          </p>
-        );
-      })}
-    </div>
-  );
+  return <MarkdownProse body={document.body} />;
 }
 
 function TimelineBody({ entries }: { entries: TimelineEntry[] }) {

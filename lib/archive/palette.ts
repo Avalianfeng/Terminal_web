@@ -1,11 +1,22 @@
-export type WorkspacePalette = "cool-atelier" | "warm-folio" | "ledger-bright";
+export type WorkspacePalette =
+  | "cool-atelier"
+  | "warm-folio"
+  | "ledger-bright"
+  | "ink-drawer"
+  | "mist-atelier";
 
 export const PALETTE_STORAGE_KEY = "archive-workspace-palette";
 
+/** 生产默认 + 已稳定方向 */
+export const PRODUCTION_PALETTES: WorkspacePalette[] = ["cool-atelier"];
+
+/** 试验台可切换的全部方向（含 lab） */
 export const WORKSPACE_PALETTES: WorkspacePalette[] = [
   "cool-atelier",
   "warm-folio",
   "ledger-bright",
+  "ink-drawer",
+  "mist-atelier",
 ];
 
 /** 终端语义色；与 CSS `--tone-*` / ANSI / xterm 16 色对齐。 */
@@ -107,7 +118,7 @@ export function readXtermThemeFromCss() {
   const command = toneRgb("--tone-command", "rgb(245, 190, 72)");
   const path = toneRgb("--tone-path", "rgb(137, 196, 255)");
   const prompt = toneRgb("--tone-prompt", "rgb(146, 173, 199)");
-  const user = toneRgb("--tone-user", "rgb(85, 230, 140)");
+  const user = toneRgb("--tone-user", "rgb(118, 188, 148)");
   const hint = toneRgb("--tone-hint", "rgb(150, 166, 181)");
 
   return {

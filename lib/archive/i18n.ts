@@ -1,17 +1,18 @@
 export const zhCN = {
   shell: {
-    title: "PERSONAL ARCHIVE SYSTEM",
-    subtitle: "cylf.me",
+    title: "个人档案系统",
+    subtitle: "cylf.me · personal archive",
     prompt: "visitor@archive:~$",
     placeholder: "输入 help 查看命令 · Tab 补全",
     cleared: "终端已清空，输入 help 继续。",
-    themeLab: "theme lab",
-    fullscreen: "fullscreen",
-    fullscreenExit: "exit",
+    themeLab: "主题试验",
+    fullscreen: "全屏",
+    fullscreenExit: "退出",
     completeHint: "候选",
     completeCycle: "Tab 切换",
   },
   boot: {
+    banner: "档案壳已启动",
     person: "人物",
     interface: "公开入口: 终端",
     ready: "档案索引就绪",

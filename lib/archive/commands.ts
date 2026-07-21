@@ -642,7 +642,7 @@ export function initialEntries(snapshot: ArchiveSnapshot): TerminalEntry[] {
       id: "system-boot",
       kind: "system",
       lines: lines(
-        [token(zhCN.shell.title, "success")],
+        [token(zhCN.boot.banner, "success")],
         "",
         [token(`${zhCN.boot.person}: `, "muted"), token(snapshot.person.name)],
         [token(zhCN.boot.interface, "hint")],

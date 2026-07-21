@@ -266,36 +266,29 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
     >
       <div className="archive-workspace__stage">
         <section ref={terminalShellRef} className="terminal-shell">
-          <header className="flex h-14 shrink-0 items-center justify-between border-b border-[color:var(--terminal-border)] px-4 md:px-5">
-            <div>
-              <p className="text-sm tracking-[-0.02em] text-[rgb(var(--tone-normal))]">
-                {zhCN.shell.title}
-              </p>
-              <p className="mt-0.5 text-xs text-[rgb(var(--tone-muted))]">
-                {zhCN.shell.subtitle}
-              </p>
+          <header className="terminal-shell__chrome">
+            <div className="terminal-shell__brand">
+              <p className="terminal-shell__title">{zhCN.shell.title}</p>
+              <p className="terminal-shell__subtitle">{zhCN.shell.subtitle}</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="terminal-shell__actions">
               <button
                 type="button"
+                className="terminal-shell__btn"
                 aria-pressed={fullscreen}
                 onClick={toggleFullscreen}
-                className="rounded border border-[color:var(--terminal-border)] px-2.5 py-1 text-xs text-[rgb(var(--tone-normal))] transition hover:border-white/25 hover:text-white active:translate-y-px"
               >
                 {fullscreen
                   ? zhCN.shell.fullscreenExit
                   : zhCN.shell.fullscreen}
               </button>
-              <Link
-                href="/themes"
-                className="rounded border border-[color:var(--terminal-border)] px-2.5 py-1 text-xs text-[rgb(var(--tone-normal))] transition hover:border-white/25 hover:text-white active:translate-y-px"
-              >
+              <Link href="/themes" className="terminal-shell__btn">
                 {zhCN.shell.themeLab}
               </Link>
             </div>
           </header>
 
-          <div className="relative flex min-h-0 flex-1 flex-col">
+          <div className="terminal-shell__body">
             <ArchiveXterm
               ref={xtermRef}
               bootEntries={bootEntries}
@@ -338,15 +331,12 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
             />
 
             {completeCandidates.length > 0 ? (
-              <p
-                className="shrink-0 border-t border-[color:var(--terminal-border)] px-4 py-2 text-xs text-[rgb(var(--tone-muted))] md:px-5"
-                aria-live="polite"
-              >
-                <span className="text-[rgb(var(--tone-hint))]">
+              <p className="terminal-shell__complete" aria-live="polite">
+                <span className="terminal-shell__complete-label">
                   {zhCN.shell.completeHint}:{" "}
                 </span>
                 {completeCandidates.join("  ")}
-                <span className="ml-2 text-[rgb(var(--tone-hint))]">
+                <span className="terminal-shell__complete-hint">
                   ({zhCN.shell.completeCycle})
                 </span>
               </p>

@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect } from "react";
+import { bootstrapLabPrefs } from "@/lib/archive/lab-prefs";
 import {
   applyWorkspacePalette,
   readStoredPalette,
 } from "@/lib/archive/palette";
 
 /**
- * 合并接缝：/themes 里选的 palette 写在 localStorage，
- * 首页也必须在挂载时读回 html[data-palette]，否则「theme 不好用」。
+ * 合并接缝：/themes 里选的 palette / lab 偏好写在 localStorage，
+ * 首页也必须在挂载时读回 html[data-*]。
  */
 export function PaletteBootstrap() {
   useEffect(() => {
@@ -16,6 +17,7 @@ export function PaletteBootstrap() {
     if (stored) {
       applyWorkspacePalette(stored);
     }
+    bootstrapLabPrefs();
   }, []);
 
   return null;
