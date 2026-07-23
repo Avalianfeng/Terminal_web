@@ -75,6 +75,7 @@ export const zhCN = {
   },
   labels: {
     slug: "slug",
+    docStatus: "状态",
     timeline: "时间线",
     themeLab: "主题试验台:",
     currentDirection: "当前生产方向:",

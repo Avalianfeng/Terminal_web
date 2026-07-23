@@ -1,11 +1,11 @@
 {
   "name": "策月帘风",
-  "description": "A personal digital archive organized around a person rather than a page tree.",
-  "currentFocus": "Building a terminal-first archive interface for cylf.me.",
+  "description": "以人为核心对象的个人数字档案，而不是按页面树组织的个人站。",
+  "currentFocus": "完善 cylf.me：终端探索 + 纸面长文阅读，并开放给 Agent 的读/写入口。",
   "created": "2026-07-08",
   "links": [
     {
-      "label": "Website",
+      "label": "网站",
       "href": "https://cylf.me"
     }
   ]

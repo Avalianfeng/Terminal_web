@@ -685,14 +685,46 @@ textarea {
     clamp(1.45rem, 3.8vw, 2.15rem);
 }
 
-.reading-panel__status {
+.reading-panel__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.75rem;
   margin: 0 0 1.1rem;
+}
+
+.reading-panel__status {
+  margin: 0;
   width: fit-content;
   border: 1px solid var(--archive-line);
   border-radius: 2px;
   padding: 0.3rem 0.65rem;
   font-size: 11px;
   letter-spacing: 0.02em;
+  color: var(--archive-muted);
+  font-family:
+    var(--font-mono),
+    "JetBrains Mono",
+    "IBM Plex Mono",
+    Consolas,
+    monospace;
+}
+
+.reading-panel__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reading-panel__tag {
+  border: 1px solid var(--archive-line);
+  border-radius: 2px;
+  padding: 0.22rem 0.5rem;
+  font-size: 11px;
+  letter-spacing: 0.01em;
   color: var(--archive-muted);
   font-family:
     var(--font-mono),
@@ -897,12 +929,8 @@ textarea {
   color: var(--archive-paper-ink);
 }
 
-.reading-panel__timeline-body {
-  margin: 0.45rem 0 0;
-  max-width: 66ch;
-  font-size: var(--type-prose, 1.02rem);
-  line-height: var(--type-prose-leading, 1.7);
-  color: color-mix(in srgb, var(--archive-paper-ink) 80%, transparent);
+.reading-panel__timeline-item .reading-panel__prose {
+  margin-top: 0.45rem;
 }
 
 /* —— Theme lab —— */

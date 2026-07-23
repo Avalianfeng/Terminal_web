@@ -107,6 +107,14 @@ function formatDocumentList(documents: ArchiveDocument[]) {
       line([token(`${String(index + 1).padStart(2, "0")}  `, "muted"), token(document.title)]),
       line([token(`    ${zhCN.labels.slug}: `, "muted"), token(document.slug, "path")]),
     ];
+    if (document.status) {
+      itemLines.push(
+        line([
+          token(`    ${zhCN.labels.docStatus}: `, "muted"),
+          token(document.status, "path"),
+        ]),
+      );
+    }
     if (document.summary) {
       itemLines.push(line([token(`    ${document.summary}`, "hint")]));
     }

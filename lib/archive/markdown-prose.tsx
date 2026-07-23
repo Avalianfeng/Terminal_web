@@ -75,7 +75,20 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
   return nodes.length > 0 ? nodes : [text];
 }
 
-/** 轻量块解析：标题 / 列表 / 引用 / 围栏代码 / 分隔线；不引入 markdown 依赖。 */
+function isStructuralLine(line: string) {
+  if (!line.trim()) return true;
+  if (line.startsWith("```")) return true;
+  if (/^---+$/.test(line.trim()) || /^\*\*\*+$/.test(line.trim())) return true;
+  if (line.startsWith("# ")) return true;
+  if (line.startsWith("## ")) return true;
+  if (line.startsWith("### ")) return true;
+  if (line.startsWith("> ")) return true;
+  if (/^[-*]\s+/.test(line)) return true;
+  if (/^\d+\.\s+/.test(line)) return true;
+  return false;
+}
+
+/** 轻量块解析：标题 / 列表 / 引用 / 围栏代码 / 分隔线；相邻普通行合并为段。 */
 export function parseProseBlocks(body: string): ProseBlock[] {
   const lines = body.replace(/\r\n/g, "\n").split("\n");
   const blocks: ProseBlock[] = [];
@@ -156,8 +169,13 @@ export function parseProseBlocks(body: string): ProseBlock[] {
       continue;
     }
 
-    blocks.push({ kind: "p", text: line });
+    const paragraphLines: string[] = [line];
     i += 1;
+    while (i < lines.length && !isStructuralLine(lines[i] ?? "")) {
+      paragraphLines.push(lines[i] ?? "");
+      i += 1;
+    }
+    blocks.push({ kind: "p", text: paragraphLines.join(" ") });
   }
 
   return blocks;

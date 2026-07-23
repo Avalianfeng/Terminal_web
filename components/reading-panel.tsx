@@ -40,7 +40,7 @@ function TimelineBody({ entries }: { entries: TimelineEntry[] }) {
           <time className="reading-panel__timeline-date">{item.date}</time>
           <div>
             <h3 className="reading-panel__timeline-title">{item.title}</h3>
-            <p className="reading-panel__timeline-body">{item.body}</p>
+            <MarkdownProse body={item.body} />
           </div>
         </section>
       ))}
@@ -201,8 +201,23 @@ export function ReadingPanel({
       <div className="reading-panel__body">
         {surface.kind === "document" ? (
           <>
-            {surface.document.status ? (
-              <p className="reading-panel__status">{surface.document.status}</p>
+            {surface.document.status || surface.document.tags.length > 0 ? (
+              <div className="reading-panel__meta">
+                {surface.document.status ? (
+                  <p className="reading-panel__status">
+                    {surface.document.status}
+                  </p>
+                ) : null}
+                {surface.document.tags.length > 0 ? (
+                  <ul className="reading-panel__tags" aria-label="tags">
+                    {surface.document.tags.map((tag) => (
+                      <li key={tag} className="reading-panel__tag">
+                        {tag}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
             ) : null}
             {surface.document.summary ? (
               <p className="reading-panel__summary">{surface.document.summary}</p>
