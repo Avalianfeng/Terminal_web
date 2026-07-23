@@ -44,7 +44,7 @@ export const zhCN = {
       "快捷键              Ctrl+V 粘贴 · Ctrl+Shift+C 复制选区 · Ctrl+C 中断",
   },
   clipboard: {
-    multiConfirm: "剪贴板含 {n} 行。依次执行？ [y/N]",
+    multiConfirm: "剪贴板含 {n} 行。依次执行？ [Y/n]",
     refused: "粘贴超过 20 行已拒绝。",
   },
   about: {

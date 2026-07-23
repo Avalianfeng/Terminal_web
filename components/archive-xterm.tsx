@@ -822,7 +822,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
           }
 
           if (pasteConfirmRef.current) {
-            if (key === "y" || key === "Y") {
+            if (key === "y" || key === "Y" || key === "Enter") {
               event.preventDefault();
               acceptPasteConfirm();
               return false;
@@ -949,7 +949,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
           }
 
           if (pasteConfirmRef.current) {
-            if (data === "y" || data === "Y") {
+            if (data === "y" || data === "Y" || data === "\r") {
               acceptPasteConfirm();
               return;
             }
