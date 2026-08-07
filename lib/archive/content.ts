@@ -1,5 +1,6 @@
 import { readFile, readdir } from "fs/promises";
 import path from "path";
+import { parseFrontmatter } from "./content-format";
 import type {
   ArchiveDocument,
   ArchiveSnapshot,
@@ -7,30 +8,7 @@ import type {
   TimelineEntry,
 } from "./types";
 
-const contentRoot = path.join(process.cwd(), "content");
-
-function parseFrontmatter(markdown: string) {
-  if (!markdown.startsWith("---")) {
-    return { data: new Map<string, string>(), body: markdown.trim() };
-  }
-
-  const end = markdown.indexOf("\n---", 3);
-  if (end === -1) {
-    return { data: new Map<string, string>(), body: markdown.trim() };
-  }
-
-  const raw = markdown.slice(3, end).trim();
-  const body = markdown.slice(end + 4).trim();
-  const data = new Map<string, string>();
-
-  for (const line of raw.split("\n")) {
-    const [key, ...valueParts] = line.split(":");
-    if (!key || valueParts.length === 0) continue;
-    data.set(key.trim(), valueParts.join(":").trim().replace(/^"|"$/g, ""));
-  }
-
-  return { data, body };
-}
+export const contentRoot = path.join(process.cwd(), "content");
 
 function tagsFrom(value: string | undefined) {
   if (!value) return [];
@@ -40,6 +18,7 @@ function tagsFrom(value: string | undefined) {
     .filter(Boolean);
 }
 
+/** 只支持单文件形态 `content/<group>/<slug>.md`。 */
 async function readMarkdownGroup(group: "projects" | "thoughts") {
   const groupRoot = path.join(contentRoot, group);
   const entries = await readdir(groupRoot, { withFileTypes: true }).catch(
@@ -48,19 +27,16 @@ async function readMarkdownGroup(group: "projects" | "thoughts") {
 
   const documents = await Promise.all(
     entries
-      .filter((entry) => entry.isDirectory() || entry.name.endsWith(".md"))
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
       .map(async (entry): Promise<ArchiveDocument | null> => {
-        const slug = entry.isDirectory()
-          ? entry.name
-          : entry.name.replace(/\.md$/, "");
-        const filePath = entry.isDirectory()
-          ? path.join(groupRoot, entry.name, "info.md")
-          : path.join(groupRoot, entry.name);
+        const slug = entry.name.replace(/\.md$/, "");
+        const filePath = path.join(groupRoot, entry.name);
 
         const markdown = await readFile(filePath, "utf8").catch(() => null);
         if (!markdown) return null;
 
-        const { data, body } = parseFrontmatter(markdown);
+        const { fields, body } = parseFrontmatter(markdown);
+        const data = new Map(fields.map((field) => [field.key, field.value]));
         const fallbackTitle =
           body.match(/^#\s+(.+)$/m)?.[1]?.trim() ?? slug.replaceAll("-", " ");
 

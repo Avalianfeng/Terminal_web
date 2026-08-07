@@ -11,6 +11,7 @@ import { zhCN } from "./i18n";
 import { resolveAlias } from "./aliases";
 import { RAIL_MAX } from "./reading-state";
 import { formatInputTokens } from "./shell-style";
+import { SLUG_PATTERN, type ContentGroup } from "./content-format";
 import {
   createSession,
   createVfs,
@@ -33,6 +34,15 @@ type CommandResult = {
   reading?: ReadingPayload | null;
   /** 终端 pager：未按列宽 wrap 的逻辑行（由 xterm 侧 wrap）。 */
   pager?: { logicalLines: string[] } | null;
+  /** 打开全屏编辑面板（原文由编辑面板异步读取）。 */
+  edit?: EditTarget | null;
+};
+
+/** 编辑目标：group + slug；exists=false 时进入新建。 */
+type EditTarget = {
+  group: ContentGroup;
+  slug: string;
+  exists: boolean;
 };
 
 type LinuxHandlerResult = {
@@ -295,6 +305,88 @@ function openableInDir(
   return listNode(dir)
     .map((child) => surfaceFromNode(snapshot, child))
     .filter((surface): surface is ReadingSurface => surface !== null);
+}
+
+/**
+ * 解析 edit 目标。
+ * - 显式路径：/projects/foo、thoughts/foo（目录 / 未知节点报错）
+ * - 裸 slug：精确匹配已有文档取 group；否则按 cwd 所在组，默认 projects
+ * - exists=false 表示进入新建
+ */
+function resolveEditTarget(
+  snapshot: ArchiveSnapshot,
+  cwd: string,
+  rawToken: string,
+): { ok: true; target: EditTarget } | { ok: false; hint: string } {
+  const token = rawToken.trim();
+  if (!token) {
+    return { ok: false, hint: zhCN.errors.usageEdit };
+  }
+  if (!SLUG_PATTERN.test(token)) {
+    return {
+      ok: false,
+      hint: `${zhCN.errors.invalidPath}: ${token}`,
+    };
+  }
+
+  const root = createVfs(snapshot);
+
+  // 显式组前缀：新建或编辑均可（优先于 VFS 解析，支持不存在的路径）
+  if (token.startsWith("projects/") || token.startsWith("thoughts/")) {
+    const [groupName, ...slugParts] = token.split("/");
+    const slug = slugParts.join("/");
+    if (!slug || !SLUG_PATTERN.test(slug)) {
+      return { ok: false, hint: `${zhCN.errors.invalidPath}: ${token}` };
+    }
+    return {
+      ok: true,
+      target: {
+        group: groupName === "thoughts" ? "thoughts" : "projects",
+        slug,
+        exists: Boolean(
+          allDocuments(snapshot).find(
+            (document) => normalize(document.path) === normalize(token),
+          ),
+        ),
+      },
+    };
+  }
+
+  const node = resolveVfsPath(root, cwd, token);
+  if (node) {
+    if (node.type === "project" || node.type === "thought") {
+      return {
+        ok: true,
+        target: {
+          group: node.type === "project" ? "projects" : "thoughts",
+          slug: node.refSlug ?? node.name,
+          exists: true,
+        },
+      };
+    }
+    return { ok: false, hint: zhCN.errors.notFile };
+  }
+
+  // 裸 slug：先精确匹配已有文档
+  const known = allDocuments(snapshot).find(
+    (document) => normalize(document.slug) === normalize(token),
+  );
+  if (known) {
+    return {
+      ok: true,
+      target: {
+        group: known.path.startsWith("projects/") ? "projects" : "thoughts",
+        slug: known.slug,
+        exists: true,
+      },
+    };
+  }
+
+  // 新建：按 cwd 推断组
+  const group: ContentGroup = cwd.startsWith("/thoughts")
+    ? "thoughts"
+    : "projects";
+  return { ok: true, target: { group, slug: token, exists: false } };
 }
 
 /**
@@ -731,6 +823,7 @@ export function runCommand(
               "",
               [token(zhCN.help.sessionTitle, "success")],
               zhCN.help.clear,
+              zhCN.help.edit,
               zhCN.help.themes,
               zhCN.help.shortcuts,
             ),
@@ -807,6 +900,34 @@ export function runCommand(
         entries: [commandEcho, archiveStatus(snapshot)],
         session: nextSession,
       };
+
+    case "edit": {
+      const resolved = resolveEditTarget(snapshot, nextSession.cwd, rest);
+      if (!resolved.ok) {
+        return {
+          entries: [commandEcho, systemError(resolved.hint)],
+          session: nextSession,
+        };
+      }
+      const { target } = resolved;
+      return {
+        entries: [
+          commandEcho,
+          lineEntry(
+            lines([
+              token(
+                target.exists
+                  ? `${zhCN.editor.title}: ${target.group}/${target.slug}`
+                  : `${zhCN.editor.title} (new): ${target.group}/${target.slug}`,
+                "hint",
+              ),
+            ]),
+          ),
+        ],
+        session: nextSession,
+        edit: target,
+      };
+    }
 
     case "open": {
       if (!rest) {

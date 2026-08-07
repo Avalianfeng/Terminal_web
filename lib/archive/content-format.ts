@@ -1,0 +1,88 @@
+export type ContentGroup = "projects" | "thoughts";
+
+export const CONTENT_GROUPS: readonly ContentGroup[] = ["projects", "thoughts"];
+
+/** slug 白名单：与现有内容命名一致，天然防路径穿越。 */
+export const SLUG_PATTERN = /^[a-z0-9_-]+$/;
+
+/**
+ * frontmatter 解析 / 序列化（读写路径共用，保证对称）。
+ * 存储格式约定：`key: "value"` 每行一个字段，双引号包裹，`\"` 转义。
+ * 刻意不用 YAML 库：与现有读路径保持同一真相源，避免两套转义规则。
+ */
+
+export type FrontmatterField = {
+  key: string;
+  value: string;
+};
+
+export type ParsedMarkdown = {
+  /** frontmatter 字段（保序，含未知字段，写回不丢）。 */
+  fields: FrontmatterField[];
+  /** 正文（无 frontmatter 时即全文）。 */
+  body: string;
+  hasFrontmatter: boolean;
+};
+
+function unquote(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length >= 2 && trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    return trimmed.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+  }
+  return trimmed;
+}
+
+function parseLine(line: string): FrontmatterField | null {
+  const colon = line.indexOf(":");
+  if (colon <= 0) return null;
+  const key = line.slice(0, colon).trim();
+  if (!key) return null;
+  return { key, value: unquote(line.slice(colon + 1)) };
+}
+
+export function parseFrontmatter(markdown: string): ParsedMarkdown {
+  if (!markdown.startsWith("---")) {
+    return { fields: [], body: markdown.trim(), hasFrontmatter: false };
+  }
+
+  const end = markdown.indexOf("\n---", 3);
+  if (end === -1) {
+    return { fields: [], body: markdown.trim(), hasFrontmatter: false };
+  }
+
+  const raw = markdown.slice(3, end);
+  const fields = raw
+    .split("\n")
+    .map((line) => parseLine(line))
+    .filter((field): field is FrontmatterField => field !== null);
+
+  return {
+    fields,
+    body: markdown.slice(end + 4).trim(),
+    hasFrontmatter: true,
+  };
+}
+
+function quote(value: string): string {
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+export function serializeDocument(fields: FrontmatterField[], body: string): string {
+  const header = fields.length > 0 ? `---\n${fields.map((field) => `${field.key}: ${quote(field.value)}`).join("\n")}\n---` : "";
+  if (!header) return `${body.trim()}\n`;
+  const trimmedBody = body.trim();
+  return trimmedBody ? `${header}\n\n${trimmedBody}\n` : `${header}\n`;
+}
+
+/** 按存储格式生成完整文档（编辑面板新建时的空模板）。 */
+export function emptyDocumentTemplate(slug: string): string {
+  return serializeDocument(
+    [
+      { key: "title", value: slug },
+      { key: "summary", value: "" },
+      { key: "status", value: "" },
+      { key: "tags", value: "" },
+    ],
+    "",
+  );
+}

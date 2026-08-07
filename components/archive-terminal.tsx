@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { ArchiveXterm, type ArchiveXtermHandle } from "@/components/archive-xterm";
+import { EditorPanel, type EditorTarget } from "@/components/editor-panel";
 import { ReadingDemoteGhost } from "@/components/reading-demote-ghost";
 import { ReadingPanel } from "@/components/reading-panel";
 import { ReadingRail } from "@/components/reading-rail";
@@ -42,11 +44,13 @@ type ArchiveTerminalProps = {
 type LeaveIntent = "close" | "clear" | null;
 
 export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
+  const router = useRouter();
   const [motionLevel, setMotionLevel] = useState<MotionLevel>(1);
   const bootEntries = useMemo(() => initialEntries(snapshot), [snapshot]);
 
   const [session, setSession] = useState<TerminalSession>(() => createSession());
   const [readingState, setReadingState] = useState<ReadingState>(emptyReadingState);
+  const [editorTarget, setEditorTarget] = useState<EditorTarget | null>(null);
   const [leaving, setLeaving] = useState(false);
   const [demoting, setDemoting] = useState<ReadingSurface | null>(null);
   const [completeCandidates, setCompleteCandidates] = useState<string[]>([]);
@@ -55,6 +59,7 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
   const terminalShellRef = useRef<HTMLElement>(null);
   const sessionRef = useRef(session);
   const readingStateRef = useRef(readingState);
+  const editorTargetRef = useRef<EditorTarget | null>(null);
   const leavingRef = useRef(leaving);
   const fullscreenRef = useRef(fullscreen);
   const leaveFinishedRef = useRef(false);
@@ -237,6 +242,26 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
     commitReadingState(closeRailItem(readingStateRef.current, key));
   }
 
+  /** 编辑面板关闭：已保存/删除则刷新数据并清理阅读面板中的旧副本。 */
+  function handleEditorDone(result: { saved: boolean; deleted: boolean }) {
+    const target = editorTargetRef.current;
+    editorTargetRef.current = null;
+    setEditorTarget(null);
+
+    if (result.saved || result.deleted) {
+      if (target) {
+        const key = `${target.group}/${target.slug}`;
+        let next = closeRailItem(readingStateRef.current, key);
+        if (next.main && readingSurfaceKey(next.main) === key) {
+          next = closeMain(next);
+        }
+        commitReadingState(next);
+      }
+      router.refresh();
+    }
+    revealTerminal();
+  }
+
   function finishDemote() {
     setDemoting(null);
   }
@@ -309,6 +334,10 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
                 if (result.reading !== undefined) {
                   applyReading(result.reading);
                 }
+                if (result.edit) {
+                  editorTargetRef.current = result.edit;
+                  setEditorTarget(result.edit);
+                }
 
                 return {
                   entries: result.entries,
@@ -371,6 +400,14 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
               onDismiss={dismissRailItem}
             />
           </div>
+        ) : null}
+
+        {editorTarget ? (
+          <EditorPanel
+            key={`${editorTarget.group}/${editorTarget.slug}`}
+            target={editorTarget}
+            onDone={handleEditorDone}
+          />
         ) : null}
       </div>
     </main>

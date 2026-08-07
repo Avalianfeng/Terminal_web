@@ -16,6 +16,7 @@ npm-debug.log*
 
 # local tooling
 .learnings/
+.thinking-advisor/
 
 # OS
 .DS_Store
