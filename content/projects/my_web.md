@@ -24,7 +24,7 @@ tags: "archive, website, terminal, cylf"
 
 - 继续强化终端作为档案入口的叙事与可用性
 - 保持内容层可检视、可搜索、可版本化
-- 所有者编辑、登录、AI 解读与多人权限刻意留待后续阶段
+- 所有者本机编辑（终端 `edit`）与 Agent 鉴权写（HTTP `PUT`/`DELETE`）已可用；完整登录 UI、AI 解读与多人权限仍后置
 
 ## 关系
 

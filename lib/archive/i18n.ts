@@ -111,7 +111,7 @@ export const zhCN = {
     statusThoughts: "思考",
     statusTimeline: "时间线",
     statusIndex: "索引",
-    statusHint: "试: tree · find <词> · open thoughts",
+    statusHint: "试: tree · find <词> · open thoughts · edit <路径>",
     countUnit: "份",
     timelineUnit: "条",
   },

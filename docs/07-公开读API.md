@@ -109,11 +109,13 @@ curl -sS -X PUT http://localhost:3000/api/v1/docs/archive-system
 
 ---
 
-## 6. 写 / 鉴权预告（未开放）
+## 6. 写 / 鉴权（历史预告；已 superseded）
 
-- 头：`Authorization: Bearer <token>`
-- 资源：与读相同的 path（例如将来 `PUT /api/v1/docs?path=thoughts/…`）
-- 范围：默认收紧到可配置 path 前缀（如仅 `thoughts/`）
-- 当前误用写方法 → 405，勿当作「可匿名写」
+> **现行写契约见 [`08` §5.7](08-发现层对象模型.md)**（2026-08-07 落地）。本节保留旧预告，勿再当作现行约定。
 
-落地见路线纲要（`docs/06-v1.0-路线纲要.md`）：**C 当前挂起**；发现层对象模型见 `08`。
+- 头：`Authorization: Bearer <token>`（仍适用）
+- 资源：**已迁至** `PUT`/`DELETE /api/v1/items?source=local&localKey=…`（不再是「将来 `PUT /api/v1/docs`」）
+- 范围：token scope（`*` / `prefix/*` / 精确路径）
+- `docs` 语法糖仍只读；对其写方法 → 405
+
+落地见路线纲要（`docs/06-v1.0-路线纲要.md`）§4 / §7：**C 已于 08-07 完成最小闭环**。

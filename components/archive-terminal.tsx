@@ -64,12 +64,18 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
   const fullscreenRef = useRef(fullscreen);
   const leaveFinishedRef = useRef(false);
   const leaveIntentRef = useRef<LeaveIntent>(null);
-  sessionRef.current = session;
-  readingStateRef.current = readingState;
-  leavingRef.current = leaving;
-  fullscreenRef.current = fullscreen;
+
+  // 事件回调与子组件闭包都在提交后读取这些 ref；用效果同步保证读到最新值
+  useEffect(() => {
+    sessionRef.current = session;
+    readingStateRef.current = readingState;
+    leavingRef.current = leaving;
+    fullscreenRef.current = fullscreen;
+  }, [session, readingState, leaving, fullscreen]);
 
   useEffect(() => {
+    // 动效级别只能客户端读取（prefers-reduced-motion）；挂载后同步，避免 SSR 水合分叉
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-time client-only bootstrap
     setMotionLevel(resolveMotionLevel());
   }, []);
 

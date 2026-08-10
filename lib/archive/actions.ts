@@ -18,24 +18,21 @@ export type EditActionResult =
   | { ok: true; deleted: true }
   | { ok: false; error: "bad_request" | "not_found" | "conflict" | "unknown"; message: string };
 
-function toResult(action: () => Promise<unknown>): Promise<EditActionResult> {
-  return action().then(
-    () => ({ ok: true } as EditActionResult),
-    (error: unknown) => {
-      if (error instanceof WriteError) {
-        return {
-          ok: false,
-          error: error.code,
-          message: error.message,
-        } as EditActionResult;
-      }
+function toResult(action: () => Promise<EditActionResult>): Promise<EditActionResult> {
+  return action().catch((error: unknown) => {
+    if (error instanceof WriteError) {
       return {
         ok: false,
-        error: "unknown",
-        message: error instanceof Error ? error.message : String(error),
-      } as EditActionResult;
-    },
-  );
+        error: error.code,
+        message: error.message,
+      };
+    }
+    return {
+      ok: false,
+      error: "unknown",
+      message: error instanceof Error ? error.message : String(error),
+    };
+  });
 }
 
 function checkTarget(group: string, slug: string): ContentGroup {

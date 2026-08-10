@@ -318,20 +318,15 @@ function resolveEditTarget(
   cwd: string,
   rawToken: string,
 ): { ok: true; target: EditTarget } | { ok: false; hint: string } {
-  const token = rawToken.trim();
+  const token = rawToken.trim().replace(/^\/+/, "");
   if (!token) {
     return { ok: false, hint: zhCN.errors.usageEdit };
-  }
-  if (!SLUG_PATTERN.test(token)) {
-    return {
-      ok: false,
-      hint: `${zhCN.errors.invalidPath}: ${token}`,
-    };
   }
 
   const root = createVfs(snapshot);
 
   // 显式组前缀：新建或编辑均可（优先于 VFS 解析，支持不存在的路径）
+  // 注意：不可对整段 token 做 SLUG_PATTERN——含 `/` 的路径（help 示例）会被误拒
   if (token.startsWith("projects/") || token.startsWith("thoughts/")) {
     const [groupName, ...slugParts] = token.split("/");
     const slug = slugParts.join("/");
@@ -382,7 +377,10 @@ function resolveEditTarget(
     };
   }
 
-  // 新建：按 cwd 推断组
+  // 新建：按 cwd 推断组；仅允许合法 slug（不含 `/`）
+  if (!SLUG_PATTERN.test(token)) {
+    return { ok: false, hint: `${zhCN.errors.invalidPath}: ${token}` };
+  }
   const group: ContentGroup = cwd.startsWith("/thoughts")
     ? "thoughts"
     : "projects";

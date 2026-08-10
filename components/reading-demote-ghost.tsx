@@ -22,7 +22,10 @@ type ReadingDemoteGhostProps = {
 export function ReadingDemoteGhost({ surface, onDone }: ReadingDemoteGhostProps) {
   const doneRef = useRef(onDone);
   const sentRef = useRef(false);
-  doneRef.current = onDone;
+
+  useEffect(() => {
+    doneRef.current = onDone;
+  }, [onDone]);
 
   useEffect(() => {
     sentRef.current = false;

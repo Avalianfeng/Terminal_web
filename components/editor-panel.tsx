@@ -41,15 +41,17 @@ export function EditorPanel({ target, onDone }: EditorPanelProps) {
       if (result.ok && "raw" in result) {
         setInitialRaw(result.raw);
         setRaw(result.raw);
-      } else if (result.ok) {
-        // 不应发生：读接口只返回 raw
-        setLoadFailed(true);
-      } else if (result.error === "not_found") {
+        return;
+      }
+      if (!result.ok && result.error === "not_found") {
         const template = emptyDocumentTemplate(target.slug);
         setInitialRaw(template);
         setRaw(template);
-      } else {
-        setLoadFailed(true);
+        return;
+      }
+      setLoadFailed(true);
+      if (!result.ok) {
+        setStatus({ kind: "error", message: result.message });
       }
     });
     return () => {
@@ -125,14 +127,16 @@ export function EditorPanel({ target, onDone }: EditorPanelProps) {
           {statusText}
         </span>
         <div className="editor-panel__actions">
-          <button
-            type="button"
-            className="editor-panel__btn"
-            onClick={handleDelete}
-            disabled={status.kind === "saving"}
-          >
-            {zhCN.editor.delete}
-          </button>
+          {target.exists ? (
+            <button
+              type="button"
+              className="editor-panel__btn"
+              onClick={handleDelete}
+              disabled={status.kind === "saving"}
+            >
+              {zhCN.editor.delete}
+            </button>
+          ) : null}
           <button
             type="button"
             className="editor-panel__btn"

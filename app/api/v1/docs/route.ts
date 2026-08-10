@@ -4,9 +4,10 @@ import {
   jsonOk,
   methodNotAllowed,
   optionsCors,
-  toItemPayload,
+  toItemPayloadWithHash,
 } from "@/lib/archive/api-read";
 import { getArchiveSnapshot } from "@/lib/archive/content";
+import { WriteError } from "@/lib/archive/content-write";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -26,7 +27,17 @@ export async function GET(request: Request) {
     return jsonError("not_found", `No document at path: ${path.trim()}`, 404);
   }
 
-  return jsonOk(toItemPayload(document), snapshot.generatedAt);
+  try {
+    return jsonOk(
+      await toItemPayloadWithHash(document),
+      snapshot.generatedAt,
+    );
+  } catch (error) {
+    if (error instanceof WriteError && error.code === "not_found") {
+      return jsonError("not_found", `No document at path: ${path.trim()}`, 404);
+    }
+    throw error;
+  }
 }
 
 export function OPTIONS() {

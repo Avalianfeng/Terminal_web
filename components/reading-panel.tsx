@@ -62,7 +62,11 @@ export function ReadingPanel({
   const closeRef = useRef<HTMLButtonElement>(null);
   const leaveDoneRef = useRef(onLeaveDone);
   const leaveDoneSentRef = useRef(false);
-  leaveDoneRef.current = onLeaveDone;
+
+  // 退场 useLayoutEffect 会同步调用 signalLeaveDone；须先于它同步最新回调
+  useLayoutEffect(() => {
+    leaveDoneRef.current = onLeaveDone;
+  }, [onLeaveDone]);
 
   function signalLeaveDone() {
     if (leaveDoneSentRef.current) return;

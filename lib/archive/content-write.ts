@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { readFile, rename, unlink, writeFile } from "fs/promises";
 import path from "path";
 import {
@@ -24,6 +25,12 @@ export type DocumentWriteInput = {
 
 export type SaveResult = {
   created: boolean;
+};
+
+/** 写操作可选约束：乐观并发（If-Match）。 */
+export type WriteOptions = {
+  /** 期望的当前文件内容 SHA-256（hex）；不匹配或文件不存在 → conflict。 */
+  expectedHash?: string;
 };
 
 export type WriteErrorCode = "bad_request" | "not_found" | "conflict";
@@ -60,6 +67,33 @@ async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
+/** 文件内容 SHA-256（hex）；读详情/写 If-Match 共用同一 hash 语义。 */
+export function hashRaw(raw: string): string {
+  return createHash("sha256").update(raw, "utf8").digest("hex");
+}
+
+/** expectedHash 存在时校验当前文件版本；不满足 → conflict。 */
+async function assertVersion(
+  filePath: string,
+  expectedHash: string | undefined,
+): Promise<boolean> {
+  if (expectedHash === undefined) return false;
+  const current = await readFile(filePath, "utf8").catch(() => null);
+  if (current === null) {
+    throw new WriteError(
+      "conflict",
+      "Document does not exist; If-Match precondition failed",
+    );
+  }
+  if (hashRaw(current) !== expectedHash) {
+    throw new WriteError(
+      "conflict",
+      "Document changed since baseHash; If-Match precondition failed",
+    );
+  }
+  return true;
+}
+
 /** 临时文件 + rename：避免写一半留下残缺文档。 */
 async function writeAtomic(filePath: string, content: string) {
   const tmpPath = `${filePath}.${process.pid}.${Date.now().toString(36)}.tmp`;
@@ -88,9 +122,13 @@ function toFields(input: DocumentWriteInput): FrontmatterField[] {
 }
 
 /** 创建或覆盖 `content/<group>/<slug>.md`（upsert 语义，编辑即保存）。 */
-export async function saveDocument(input: DocumentWriteInput): Promise<SaveResult> {
+export async function saveDocument(
+  input: DocumentWriteInput,
+  options?: WriteOptions,
+): Promise<SaveResult> {
   const filePath = resolveContentPath(input.group, input.slug);
   const existed = await fileExists(filePath);
+  await assertVersion(filePath, options?.expectedHash);
   const content = serializeDocument(toFields(input), input.body ?? "");
   await writeAtomic(filePath, content);
   return { created: !existed };
@@ -105,6 +143,7 @@ export async function saveDocumentRaw(
   group: ContentGroup,
   slug: string,
   raw: string,
+  options?: WriteOptions,
 ): Promise<SaveResult> {
   const filePath = resolveContentPath(group, slug);
   const parsed = parseFrontmatter(raw);
@@ -118,6 +157,7 @@ export async function saveDocumentRaw(
   }
 
   const existed = await fileExists(filePath);
+  await assertVersion(filePath, options?.expectedHash);
   const content = serializeDocument(parsed.fields, parsed.body);
   await writeAtomic(filePath, content);
   return { created: !existed };

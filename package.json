@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "token:generate": "node scripts/gen-token.mjs"
+    "token:generate": "node scripts/gen-token.mjs",
+    "smoke:write-api": "node scripts/smoke-write-api.mjs"
   },
   "keywords": [],
   "author": "",

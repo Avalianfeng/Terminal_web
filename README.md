@@ -2,7 +2,7 @@
 
 个人数字档案公开站点，部署目标为 [cylf.me](https://cylf.me)。网站不以传统首页为入口，而是以**终端界面**作为访客浏览档案的主要方式。
 
-当前版本：**V0 已结束 → 最小 v1.0 的 A/B/E 已完成**；**C（HTTP 写）挂起，基础件已备**（内容写入层 / token / 终端 `edit` 命令）；发现层对象模型 + HTTP 契约已落地见 [`docs/08-发现层对象模型.md`](docs/08-发现层对象模型.md)。路线见 [`docs/06-v1.0-路线纲要.md`](docs/06-v1.0-路线纲要.md)。
+当前版本：**V0 已结束 → 最小 v1.0 的 A/B/C/E 已完成**（C 为 2026-08-07 重开的最小闭环：鉴权写 API）；发现层对象模型 + HTTP 契约已落地见 [`docs/08-发现层对象模型.md`](docs/08-发现层对象模型.md)。路线见 [`docs/06-v1.0-路线纲要.md`](docs/06-v1.0-路线纲要.md)。
 
 ## 项目定位
 
@@ -29,16 +29,21 @@
 | --------- | ----------------- |
 | `/`       | 主终端界面，档案浏览入口      |
 | `/themes` | 视觉主题试验台，与稳定公开壳层隔离 |
-| `/api/v1` | Agent 公开读 API 发现入口（见 [`docs/08-发现层对象模型.md`](docs/08-发现层对象模型.md)） |
+| `/api/v1` | Agent API 发现入口（读 + 写能力表；见 [`docs/08`](docs/08-发现层对象模型.md)） |
+| `/api/v1/items` | 统一条目索引 / 详情（`?kind=` / `?source=` 过滤，`source=local&localKey=…` 详情） |
 
 
-## Agent / 公开读 API
+## Agent / 公开 API
 
-服务器在线即可拉档案，不依赖 Cursor CLI、不爬 HTML。
+服务器在线即可拉档案或经鉴权写回，不依赖 Cursor CLI、不爬 HTML。
 
-推荐流程：`GET /api/v1` → `/api/v1/items` → 跟随条目 `href`（`source=local&localKey=…`）。
+推荐读流程：`GET /api/v1` → `/api/v1/items` → 跟随条目 `href`（`source=local&localKey=…`）。
 
-完整契约见 [`docs/08-发现层对象模型.md`](docs/08-发现层对象模型.md) §5。旧版 [`docs/07-公开读API.md`](docs/07-公开读API.md) 已被替代，保留作为历史记录。HTTP 写接口尚未开放（路线上 C 挂起）；终端内 `edit` 命令可供所有者直接编辑内容文件（本地操作，不走 HTTP）。
+写流程（需 token）：`npm run token:generate [--scope <scope>]` 生成 token（默认 `*` 全权，可限 `thoughts/*` 等）；`PUT /api/v1/items?source=local&localKey=…` upsert、`DELETE` 删除，Bearer 鉴权，`If-Match` 头做乐观并发（409 冲突）。
+
+契约回归（本机）：`ARCHIVE_WRITE_TOKEN=<token> npm run smoke:write-api`（推荐 scope `thoughts/*`，改 `.env.local` 后需重启 `dev`）。短 playbook：[`docs/10-agent-写API验收.md`](docs/10-agent-写API验收.md)。
+
+完整契约见 [`docs/08-发现层对象模型.md`](docs/08-发现层对象模型.md) §5（§5.7 为写契约）。旧版 [`docs/07-公开读API.md`](docs/07-公开读API.md) 已被替代，保留作为历史记录。终端内 `edit` 命令供所有者本机直接编辑内容文件（server actions，不走 HTTP）。
 
 ## 终端功能
 
@@ -55,6 +60,8 @@
 | `thoughts`      | 列出公开思考    |
 | `timeline`      | 查看时间线     |
 | `search <关键词>`  | 全文搜索档案    |
+| `find [关键词]`    | 按路径 / 名称检索（空则列出可打开节点） |
+| `status`         | 档案计数与索引状态 |
 | `open <slug>`   | 打开项目或文章   |
 | `edit <路径>`     | 在终端内编辑/新建/删除文档（仅本机所有者） |
 | `themes`        | 提示主题试验台路径 |
@@ -85,10 +92,11 @@
 content/
 ├── person.json          # 人物元数据
 ├── timeline.md          # 时间线（## 日期 标题 格式）
-├── projects/
-│   ├── personal_archive/info.md
-│   └── my_web/info.md
-└── thoughts/
+├── projects/            # 项目文档，每篇一个 <slug>.md
+│   ├── personal_archive.md
+│   ├── my_web.md
+│   └── …（其余项目按 <slug>.md 平铺）
+└── thoughts/            # 思考文档，每篇一个 <slug>.md
     └── archive-system.md
 ```
 
@@ -119,7 +127,7 @@ Markdown 文件支持 YAML frontmatter（`title`、`summary`、`status`、`tags`
 
 
 
-## v0.1 边界
+## 版本边界
 
 **已实现：**
 
@@ -131,7 +139,7 @@ Markdown 文件支持 YAML frontmatter（`title`、`summary`、`status`、`tags`
 
 **刻意留待后续：**
 
-- HTTP 写 API 与登录鉴权（路线上 C 挂起；token 模块已备，供将来端点使用）
+- 完整权限体系（多人、RBAC、审计；当前为 token + scope 最小闭环）
 - AI 解读
 - 多人档案权限
 - （已做）终端 fullscreen：放大壳高；`open`/`cat` 仍走阅读面板
@@ -142,10 +150,12 @@ Markdown 文件支持 YAML frontmatter（`title`、`summary`、`status`、`tags`
 
 ```bash
 npm install
-npm run dev      # 默认 http://localhost:3000
-npm run build    # 生产构建
-npm run start    # 启动生产服务
-npm run lint     # ESLint 检查
+npm run dev            # 默认 http://localhost:3000
+npm run build          # 生产构建
+npm run start          # 启动生产服务
+npm run lint           # ESLint 检查
+npm run token:generate # 生成写 API token（--scope 可限范围；仅存 SHA-256 哈希到 .env.local）
+npm run smoke:write-api # 写 API 契约 smoke（需 ARCHIVE_WRITE_TOKEN；见 docs/10）
 ```
 
 开发服务器已配置 `allowedDevOrigins: ["172.19.0.1"]`，支持 WSL/容器网络访问。
@@ -153,10 +163,9 @@ npm run lint     # ESLint 检查
 ## 目录概览
 
 ```
-app/                    # Next.js 页面与全局样式
-components/             # ArchiveTerminal 终端组件
-lib/archive/            # 命令系统、VFS、内容加载、i18n
+app/                    # Next.js 页面、全局样式与 API 路由
+components/             # ArchiveTerminal 终端组件、阅读面板、编辑器
+lib/archive/            # 命令系统、VFS、内容加载/写入、token、读 API、i18n
 content/                # 档案数据源
-.learnings/             # 开发过程记录
 ```
 

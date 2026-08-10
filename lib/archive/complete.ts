@@ -13,6 +13,7 @@ export const PRIMARY_COMMANDS = [
   "find",
   "status",
   "open",
+  "edit",
   "themes",
   "clear",
   "ls",
@@ -26,7 +27,7 @@ export const PRIMARY_COMMANDS = [
 
 const ALIAS_COMMANDS = ["?", "cls", "dir", "ll"] as const;
 
-const PATH_ARG_COMMANDS = new Set(["cd", "ls", "cat", "tree", "open"]);
+const PATH_ARG_COMMANDS = new Set(["cd", "ls", "cat", "tree", "open", "edit"]);
 
 export type CompleteResult = {
   /** 补全后的整行输入 */
@@ -170,7 +171,7 @@ function argumentCandidates(
     return catCandidates(snapshot, cwd, partial);
   }
 
-  if (resolved === "open") {
+  if (resolved === "open" || resolved === "edit") {
     return openCandidates(snapshot, cwd, partial);
   }
 
@@ -245,7 +246,7 @@ function parseInput(raw: string): ParsedInput {
  * Tab 补全：命令名 / 路径。
  * - cd → 仅目录
  * - cat → 终端查看文件（唯一目录自动下钻）
- * - open / ls / tree → 目录 + 文件
+ * - open / edit / ls / tree → 目录 + 文件
  */
 export function completeInput(
   rawInput: string,

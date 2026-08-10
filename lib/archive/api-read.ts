@@ -5,6 +5,11 @@ import type {
   PersonRecord,
   TimelineEntry,
 } from "./types";
+import {
+  hashRaw,
+  readDocumentRaw,
+  type ContentGroup,
+} from "./content-write";
 
 export const API_VERSION = 1 as const;
 
@@ -49,6 +54,8 @@ export type ItemListItem = {
 export type ItemPayload = ItemListItem & {
   body: string;
   bodyFormat: "markdown";
+  /** 文件内容 SHA-256（hex）；写回时用 If-Match 头携带。 */
+  hash: string;
 };
 
 // --- Validation ---
@@ -85,6 +92,27 @@ export function toItemPayload(document: ArchiveDocument): ItemPayload {
     ...toItemListItem(document),
     body: document.body,
     bodyFormat: "markdown",
+    hash: "",
+  };
+}
+
+/**
+ * 详情带真实文件 hash（If-Match 用）。
+ * 文档缺失 → WriteError not_found（调用方转 404）。
+ */
+export async function toItemPayloadWithHash(
+  document: ArchiveDocument,
+): Promise<ItemPayload> {
+  const [group, ...slugParts] = document.path.split("/");
+  const raw = await readDocumentRaw(
+    group as ContentGroup,
+    slugParts.join("/"),
+  );
+  return {
+    ...toItemListItem(document),
+    body: document.body,
+    bodyFormat: "markdown",
+    hash: hashRaw(raw),
   };
 }
 
@@ -138,7 +166,8 @@ export function buildDiscovery() {
     name: "Personal Archive System API",
     capabilities: {
       read: true,
-      write: false,
+      write: true,
+      auth: "Authorization: Bearer <token>",
     },
     kinds: {
       available: AVAILABLE_KINDS,
@@ -149,7 +178,10 @@ export function buildDiscovery() {
       planned: PLANNED_SOURCES,
     },
     resources: {
-      items: { method: "GET", href: "/api/v1/items" },
+      items: {
+        read: { method: "GET", href: "/api/v1/items" },
+        write: { method: "PUT|DELETE", href: "/api/v1/items?source=local&localKey=…" },
+      },
       person: { method: "GET", href: "/api/v1/person" },
       timeline: { method: "GET", href: "/api/v1/timeline" },
     },
@@ -161,8 +193,8 @@ export function buildDiscovery() {
 function corsHeaders(generatedAt?: string): HeadersInit {
   const headers: Record<string, string> = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Methods": "GET, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, If-Match",
   };
   if (generatedAt) {
     headers["X-Archive-Generated-At"] = generatedAt;
@@ -215,7 +247,7 @@ export function jsonError(
 export function methodNotAllowed(allow = "GET") {
   return jsonError(
     "method_not_allowed",
-    "Write is not open yet. Use GET for read; write will require Authorization: Bearer <token>.",
+    `Method not allowed here. Allowed: ${allow}.`,
     405,
     { Allow: allow },
   );

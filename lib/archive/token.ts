@@ -1,10 +1,10 @@
 import { createHash, randomBytes, timingSafeEqual } from "crypto";
 
 /**
- * 写操作鉴权基础（C 基础建设 · 路 1）。
+ * 写操作鉴权基础（C · 路 1）。
  * 设计：随机 token → 只存 SHA-256 哈希（环境变量），校验时 timing-safe 比较。
  * 范围模型：`*` 全权；`prefix/*` 覆盖该前缀下的目标；具体路径等于该路径。
- * 不负责 HTTP 中间件（属 C），本模块只提供纯函数供未来端点/终端调用。
+ * HTTP 写端点（`items` PUT/DELETE）直接调用本模块；终端 `edit` 走 server actions，不经 token。
  */
 
 export type TokenScope = string;
