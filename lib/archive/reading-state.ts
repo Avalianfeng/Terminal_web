@@ -1,6 +1,10 @@
 import { zhCN } from "@/lib/archive/i18n";
-import type { ReadingSurface } from "@/lib/archive/types";
-import { toLocalKey, toVfsPath } from "@/lib/archive/document-ref";
+import type {
+  ArchiveDocument,
+  ArchiveSnapshot,
+  ReadingSurface,
+} from "@/lib/archive/types";
+import { refsEqual, toLocalKey, toVfsPath } from "@/lib/archive/document-ref";
 
 /** rail 硬顶：超出丢最旧（数组末尾） */
 export const RAIL_MAX = 8;
@@ -129,6 +133,96 @@ export function closeRailItem(
     main: state.main,
     rail: state.rail.filter((entry) => readingSurfaceKey(entry) !== key),
   };
+}
+
+/** 关闭某 DocumentRef 在 main+rail 中的所有副本（删除后）。 */
+export function dismissDocumentByKey(
+  state: ReadingState,
+  key: string,
+): ReadingState {
+  let next = closeRailItem(state, key);
+  if (next.main && readingSurfaceKey(next.main) === key) {
+    next = closeMain(next);
+  }
+  return next;
+}
+
+/**
+ * 用新 ArchiveDocument 替换 main/rail 中同 DocumentRef 的 surface（写后即时刷新）。
+ * 若当前未打开该文，原样返回。
+ */
+export function replaceDocumentSurface(
+  state: ReadingState,
+  document: ArchiveDocument,
+): ReadingState {
+  const key = toLocalKey(document.ref);
+  const nextSurface: ReadingSurface = { kind: "document", document };
+  let touched = false;
+
+  let main = state.main;
+  if (main && readingSurfaceKey(main) === key) {
+    main = nextSurface;
+    touched = true;
+  }
+
+  const rail = state.rail.map((entry) => {
+    if (readingSurfaceKey(entry) !== key) return entry;
+    touched = true;
+    return nextSurface;
+  });
+
+  return touched ? { main, rail } : state;
+}
+
+function documentContentEqual(a: ArchiveDocument, b: ArchiveDocument): boolean {
+  return (
+    refsEqual(a.ref, b.ref) &&
+    a.title === b.title &&
+    a.summary === b.summary &&
+    a.status === b.status &&
+    a.body === b.body &&
+    a.tags.join("\0") === b.tags.join("\0")
+  );
+}
+
+/**
+ * 用最新 ArchiveSnapshot 重绑已打开的 document surfaces。
+ * 快照中已不存在的文档会从 main/rail 移除（必要时晋升 rail）。
+ */
+export function reconcileReadingWithSnapshot(
+  state: ReadingState,
+  snapshot: ArchiveSnapshot,
+): ReadingState {
+  const documents = [...snapshot.projects, ...snapshot.thoughts];
+
+  function refresh(surface: ReadingSurface): ReadingSurface | null {
+    if (surface.kind !== "document") return surface;
+    const found = documents.find((document) =>
+      refsEqual(document.ref, surface.document.ref),
+    );
+    if (!found) return null;
+    if (documentContentEqual(found, surface.document)) return surface;
+    return { kind: "document", document: found };
+  }
+
+  const refreshedMain = state.main ? refresh(state.main) : null;
+  const rail = state.rail
+    .map((entry) => refresh(entry))
+    .filter((entry): entry is ReadingSurface => entry !== null);
+
+  if (state.main && refreshedMain === null) {
+    return { main: rail[0] ?? null, rail: rail.slice(1) };
+  }
+
+  if (
+    refreshedMain === state.main &&
+    rail.length === state.rail.length &&
+    rail.every((entry, index) => entry === state.rail[index])
+  ) {
+    return state;
+  }
+
+  return { main: refreshedMain, rail };
 }
 
 export function clearReadingState(): ReadingState {

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { parseDocument } from "./content";
+import { parseDocument } from "./parse-document";
 import type {
   ArchiveDocument,
   ArchiveSnapshot,

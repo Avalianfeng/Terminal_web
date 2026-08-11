@@ -24,12 +24,16 @@ import {
   clearReadingState,
   closeMain,
   closeRailItem,
+  dismissDocumentByKey,
   emptyReadingState,
   openReading,
   openReadingMany,
   readingSurfaceKey,
+  reconcileReadingWithSnapshot,
+  replaceDocumentSurface,
   type ReadingState,
 } from "@/lib/archive/reading-state";
+import { parseDocument } from "@/lib/archive/parse-document";
 import { createSession, formatShellPromptTokens } from "@/lib/archive/vfs";
 import { toLocalKey } from "@/lib/archive/document-ref";
 import type {
@@ -73,6 +77,16 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
     leavingRef.current = leaving;
     fullscreenRef.current = fullscreen;
   }, [session, readingState, leaving, fullscreen]);
+
+  /** After router.refresh(), rebind open document surfaces from the new snapshot. */
+  useEffect(() => {
+    const next = reconcileReadingWithSnapshot(
+      readingStateRef.current,
+      snapshot,
+    );
+    if (next === readingStateRef.current) return;
+    commitReadingState(next);
+  }, [snapshot]);
 
   useEffect(() => {
     // 动效级别只能客户端读取（prefers-reduced-motion）；挂载后同步，避免 SSR 水合分叉
@@ -249,21 +263,35 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
     commitReadingState(closeRailItem(readingStateRef.current, key));
   }
 
-  /** 编辑面板关闭：已保存/删除则刷新数据并清理阅读面板中的旧副本。 */
-  function handleEditorDone(result: { saved: boolean; deleted: boolean }) {
+  /** 编辑面板关闭：保存则即时刷新已打开阅读面；删除则关掉该文；并 refresh 快照。 */
+  function handleEditorDone(result: {
+    saved: boolean;
+    deleted: boolean;
+    raw?: string;
+  }) {
     const target = editorTargetRef.current;
     editorTargetRef.current = null;
     setEditorTarget(null);
 
-    if (result.saved || result.deleted) {
-      if (target) {
-        const key = toLocalKey(target.ref);
-        let next = closeRailItem(readingStateRef.current, key);
-        if (next.main && readingSurfaceKey(next.main) === key) {
-          next = closeMain(next);
-        }
-        commitReadingState(next);
-      }
+    if (result.deleted && target) {
+      commitReadingState(
+        dismissDocumentByKey(
+          readingStateRef.current,
+          toLocalKey(target.ref),
+        ),
+      );
+      router.refresh();
+    } else if (result.saved && target && result.raw) {
+      const document = parseDocument(
+        target.ref.group,
+        target.ref.slug,
+        result.raw,
+      );
+      commitReadingState(
+        replaceDocumentSurface(readingStateRef.current, document),
+      );
+      router.refresh();
+    } else if (result.saved || result.deleted) {
       router.refresh();
     }
     revealTerminal();

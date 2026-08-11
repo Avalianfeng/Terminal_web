@@ -13,7 +13,12 @@ export type EditorTarget = DocumentEditTarget;
 
 type EditorPanelProps = {
   target: EditorTarget;
-  onDone: (result: { saved: boolean; deleted: boolean }) => void;
+  onDone: (result: {
+    saved: boolean;
+    deleted: boolean;
+    /** Present when saved — used to refresh open reading surfaces immediately. */
+    raw?: string;
+  }) => void;
 };
 
 type Status =
@@ -77,7 +82,11 @@ export function EditorPanel({ target, onDone }: EditorPanelProps) {
     textareaRef.current?.focus();
   }, [raw]);
 
-  function finish(result: { saved: boolean; deleted: boolean }) {
+  function finish(result: {
+    saved: boolean;
+    deleted: boolean;
+    raw?: string;
+  }) {
     onDone(result);
   }
 
@@ -106,7 +115,7 @@ export function EditorPanel({ target, onDone }: EditorPanelProps) {
     setInitialRaw(raw);
     setBaseHash(result.hash);
     setStatus({ kind: "saved" });
-    finish({ saved: true, deleted: false });
+    finish({ saved: true, deleted: false, raw });
   }
 
   async function handleDelete() {

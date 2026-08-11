@@ -1,7 +1,7 @@
 import { readFile, readdir } from "fs/promises";
 import path from "path";
-import { parseFrontmatter, type ContentGroup } from "./content-format";
-import { documentRef } from "./document-ref";
+import { type ContentGroup } from "./content-format";
+import { parseDocument } from "./parse-document";
 import type {
   ArchiveDocument,
   ArchiveSnapshot,
@@ -10,35 +10,7 @@ import type {
 } from "./types";
 
 export const contentRoot = path.join(process.cwd(), "content");
-
-function tagsFrom(value: string | undefined) {
-  if (!value) return [];
-  return value
-    .split(",")
-    .map((tag) => tag.trim())
-    .filter(Boolean);
-}
-
-/** 单个文档 raw → ArchiveDocument（快照读与写后回读共用同一转换）。 */
-export function parseDocument(
-  group: ContentGroup,
-  slug: string,
-  markdown: string,
-): ArchiveDocument {
-  const { fields, body } = parseFrontmatter(markdown);
-  const data = new Map(fields.map((field) => [field.key, field.value]));
-  const fallbackTitle =
-    body.match(/^#\s+(.+)$/m)?.[1]?.trim() ?? slug.replaceAll("-", " ");
-
-  return {
-    ref: documentRef(group, slug),
-    title: data.get("title") ?? fallbackTitle,
-    summary: data.get("summary") ?? "",
-    status: data.get("status"),
-    body,
-    tags: tagsFrom(data.get("tags")),
-  };
-}
+export { parseDocument } from "./parse-document";
 
 /** 只支持单文件形态 `content/<group>/<slug>.md`。 */
 async function readMarkdownGroup(group: ContentGroup) {
