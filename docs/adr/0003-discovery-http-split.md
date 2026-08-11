@@ -2,7 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-08-11
-- **Commit**: （本提交）
+- **Commit**: `bb5a255`
 - **Code**: `lib/archive/discovery.ts` · `lib/archive/api-http.ts` · `lib/archive/read-adapter.ts`；`api-read.ts` 薄 barrel
 - **Contract**: 对外 JSON 仍以 `docs/08` 为准（本 ADR 只钉模块边界）
 
