@@ -7,8 +7,7 @@ This is a single Next.js 16 (App Router) + React 19 + TypeScript + Tailwind v4 w
 database or external service; content lives under `content/` and is served via
 Next.js (read snapshot + optional authenticated write API).
 
-Docs map (what to read first): `docs/00-文档入口.md`. Contract authority: `docs/08`.
-Backlog / debt tiers: `docs/09`. WIP status lives in the owner's local hub, not a second board in-repo.
+Docs map (what to read first): `docs/00-文档入口.md`. Contract authority: `docs/08`. Structural decisions: `docs/adr/`. Backlog / debt tiers: `docs/09`. WIP status lives in the owner's local hub, not a second board in-repo.
 
 Standard commands are defined in `package.json` (`dev`, `build`, `start`, `lint`, `token:generate`, `smoke:write-api`, `test:document-ref`, `test:command-registry`, `test:reading-session`):
 
