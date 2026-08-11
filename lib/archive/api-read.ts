@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { parseDocument } from "./content";
 import type {
   ArchiveDocument,
   ArchiveSnapshot,
@@ -47,6 +48,8 @@ export type ItemListItem = {
   kind: string;
   title: string;
   summary?: string;
+  status?: string;
+  tags?: string[];
   href: string;
 };
 
@@ -83,6 +86,8 @@ export function toItemListItem(document: ArchiveDocument): ItemListItem {
     kind: "document",
     title: document.title,
     ...(document.summary ? { summary: document.summary } : {}),
+    ...(document.status ? { status: document.status } : {}),
+    ...(document.tags.length > 0 ? { tags: document.tags } : {}),
     href: publicItemHref(document.path),
   };
 }
@@ -93,6 +98,21 @@ export function toItemPayload(document: ArchiveDocument): ItemPayload {
     body: document.body,
     bodyFormat: "markdown",
     hash: "",
+  };
+}
+
+/** raw → 完整详情 payload（含真实 hash）。详情读与 PUT/PATCH 写响应共用。 */
+export function payloadFromRaw(
+  group: ContentGroup,
+  slug: string,
+  raw: string,
+): ItemPayload {
+  const document = parseDocument(group, slug, raw);
+  return {
+    ...toItemListItem(document),
+    body: document.body,
+    bodyFormat: "markdown",
+    hash: hashRaw(raw),
   };
 }
 
@@ -108,12 +128,7 @@ export async function toItemPayloadWithHash(
     group as ContentGroup,
     slugParts.join("/"),
   );
-  return {
-    ...toItemListItem(document),
-    body: document.body,
-    bodyFormat: "markdown",
-    hash: hashRaw(raw),
-  };
+  return payloadFromRaw(group as ContentGroup, slugParts.join("/"), raw);
 }
 
 // --- Item lookup (unified key) ---
@@ -144,19 +159,61 @@ export function findDocumentByPath(
 
 // --- Build unified items index ---
 
+/** 索引投影字段白名单（?fields= 只允许这些键）。 */
+const INDEX_FIELD_WHITELIST = new Set([
+  "source",
+  "localKey",
+  "kind",
+  "title",
+  "summary",
+  "status",
+  "tags",
+  "href",
+]);
+
+export type ItemsIndexFilters = {
+  kind?: string;
+  source?: string;
+  /** 单值精确匹配（status 是自由文本，不做枚举）。 */
+  status?: string;
+  /** 多值 AND：文档 tags 须包含全部给定 tag。 */
+  tag?: string[];
+  /** 投影：只返回白名单内的请求字段（非法字段名忽略）。 */
+  fields?: string[];
+};
+
+function pickIndexFields(
+  item: ItemListItem,
+  fields: string[],
+): Partial<ItemListItem> {
+  const picked: Record<string, unknown> = {};
+  for (const field of fields) {
+    if (!INDEX_FIELD_WHITELIST.has(field) || !(field in item)) continue;
+    picked[field] = item[field as keyof ItemListItem];
+  }
+  return picked as Partial<ItemListItem>;
+}
+
 export function buildItemsIndex(
   snapshot: ArchiveSnapshot,
-  filters?: { kind?: string; source?: string },
-): { items: ItemListItem[] } {
+  filters?: ItemsIndexFilters,
+): { items: Partial<ItemListItem>[] } {
   const allDocs = [...snapshot.projects, ...snapshot.thoughts];
   const items = allDocs
     .map(toItemListItem)
     .filter(
       (item) =>
         (!filters?.kind || item.kind === filters.kind) &&
-        (!filters?.source || item.source === filters.source),
+        (!filters?.source || item.source === filters.source) &&
+        (!filters?.status || item.status === filters.status) &&
+        (!filters?.tag?.length ||
+          filters.tag.every((tag) => item.tags?.includes(tag))),
     );
-  return { items };
+  return {
+    items: filters?.fields?.length
+      ? items.map((item) => pickIndexFields(item, filters.fields!))
+      : items,
+  };
 }
 
 // --- Discovery ---
@@ -168,6 +225,11 @@ export function buildDiscovery() {
       read: true,
       write: true,
       auth: "Authorization: Bearer <token>",
+      filters: {
+        status: "exact-match",
+        tag: "all-of",
+        fields: "projection",
+      },
     },
     kinds: {
       available: AVAILABLE_KINDS,
@@ -180,7 +242,7 @@ export function buildDiscovery() {
     resources: {
       items: {
         read: { method: "GET", href: "/api/v1/items" },
-        write: { method: "PUT|DELETE", href: "/api/v1/items?source=local&localKey=…" },
+        write: { method: "PUT|PATCH|DELETE", href: "/api/v1/items?source=local&localKey=…" },
       },
       person: { method: "GET", href: "/api/v1/person" },
       timeline: { method: "GET", href: "/api/v1/timeline" },
@@ -193,7 +255,7 @@ export function buildDiscovery() {
 function corsHeaders(generatedAt?: string): HeadersInit {
   const headers: Record<string, string> = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, PUT, PATCH, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization, If-Match",
   };
   if (generatedAt) {

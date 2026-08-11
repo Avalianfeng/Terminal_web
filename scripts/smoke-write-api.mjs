@@ -90,6 +90,9 @@ try {
     if (!r.json?.ok || !r.json?.data?.capabilities) {
       throw new Error("discovery payload missing capabilities");
     }
+    if (!r.json?.data?.capabilities?.filters) {
+      throw new Error("discovery payload missing capabilities.filters");
+    }
   }
   {
     const r = await req("GET", `${base}/api/v1/items`);
@@ -133,6 +136,13 @@ try {
     if (!hash || typeof hash !== "string") {
       throw new Error("create response missing data.hash");
     }
+    if (
+      r.json?.data?.body !== "smoke v1" ||
+      r.json?.data?.status !== "draft" ||
+      r.json?.data?.created !== true
+    ) {
+      throw new Error("PUT create response should be full document");
+    }
   }
   {
     const r = await req("GET", itemsUrl(base, SMOKE_KEY));
@@ -140,6 +150,126 @@ try {
     if (r.json?.data?.hash !== hash) {
       throw new Error("detail hash mismatch vs create");
     }
+    if (
+      r.json?.data?.status !== "draft" ||
+      !r.json?.data?.tags?.includes("smoke")
+    ) {
+      throw new Error("detail should include status/tags written via PUT");
+    }
+  }
+
+  // --- 索引过滤 / 投影（status/tags 已进索引）---
+  {
+    const hits = async (qs) => {
+      const r = await req("GET", `${base}/api/v1/items${qs}`);
+      assertStatus(`index ${qs}`, r.status, 200);
+      return (
+        r.json?.data?.items?.some((item) => item.localKey === SMOKE_KEY) ??
+        false
+      );
+    };
+    if (!(await hits("?status=draft"))) {
+      throw new Error("?status= filter should hit smoke key");
+    }
+    if (await hits("?status=zzz")) {
+      throw new Error("?status= filter should not hit");
+    }
+    if (!(await hits("?tag=smoke"))) {
+      throw new Error("?tag= filter should hit");
+    }
+    if (!(await hits("?status=draft&tag=smoke"))) {
+      throw new Error("combined status+tag filter should hit");
+    }
+    if (await hits("?tag=smoke&tag=zzz")) {
+      throw new Error("?tag= repeat should be AND (all must match)");
+    }
+  }
+  {
+    const r = await req("GET", `${base}/api/v1/items?status=a&status=b`);
+    assertStatus("GET duplicate ?status=", r.status, 400);
+  }
+  {
+    const r = await req("GET", `${base}/api/v1/items?fields=localKey,title`);
+    const keys = Object.keys(r.json?.data?.items?.[0] ?? {}).sort();
+    if (keys.length !== 2 || keys[0] !== "localKey" || keys[1] !== "title") {
+      throw new Error(
+        `?fields= projection should only return requested fields, got ${JSON.stringify(keys)}`,
+      );
+    }
+  }
+
+  // --- PATCH：部分更新 / null 删除 / no-op / 边界 ---
+  {
+    const r = await req("PATCH", itemsUrl(base, SMOKE_KEY), {
+      headers: jsonHeaders,
+      body: JSON.stringify({ body: "smoke patched v1" }),
+    });
+    assertStatus("PATCH body only", r.status, 200);
+    const d = r.json?.data;
+    if (d?.body !== "smoke patched v1") {
+      throw new Error("PATCH should update body");
+    }
+    if (d?.status !== "draft" || !d?.tags?.includes("smoke")) {
+      throw new Error("PATCH should keep untouched status/tags");
+    }
+    if (d?.created !== false || typeof d?.hash !== "string") {
+      throw new Error(
+        "PATCH response should be full document with created=false",
+      );
+    }
+    hash = d.hash;
+  }
+  {
+    let r = await req("PATCH", itemsUrl(base, SMOKE_KEY), {
+      headers: jsonHeaders,
+      body: JSON.stringify({ status: null }),
+    });
+    assertStatus("PATCH status null", r.status, 200);
+    if (r.json?.data?.status !== undefined) {
+      throw new Error("PATCH null should remove status");
+    }
+    hash = r.json?.data?.hash;
+    r = await req("PATCH", itemsUrl(base, SMOKE_KEY), {
+      headers: jsonHeaders,
+      body: JSON.stringify({ status: null }),
+    });
+    assertStatus("PATCH status null no-op", r.status, 200);
+    r = await req("PATCH", itemsUrl(base, SMOKE_KEY), {
+      headers: jsonHeaders,
+      body: JSON.stringify({ summary: null }),
+    });
+    assertStatus("PATCH summary null", r.status, 200);
+    if (r.json?.data?.summary !== undefined) {
+      throw new Error("PATCH null should remove summary");
+    }
+    hash = r.json?.data?.hash;
+  }
+  {
+    const bad = async (label, body) => {
+      const r = await req("PATCH", itemsUrl(base, SMOKE_KEY), {
+        headers: jsonHeaders,
+        body: JSON.stringify(body),
+      });
+      assertStatus(label, r.status, 400);
+    };
+    await bad("PATCH title null", { title: null });
+    await bad("PATCH unknown key", { foo: "bar" });
+    await bad("PATCH empty body", {});
+  }
+  {
+    const r = await req("PATCH", itemsUrl(base, SMOKE_KEY), {
+      headers: { ...jsonHeaders, "If-Match": "0".repeat(64) },
+      body: JSON.stringify({ body: "x" }),
+    });
+    assertStatus("PATCH bad If-Match", r.status, 409);
+  }
+  {
+    const r = await req(
+      "PATCH",
+      itemsUrl(base, "thoughts/_smoke_write_api_nonexistent"),
+      { headers: jsonHeaders, body: JSON.stringify({ body: "x" }) },
+    );
+    assertStatus("PATCH nonexistent", r.status, 404);
   }
   {
     const r = await req("PUT", itemsUrl(base, SMOKE_KEY), {

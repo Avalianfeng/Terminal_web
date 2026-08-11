@@ -23,6 +23,20 @@ export type DocumentWriteInput = {
   body?: string;
 };
 
+/**
+ * PATCH 部分更新输入。三态：
+ * - `undefined` = 保留原字段
+ * - `null` / `""` / `[]` = 移除该字段（原字段不存在时为 no-op，不报错）
+ * - 有值 = 覆盖；`title` 不可移除（null/"" → bad_request）
+ */
+export type DocumentPatch = {
+  title?: string | null;
+  summary?: string | null;
+  status?: string | null;
+  tags?: string[] | null;
+  body?: string | null;
+};
+
 export type SaveResult = {
   created: boolean;
 };
@@ -132,6 +146,80 @@ export async function saveDocument(
   const content = serializeDocument(toFields(input), input.body ?? "");
   await writeAtomic(filePath, content);
   return { created: !existed };
+}
+
+function upsertField(fields: FrontmatterField[], key: string, value: string) {
+  const index = fields.findIndex((field) => field.key === key);
+  if (index === -1) fields.push({ key, value });
+  else fields[index] = { key, value };
+}
+
+function removeField(fields: FrontmatterField[], key: string) {
+  const index = fields.findIndex((field) => field.key === key);
+  if (index !== -1) fields.splice(index, 1);
+}
+
+/**
+ * 部分更新：省略=保留、null/""/[]=移除（原字段不存在 → no-op）、有值=覆盖。
+ * 与原文件同一次读盘完成 If-Match 校验；在原 fields 数组上保序原位改，
+ * 契约外未知字段保留、顺序不变（与 PUT 整份替换的「丢弃+重排」区分）。
+ */
+export async function patchDocument(
+  group: ContentGroup,
+  slug: string,
+  patch: DocumentPatch,
+  options?: WriteOptions,
+): Promise<SaveResult> {
+  const filePath = resolveContentPath(group, slug);
+  const raw = await readFile(filePath, "utf8").catch(() => null);
+  if (raw === null) {
+    throw new WriteError("not_found", `No document at ${group}/${slug}`);
+  }
+  if (
+    options?.expectedHash !== undefined &&
+    hashRaw(raw) !== options.expectedHash
+  ) {
+    throw new WriteError(
+      "conflict",
+      "Document changed since baseHash; If-Match precondition failed",
+    );
+  }
+
+  const parsed = parseFrontmatter(raw);
+  const fields = parsed.fields;
+
+  if (patch.title !== undefined) {
+    if (typeof patch.title !== "string" || !patch.title.trim()) {
+      throw new WriteError("bad_request", "title cannot be deleted or empty");
+    }
+    upsertField(fields, "title", patch.title);
+  }
+  if (patch.summary !== undefined) {
+    if (patch.summary === null || patch.summary === "") {
+      removeField(fields, "summary");
+    } else {
+      upsertField(fields, "summary", patch.summary);
+    }
+  }
+  if (patch.status !== undefined) {
+    if (patch.status === null || patch.status === "") {
+      removeField(fields, "status");
+    } else {
+      upsertField(fields, "status", patch.status);
+    }
+  }
+  if (patch.tags !== undefined) {
+    if (patch.tags === null || patch.tags.length === 0) {
+      removeField(fields, "tags");
+    } else {
+      upsertField(fields, "tags", patch.tags.join(", "));
+    }
+  }
+
+  const body = patch.body === undefined ? parsed.body : (patch.body ?? "");
+  const content = serializeDocument(fields, body);
+  await writeAtomic(filePath, content);
+  return { created: false };
 }
 
 /**

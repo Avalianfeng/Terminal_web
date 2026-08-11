@@ -1,8 +1,10 @@
 # Agent 写 API 验收 playbook
 
-> 对应 [`09-v1.x-后续工作.md`](09-v1.x-后续工作.md) §1.1；契约细节见 [`08-发现层对象模型.md`](08-发现层对象模型.md) §5.7。
+> 对应 [`09-v1.x-后续工作.md`](09-v1.x-后续工作.md) §1.1；契约细节见 [`08-发现层对象模型.md`](08-发现层对象模型.md) §5.7（PUT/DELETE）与 §5.8（PATCH）。
 
-可重复回归用脚本：`scripts/smoke-write-api.mjs`（`npm run smoke:write-api`）。本页是人手走读路径；脚本覆盖鉴权与写副作用码。
+可重复回归用脚本：`scripts/smoke-write-api.mjs`（`npm run smoke:write-api`）。本页是人手走读路径；脚本覆盖鉴权、写副作用码、PATCH 三态与索引过滤。
+
+**一句话规则**：新建 / 整份替换用 `PUT`（省略=清除）；只改一处用 `PATCH`（省略=保留）。
 
 ## 前置
 
@@ -13,22 +15,25 @@
 
 推荐 `thoughts/*`：脚本用 `projects/…` 测 403。全权 `*` 无法触发 403，smoke 会失败。
 
-## 手走路径（发现 → 写 → 删）
+## 手走路径（发现 → 扫读 → 写 → 确认 → 删）
 
 | 步 | 请求 | 期望 |
 |----|------|------|
-| 1 发现 | `GET /api/v1` | `ok`，含 `capabilities`（写面已声明） |
-| 2 索引 | `GET /api/v1/items` | `data.items[]` |
-| 3 详情 | `GET /api/v1/items?source=local&localKey=thoughts/<已有>` | `data.hash`（SHA-256 hex） |
+| 1 发现 | `GET /api/v1` | `ok`，含 `capabilities`（写面 + `filters` 声明） |
+| 2 扫读 | `GET /api/v1/items?status=…&tag=…&fields=…` | `data.items[]`（索引已带 status/tags；过滤参数表见 08 §5.3） |
+| 3 单读 | `GET /api/v1/items?source=local&localKey=thoughts/<已有>` | `{title, summary, status, tags, body, hash}` |
 | 4 无鉴权写 | `PUT` 同 URL，无 `Authorization` | **401** |
 | 5 越权 | `PUT … localKey=projects/…`，Bearer=`thoughts/*` token | **403** |
-| 6 创建 | `PUT … localKey=thoughts/_smoke_write_api`，body 含 `title` | **201**，响应带新 `hash` |
-| 7 冲突 | 同上 PUT，`If-Match: <错误hash>` | **409** |
-| 8 覆盖 | `If-Match: <步骤6/详情的 hash>` | **200**，新 `hash` |
-| 9 方法 | `POST /api/v1/items` | **405** |
-| 10 删除 | `DELETE … localKey=thoughts/_smoke_write_api` | **200**；再 GET → **404** |
+| 6 创建 | `PUT … localKey=thoughts/_smoke_write_api`，body 含 `title` | **201**，响应即完整落盘文档 + `created: true` + 新 `hash` |
+| 7 修改 | `PATCH …` body 只带要改的字段（如 `{"body":"…"}`） | **200**，响应即完整落盘文档 + `created: false` + 新 `hash`（无需再 GET） |
+| 8 删字段 | `PATCH …` body 带 `{"status": null}`（或 `""` / `tags: []`） | **200**，字段移除；原无该字段时 no-op 静默通过 |
+| 9 冲突 | `PATCH`/`PUT` 带 `If-Match: <错误hash>` | **409**；按「重读详情 → 合并 → 再写」收敛 |
+| 10 方法 | `POST /api/v1/items` | **405** |
+| 11 删除 | `DELETE … localKey=thoughts/_smoke_write_api` | **200**；再 GET → **404** |
 
-`If-Match` 不带 = 直接覆盖（upsert）。脚本用专用 slug `_smoke_write_api`，结束会删。
+边界（契约已写死，脚本有断言）：`title` 不可删（null/空串 → 400）；空 body `{}` → 400；白名单外 body 键 → 400；`?status=` 重复 → 400；`?tag=` 重复为 AND。
+
+脚本用专用 slug `_smoke_write_api`，结束会删。
 
 ## 一键
 

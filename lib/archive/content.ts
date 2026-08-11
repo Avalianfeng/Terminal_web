@@ -1,6 +1,6 @@
 import { readFile, readdir } from "fs/promises";
 import path from "path";
-import { parseFrontmatter } from "./content-format";
+import { parseFrontmatter, type ContentGroup } from "./content-format";
 import type {
   ArchiveDocument,
   ArchiveSnapshot,
@@ -18,8 +18,30 @@ function tagsFrom(value: string | undefined) {
     .filter(Boolean);
 }
 
+/** 单个文档 raw → ArchiveDocument（快照读与写后回读共用同一转换）。 */
+export function parseDocument(
+  group: ContentGroup,
+  slug: string,
+  markdown: string,
+): ArchiveDocument {
+  const { fields, body } = parseFrontmatter(markdown);
+  const data = new Map(fields.map((field) => [field.key, field.value]));
+  const fallbackTitle =
+    body.match(/^#\s+(.+)$/m)?.[1]?.trim() ?? slug.replaceAll("-", " ");
+
+  return {
+    slug,
+    title: data.get("title") ?? fallbackTitle,
+    summary: data.get("summary") ?? "",
+    status: data.get("status"),
+    path: `${group}/${slug}`,
+    body,
+    tags: tagsFrom(data.get("tags")),
+  };
+}
+
 /** 只支持单文件形态 `content/<group>/<slug>.md`。 */
-async function readMarkdownGroup(group: "projects" | "thoughts") {
+async function readMarkdownGroup(group: ContentGroup) {
   const groupRoot = path.join(contentRoot, group);
   const entries = await readdir(groupRoot, { withFileTypes: true }).catch(
     () => [],
@@ -30,25 +52,12 @@ async function readMarkdownGroup(group: "projects" | "thoughts") {
       .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
       .map(async (entry): Promise<ArchiveDocument | null> => {
         const slug = entry.name.replace(/\.md$/, "");
-        const filePath = path.join(groupRoot, entry.name);
-
-        const markdown = await readFile(filePath, "utf8").catch(() => null);
+        const markdown = await readFile(
+          path.join(groupRoot, entry.name),
+          "utf8",
+        ).catch(() => null);
         if (!markdown) return null;
-
-        const { fields, body } = parseFrontmatter(markdown);
-        const data = new Map(fields.map((field) => [field.key, field.value]));
-        const fallbackTitle =
-          body.match(/^#\s+(.+)$/m)?.[1]?.trim() ?? slug.replaceAll("-", " ");
-
-        return {
-          slug,
-          title: data.get("title") ?? fallbackTitle,
-          summary: data.get("summary") ?? "",
-          status: data.get("status"),
-          path: `${group}/${slug}`,
-          body,
-          tags: tagsFrom(data.get("tags")),
-        };
+        return parseDocument(group, slug, markdown);
       }),
   );
 
