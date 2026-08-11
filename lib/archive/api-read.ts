@@ -92,15 +92,6 @@ export function toItemListItem(document: ArchiveDocument): ItemListItem {
   };
 }
 
-export function toItemPayload(document: ArchiveDocument): ItemPayload {
-  return {
-    ...toItemListItem(document),
-    body: document.body,
-    bodyFormat: "markdown",
-    hash: "",
-  };
-}
-
 /** raw → 完整详情 payload（含真实 hash）。详情读与 PUT/PATCH 写响应共用。 */
 export function payloadFromRaw(
   group: ContentGroup,
