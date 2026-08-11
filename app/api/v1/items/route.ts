@@ -16,33 +16,29 @@ import {
   deleteDocument,
   patchDocument,
   readDocumentRaw,
-  resolveContentPath,
   saveDocument,
   WriteError,
-  type ContentGroup,
   type DocumentPatch,
 } from "@/lib/archive/content-write";
+import {
+  DocumentRefError,
+  fromLocalKey,
+  type DocumentRef,
+} from "@/lib/archive/document-ref";
 import { revalidatePath } from "next/cache";
 
 const MAX_BODY_BYTES = 1_000_000;
 
-/** `projects/foo` → { group, slug }；不合法 → bad_request。 */
-function parseLocalKey(localKey: string): {
-  group: ContentGroup;
-  slug: string;
-} {
-  const [group, ...slugParts] = localKey.trim().replace(/^\/+/, "").split("/");
-  if (
-    (group !== "projects" && group !== "thoughts") ||
-    slugParts.length === 0 ||
-    !slugParts.join("/")
-  ) {
-    throw new WriteError(
-      "bad_request",
-      `Invalid localKey: "${localKey}". Must be projects/<slug> or thoughts/<slug>.`,
-    );
+/** `projects/foo` → DocumentRef；不合法 → bad_request。 */
+function requireDocumentRef(localKey: string): DocumentRef {
+  try {
+    return fromLocalKey(localKey);
+  } catch (error) {
+    if (error instanceof DocumentRefError) {
+      throw new WriteError("bad_request", error.message);
+    }
+    throw error;
   }
-  return { group, slug: slugParts.join("/") };
 }
 
 /** Bearer token 校验；无效 → 401，scope 不足 → 403。 */
@@ -316,8 +312,7 @@ export async function PUT(request: Request) {
   if (!auth.authorized) return writeAuthFailure(auth.error);
 
   try {
-    const { group, slug } = parseLocalKey(localKey);
-    resolveContentPath(group, slug); // 组 + slug 合法性（含 SLUG_PATTERN）
+    const { group, slug } = requireDocumentRef(localKey);
 
     const body = await readBody(request);
     assertKnownKeys(body, PUT_KEYS);
@@ -378,8 +373,7 @@ export async function PATCH(request: Request) {
   if (!auth.authorized) return writeAuthFailure(auth.error);
 
   try {
-    const { group, slug } = parseLocalKey(localKey);
-    resolveContentPath(group, slug);
+    const { group, slug } = requireDocumentRef(localKey);
 
     const body = await readBody(request);
     const patch = parsePatchBody(body);
@@ -421,7 +415,7 @@ export async function DELETE(request: Request) {
   if (!auth.authorized) return writeAuthFailure(auth.error);
 
   try {
-    const { group, slug } = parseLocalKey(localKey);
+    const { group, slug } = requireDocumentRef(localKey);
     await deleteDocument(group, slug);
     revalidatePath("/");
     return jsonOk(

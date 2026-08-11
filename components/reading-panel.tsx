@@ -14,6 +14,7 @@ import {
   resolveScrollBehavior,
 } from "@/lib/archive/motion-spec";
 import { readingSurfaceKey } from "@/lib/archive/reading-state";
+import { toVfsPath } from "@/lib/archive/document-ref";
 import type { ArchiveDocument, ReadingSurface, TimelineEntry } from "@/lib/archive/types";
 
 export { readingSurfaceKey };
@@ -150,7 +151,9 @@ export function ReadingPanel({
   const metaType =
     surface.kind === "document" ? zhCN.reading.typeDocument : zhCN.reading.typeTimeline;
   const path =
-    surface.kind === "document" ? surface.document.path : "/timeline";
+    surface.kind === "document"
+      ? toVfsPath(surface.document.ref)
+      : "/timeline";
 
   function onPanelKeyDown(event: KeyboardEvent<HTMLElement>) {
     if (event.key === "Escape") {

@@ -31,6 +31,7 @@ import {
   type ReadingState,
 } from "@/lib/archive/reading-state";
 import { createSession, formatShellPromptTokens } from "@/lib/archive/vfs";
+import { toLocalKey } from "@/lib/archive/document-ref";
 import type {
   ArchiveSnapshot,
   ReadingSurface,
@@ -256,7 +257,7 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
 
     if (result.saved || result.deleted) {
       if (target) {
-        const key = `${target.group}/${target.slug}`;
+        const key = toLocalKey(target.ref);
         let next = closeRailItem(readingStateRef.current, key);
         if (next.main && readingSurfaceKey(next.main) === key) {
           next = closeMain(next);
@@ -410,7 +411,7 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
 
         {editorTarget ? (
           <EditorPanel
-            key={`${editorTarget.group}/${editorTarget.slug}`}
+            key={toLocalKey(editorTarget.ref)}
             target={editorTarget}
             onDone={handleEditorDone}
           />

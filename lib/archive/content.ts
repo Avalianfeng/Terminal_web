@@ -1,6 +1,7 @@
 import { readFile, readdir } from "fs/promises";
 import path from "path";
 import { parseFrontmatter, type ContentGroup } from "./content-format";
+import { documentRef } from "./document-ref";
 import type {
   ArchiveDocument,
   ArchiveSnapshot,
@@ -30,11 +31,10 @@ export function parseDocument(
     body.match(/^#\s+(.+)$/m)?.[1]?.trim() ?? slug.replaceAll("-", " ");
 
   return {
-    slug,
+    ref: documentRef(group, slug),
     title: data.get("title") ?? fallbackTitle,
     summary: data.get("summary") ?? "",
     status: data.get("status"),
-    path: `${group}/${slug}`,
     body,
     tags: tagsFrom(data.get("tags")),
   };

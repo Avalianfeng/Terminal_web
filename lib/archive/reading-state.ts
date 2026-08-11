@@ -1,11 +1,14 @@
 import { zhCN } from "@/lib/archive/i18n";
 import type { ReadingSurface } from "@/lib/archive/types";
+import { toLocalKey, toVfsPath } from "@/lib/archive/document-ref";
 
 /** rail 硬顶：超出丢最旧（数组末尾） */
 export const RAIL_MAX = 8;
 
 export function readingSurfaceKey(surface: ReadingSurface): string {
-  return surface.kind === "document" ? surface.document.path : "/timeline";
+  return surface.kind === "document"
+    ? toLocalKey(surface.document.ref)
+    : "/timeline";
 }
 
 export type ReadingState = {
@@ -24,7 +27,9 @@ export function surfaceTitle(surface: ReadingSurface): string {
 }
 
 export function surfacePath(surface: ReadingSurface): string {
-  return surface.kind === "document" ? surface.document.path : "/timeline";
+  return surface.kind === "document"
+    ? toVfsPath(surface.document.ref)
+    : "/timeline";
 }
 
 export function surfaceMetaType(surface: ReadingSurface): string {

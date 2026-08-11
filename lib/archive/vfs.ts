@@ -1,5 +1,6 @@
 import type { ArchiveSnapshot, TerminalSession, TerminalToken } from "./types";
 import { zhCN } from "./i18n";
+import { toVfsPath } from "./document-ref";
 
 type VfsNodeType = "dir" | "project" | "thought" | "timeline" | "person";
 
@@ -73,10 +74,10 @@ export function createVfs(snapshot: ArchiveSnapshot): VfsNode {
         name: zhCN.vfs.projects,
         type: "dir",
         children: snapshot.projects.map((project) => ({
-          path: `/projects/${project.slug}`,
-          name: project.slug,
+          path: toVfsPath(project.ref),
+          name: project.ref.slug,
           type: "project",
-          refSlug: project.slug,
+          refSlug: project.ref.slug,
         })),
       },
       {
@@ -84,10 +85,10 @@ export function createVfs(snapshot: ArchiveSnapshot): VfsNode {
         name: zhCN.vfs.thoughts,
         type: "dir",
         children: snapshot.thoughts.map((thought) => ({
-          path: `/thoughts/${thought.slug}`,
-          name: thought.slug,
+          path: toVfsPath(thought.ref),
+          name: thought.ref.slug,
           type: "thought",
-          refSlug: thought.slug,
+          refSlug: thought.ref.slug,
         })),
       },
       {

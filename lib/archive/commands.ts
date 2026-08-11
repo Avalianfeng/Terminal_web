@@ -13,6 +13,15 @@ import { RAIL_MAX } from "./reading-state";
 import { formatInputTokens } from "./shell-style";
 import { SLUG_PATTERN, type ContentGroup } from "./content-format";
 import {
+  documentRef,
+  refsEqual,
+  toLocalKey,
+  toVfsPath,
+  tryFromLocalKey,
+  tryFromVfsPath,
+  type DocumentEditTarget,
+} from "./document-ref";
+import {
   createSession,
   createVfs,
   formatShellPromptTokens,
@@ -35,14 +44,7 @@ type CommandResult = {
   /** 终端 pager：未按列宽 wrap 的逻辑行（由 xterm 侧 wrap）。 */
   pager?: { logicalLines: string[] } | null;
   /** 打开全屏编辑面板（原文由编辑面板异步读取）。 */
-  edit?: EditTarget | null;
-};
-
-/** 编辑目标：group + slug；exists=false 时进入新建。 */
-type EditTarget = {
-  group: ContentGroup;
-  slug: string;
-  exists: boolean;
+  edit?: DocumentEditTarget | null;
 };
 
 type LinuxHandlerResult = {
@@ -96,7 +98,9 @@ function findDocument(snapshot: ArchiveSnapshot, query: string) {
   if (!target) return null;
 
   return (
-    allDocuments(snapshot).find((document) => normalize(document.slug) === target) ??
+    allDocuments(snapshot).find(
+      (document) => normalize(document.ref.slug) === target,
+    ) ??
     allDocuments(snapshot).find((document) =>
       normalize(document.title).includes(target),
     ) ??
@@ -115,7 +119,10 @@ function formatDocumentList(documents: ArchiveDocument[]) {
   return documents.flatMap((document, index) => {
     const itemLines = [
       line([token(`${String(index + 1).padStart(2, "0")}  `, "muted"), token(document.title)]),
-      line([token(`    ${zhCN.labels.slug}: `, "muted"), token(document.slug, "path")]),
+      line([
+        token(`    ${zhCN.labels.slug}: `, "muted"),
+        token(document.ref.slug, "path"),
+      ]),
     ];
     if (document.status) {
       itemLines.push(
@@ -145,7 +152,8 @@ function search(snapshot: ArchiveSnapshot, query: string) {
         document.summary,
         document.body,
         document.tags.join(" "),
-        document.slug,
+        document.ref.slug,
+        toLocalKey(document.ref),
       ].join(" "),
     );
 
@@ -268,15 +276,12 @@ function archiveStatus(snapshot: ArchiveSnapshot) {
 }
 
 function toDocumentEntry(snapshot: ArchiveSnapshot, nodePath: string) {
-  if (nodePath.startsWith("/projects/")) {
-    const slug = nodePath.replace("/projects/", "");
-    return snapshot.projects.find((item) => item.slug === slug) ?? null;
-  }
-  if (nodePath.startsWith("/thoughts/")) {
-    const slug = nodePath.replace("/thoughts/", "");
-    return snapshot.thoughts.find((item) => item.slug === slug) ?? null;
-  }
-  return null;
+  const ref = tryFromVfsPath(nodePath);
+  if (!ref) return null;
+  return (
+    allDocuments(snapshot).find((document) => refsEqual(document.ref, ref)) ??
+    null
+  );
 }
 
 function surfaceFromNode(
@@ -317,7 +322,7 @@ function resolveEditTarget(
   snapshot: ArchiveSnapshot,
   cwd: string,
   rawToken: string,
-): { ok: true; target: EditTarget } | { ok: false; hint: string } {
+): { ok: true; target: DocumentEditTarget } | { ok: false; hint: string } {
   const token = rawToken.trim().replace(/^\/+/, "");
   if (!token) {
     return { ok: false, hint: zhCN.errors.usageEdit };
@@ -328,20 +333,16 @@ function resolveEditTarget(
   // 显式组前缀：新建或编辑均可（优先于 VFS 解析，支持不存在的路径）
   // 注意：不可对整段 token 做 SLUG_PATTERN——含 `/` 的路径（help 示例）会被误拒
   if (token.startsWith("projects/") || token.startsWith("thoughts/")) {
-    const [groupName, ...slugParts] = token.split("/");
-    const slug = slugParts.join("/");
-    if (!slug || !SLUG_PATTERN.test(slug)) {
+    const ref = tryFromLocalKey(token);
+    if (!ref) {
       return { ok: false, hint: `${zhCN.errors.invalidPath}: ${token}` };
     }
     return {
       ok: true,
       target: {
-        group: groupName === "thoughts" ? "thoughts" : "projects",
-        slug,
-        exists: Boolean(
-          allDocuments(snapshot).find(
-            (document) => normalize(document.path) === normalize(token),
-          ),
+        ref,
+        exists: allDocuments(snapshot).some((document) =>
+          refsEqual(document.ref, ref),
         ),
       },
     };
@@ -350,11 +351,14 @@ function resolveEditTarget(
   const node = resolveVfsPath(root, cwd, token);
   if (node) {
     if (node.type === "project" || node.type === "thought") {
+      const ref = tryFromVfsPath(node.path);
+      if (!ref) {
+        return { ok: false, hint: zhCN.errors.notFile };
+      }
       return {
         ok: true,
         target: {
-          group: node.type === "project" ? "projects" : "thoughts",
-          slug: node.refSlug ?? node.name,
+          ref,
           exists: true,
         },
       };
@@ -364,14 +368,13 @@ function resolveEditTarget(
 
   // 裸 slug：先精确匹配已有文档
   const known = allDocuments(snapshot).find(
-    (document) => normalize(document.slug) === normalize(token),
+    (document) => normalize(document.ref.slug) === normalize(token),
   );
   if (known) {
     return {
       ok: true,
       target: {
-        group: known.path.startsWith("projects/") ? "projects" : "thoughts",
-        slug: known.slug,
+        ref: known.ref,
         exists: true,
       },
     };
@@ -384,7 +387,10 @@ function resolveEditTarget(
   const group: ContentGroup = cwd.startsWith("/thoughts")
     ? "thoughts"
     : "projects";
-  return { ok: true, target: { group, slug: token, exists: false } };
+  return {
+    ok: true,
+    target: { ref: documentRef(group, token), exists: false },
+  };
 }
 
 /**
@@ -493,7 +499,7 @@ function echoCommand(command: string, cwd: string): TerminalEntry {
 }
 
 function openSuggestions(snapshot: ArchiveSnapshot) {
-  const slugs = allDocuments(snapshot).map((document) => document.slug);
+  const slugs = allDocuments(snapshot).map((document) => document.ref.slug);
   const examples = ["timeline", ...slugs].slice(0, 4).join(", ");
   return `${zhCN.errors.tryOpenHint} ${examples}`;
 }
@@ -915,8 +921,8 @@ export function runCommand(
             lines([
               token(
                 target.exists
-                  ? `${zhCN.editor.title}: ${target.group}/${target.slug}`
-                  : `${zhCN.editor.title} (new): ${target.group}/${target.slug}`,
+                  ? `${zhCN.editor.title}: ${toLocalKey(target.ref)}`
+                  : `${zhCN.editor.title} (new): ${toLocalKey(target.ref)}`,
                 "hint",
               ),
             ]),
@@ -1080,7 +1086,7 @@ export function runCommand(
       const mainSurface = capped[capped.length - 1]!;
       const selectedPath =
         mainSurface.kind === "document"
-          ? `/${mainSurface.document.path}`
+          ? toVfsPath(mainSurface.document.ref)
           : "/timeline";
 
       return {

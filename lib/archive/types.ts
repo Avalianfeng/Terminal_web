@@ -11,12 +11,13 @@ export type PersonRecord = {
   links: ArchiveLink[];
 };
 
+import type { DocumentRef } from "./document-ref";
+
 export type ArchiveDocument = {
-  slug: string;
+  ref: DocumentRef;
   title: string;
   summary: string;
   status?: string;
-  path: string;
   body: string;
   tags: string[];
 };

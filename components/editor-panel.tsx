@@ -4,13 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { getDocumentRaw, putDocumentRaw, removeDocument } from "@/lib/archive/actions";
 import { emptyDocumentTemplate } from "@/lib/archive/content-format";
 import { zhCN } from "@/lib/archive/i18n";
-import type { ContentGroup } from "@/lib/archive/content-format";
+import {
+  toLocalKey,
+  type DocumentEditTarget,
+} from "@/lib/archive/document-ref";
 
-export type EditorTarget = {
-  group: ContentGroup;
-  slug: string;
-  exists: boolean;
-};
+export type EditorTarget = DocumentEditTarget;
 
 type EditorPanelProps = {
   target: EditorTarget;
@@ -31,12 +30,13 @@ export function EditorPanel({ target, onDone }: EditorPanelProps) {
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const { group, slug } = target.ref;
   const dirty = raw !== null && initialRaw !== null && raw !== initialRaw;
-  const title = `${target.group}/${target.slug}${target.exists ? "" : " (new)"}`;
+  const title = `${toLocalKey(target.ref)}${target.exists ? "" : " (new)"}`;
 
   useEffect(() => {
     let cancelled = false;
-    void getDocumentRaw(target.group, target.slug).then((result) => {
+    void getDocumentRaw(group, slug).then((result) => {
       if (cancelled) return;
       if (result.ok && "raw" in result) {
         setInitialRaw(result.raw);
@@ -44,7 +44,7 @@ export function EditorPanel({ target, onDone }: EditorPanelProps) {
         return;
       }
       if (!result.ok && result.error === "not_found") {
-        const template = emptyDocumentTemplate(target.slug);
+        const template = emptyDocumentTemplate(slug);
         setInitialRaw(template);
         setRaw(template);
         return;
@@ -57,7 +57,7 @@ export function EditorPanel({ target, onDone }: EditorPanelProps) {
     return () => {
       cancelled = true;
     };
-  }, [target.group, target.slug]);
+  }, [group, slug]);
 
   useEffect(() => {
     textareaRef.current?.focus();
@@ -70,7 +70,7 @@ export function EditorPanel({ target, onDone }: EditorPanelProps) {
   async function handleSave() {
     if (!raw || status.kind === "saving") return;
     setStatus({ kind: "saving" });
-    const result = await putDocumentRaw(target.group, target.slug, raw);
+    const result = await putDocumentRaw(group, slug, raw);
     if (!result.ok) {
       setStatus({ kind: "error", message: result.message });
       return;
@@ -84,7 +84,7 @@ export function EditorPanel({ target, onDone }: EditorPanelProps) {
     if (status.kind === "saving") return;
     if (!window.confirm(zhCN.editor.deleteConfirm)) return;
     setStatus({ kind: "saving" });
-    const result = await removeDocument(target.group, target.slug);
+    const result = await removeDocument(group, slug);
     if (!result.ok) {
       setStatus({ kind: "error", message: result.message });
       return;

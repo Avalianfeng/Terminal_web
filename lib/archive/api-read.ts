@@ -11,6 +11,11 @@ import {
   readDocumentRaw,
   type ContentGroup,
 } from "./content-write";
+import {
+  refsEqual,
+  toLocalKey,
+  tryFromLocalKey,
+} from "./document-ref";
 
 export const API_VERSION = 1 as const;
 
@@ -80,15 +85,16 @@ export function publicItemHref(localKey: string): string {
 // --- Converters ---
 
 export function toItemListItem(document: ArchiveDocument): ItemListItem {
+  const localKey = toLocalKey(document.ref);
   return {
     source: "local",
-    localKey: document.path,
+    localKey,
     kind: "document",
     title: document.title,
     ...(document.summary ? { summary: document.summary } : {}),
     ...(document.status ? { status: document.status } : {}),
     ...(document.tags.length > 0 ? { tags: document.tags } : {}),
-    href: publicItemHref(document.path),
+    href: publicItemHref(localKey),
   };
 }
 
@@ -114,12 +120,9 @@ export function payloadFromRaw(
 export async function toItemPayloadWithHash(
   document: ArchiveDocument,
 ): Promise<ItemPayload> {
-  const [group, ...slugParts] = document.path.split("/");
-  const raw = await readDocumentRaw(
-    group as ContentGroup,
-    slugParts.join("/"),
-  );
-  return payloadFromRaw(group as ContentGroup, slugParts.join("/"), raw);
+  const { group, slug } = document.ref;
+  const raw = await readDocumentRaw(group, slug);
+  return payloadFromRaw(group, slug, raw);
 }
 
 // --- Item lookup (unified key) ---
@@ -130,11 +133,11 @@ export function findItemByKey(
   localKey: string,
 ): ArchiveDocument | null {
   if (source !== "local") return null;
-  const normalized = localKey.trim().replace(/^\/+/, "").replace(/\/+$/, "");
-  if (!normalized) return null;
+  const ref = tryFromLocalKey(localKey);
+  if (!ref) return null;
   return (
-    [...snapshot.projects, ...snapshot.thoughts].find(
-      (document) => document.path === normalized,
+    [...snapshot.projects, ...snapshot.thoughts].find((document) =>
+      refsEqual(document.ref, ref),
     ) ?? null
   );
 }
