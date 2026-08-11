@@ -1,13 +1,8 @@
-import { resolveAlias } from "./aliases";
-import { PRIMARY_COMMANDS } from "./complete";
+import { isKnownCommandName } from "./command-registry";
 import type { TerminalToken } from "./types";
 
-const PRIMARY_SET = new Set<string>(PRIMARY_COMMANDS);
-
 export function isKnownCommand(name: string) {
-  const lower = name.trim().toLowerCase();
-  if (!lower) return false;
-  return PRIMARY_SET.has(resolveAlias(lower));
+  return isKnownCommandName(name);
 }
 
 function looksLikePath(token: string) {

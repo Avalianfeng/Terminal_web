@@ -8,7 +8,13 @@ import type {
   TerminalToken,
 } from "./types";
 import { zhCN } from "./i18n";
-import { resolveAlias } from "./aliases";
+import {
+  getCommand,
+  helpSectionTitleKey,
+  helpSections,
+  helpUsagesForSection,
+  resolveAlias,
+} from "./command-registry";
 import { RAIL_MAX } from "./reading-state";
 import { formatInputTokens } from "./shell-style";
 import { SLUG_PATTERN, type ContentGroup } from "./content-format";
@@ -778,17 +784,21 @@ export function runCommand(
   };
   const commandEcho = echoCommand(trimmed, session.cwd);
 
+  if (!getCommand(command)) {
+    return {
+      entries: [
+        commandEcho,
+        systemError(
+          `${zhCN.errors.unknownCommand}: ${command}`,
+          zhCN.errors.typeHelp,
+        ),
+      ],
+      session: nextSession,
+    };
+  }
+
   const linuxResult = handleLinuxCommand(snapshot, command, args, nextSession);
   if (linuxResult.handled) {
-    if (command === "clear") {
-      return {
-        clear: true,
-        entries: [commandEcho],
-        session: linuxResult.session,
-        reading: null,
-        pager: null,
-      };
-    }
     return {
       entries: [commandEcho, ...linuxResult.entries],
       session: linuxResult.session,
@@ -798,43 +808,24 @@ export function runCommand(
   }
 
   switch (command) {
-    case "help":
+    case "help": {
+      const helpRows: (TerminalToken[] | string)[] = [
+        [token(zhCN.help.title, "success")],
+        "",
+      ];
+      for (const section of helpSections()) {
+        helpRows.push([
+          token(zhCN.help[helpSectionTitleKey(section)], "success"),
+        ]);
+        helpRows.push(...helpUsagesForSection(section));
+        helpRows.push("");
+      }
+      helpRows.push(zhCN.help.shortcuts);
       return {
-        entries: [
-          commandEcho,
-          lineEntry(
-            lines(
-              [token(zhCN.help.title, "success")],
-              "",
-              [token(zhCN.help.exploreTitle, "success")],
-              zhCN.help.ls,
-              zhCN.help.cd,
-              zhCN.help.pwd,
-              zhCN.help.tree,
-              zhCN.help.find,
-              zhCN.help.whoami,
-              zhCN.help.status,
-              zhCN.help.history,
-              "",
-              [token(zhCN.help.readTitle, "success")],
-              zhCN.help.open,
-              zhCN.help.cat,
-              zhCN.help.timeline,
-              zhCN.help.search,
-              zhCN.help.projects,
-              zhCN.help.thoughts,
-              zhCN.help.about,
-              "",
-              [token(zhCN.help.sessionTitle, "success")],
-              zhCN.help.clear,
-              zhCN.help.edit,
-              zhCN.help.themes,
-              zhCN.help.shortcuts,
-            ),
-          ),
-        ],
+        entries: [commandEcho, lineEntry(lines(...helpRows))],
         session: nextSession,
       };
+    }
 
     case "about":
       return {

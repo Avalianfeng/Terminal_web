@@ -10,7 +10,8 @@
     "lint": "eslint",
     "token:generate": "node scripts/gen-token.mjs",
     "smoke:write-api": "node scripts/smoke-write-api.mjs",
-    "test:document-ref": "tsx --test lib/archive/document-ref.test.ts"
+    "test:document-ref": "tsx --test lib/archive/document-ref.test.ts",
+    "test:command-registry": "tsx --test lib/archive/command-registry.test.ts"
   },
   "keywords": [],
   "author": "",

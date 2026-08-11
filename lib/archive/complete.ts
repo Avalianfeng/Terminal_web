@@ -1,33 +1,10 @@
 import type { ArchiveSnapshot } from "./types";
-import { resolveAlias } from "./aliases";
+import {
+  completableCommandNames,
+  getArgComplete,
+  resolveAlias,
+} from "./command-registry";
 import { createVfs, listNode, resolveVfsPath, type VfsNode } from "./vfs";
-
-/** 主命令名（不含 alias）；与 help 对齐。 */
-export const PRIMARY_COMMANDS = [
-  "help",
-  "about",
-  "projects",
-  "thoughts",
-  "timeline",
-  "search",
-  "find",
-  "status",
-  "open",
-  "edit",
-  "themes",
-  "clear",
-  "ls",
-  "cd",
-  "cat",
-  "pwd",
-  "tree",
-  "whoami",
-  "history",
-] as const;
-
-const ALIAS_COMMANDS = ["?", "cls", "dir", "ll"] as const;
-
-const PATH_ARG_COMMANDS = new Set(["cd", "ls", "cat", "tree", "open", "edit"]);
 
 export type CompleteResult = {
   /** 补全后的整行输入 */
@@ -165,21 +142,21 @@ function argumentCandidates(
   command: string,
   partial: string,
 ) {
-  const resolved = resolveAlias(command.toLowerCase());
+  const policy = getArgComplete(resolveAlias(command.toLowerCase()));
 
-  if (resolved === "cat") {
+  if (policy === "cat") {
     return catCandidates(snapshot, cwd, partial);
   }
 
-  if (resolved === "open" || resolved === "edit") {
+  if (policy === "open") {
     return openCandidates(snapshot, cwd, partial);
   }
 
-  if (resolved === "cd") {
+  if (policy === "dirs") {
     return uniqueSorted(pathCandidates(snapshot, cwd, partial, "dirs"));
   }
 
-  if (PATH_ARG_COMMANDS.has(resolved)) {
+  if (policy === "all") {
     return uniqueSorted(pathCandidates(snapshot, cwd, partial, "all"));
   }
 
@@ -243,10 +220,11 @@ function parseInput(raw: string): ParsedInput {
 }
 
 /**
- * Tab 补全：命令名 / 路径。
- * - cd → 仅目录
+ * Tab 补全：命令名 / 路径（策略来自 command-registry.argComplete）。
+ * - dirs → 仅目录
  * - cat → 终端查看文件（唯一目录自动下钻）
- * - open / edit / ls / tree → 目录 + 文件
+ * - open → 目录 + 文件 + * / .
+ * - all → 目录 + 文件
  */
 export function completeInput(
   rawInput: string,
@@ -257,7 +235,7 @@ export function completeInput(
   const parsed = parseInput(rawInput);
   const candidates =
     parsed.mode === "command"
-      ? filterPrefix([...PRIMARY_COMMANDS, ...ALIAS_COMMANDS], parsed.partial)
+      ? filterPrefix(completableCommandNames(), parsed.partial)
       : argumentCandidates(snapshot, cwd, parsed.command, parsed.partial);
 
   if (candidates.length === 0) {

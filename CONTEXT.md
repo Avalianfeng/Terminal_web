@@ -27,3 +27,7 @@ _Avoid_: item (prefer discovery **Item** when meaning the HTTP/discovery shape);
 **Item**:
 A discovery-layer entry (`source` + `localKey` + kind); first shipped kind is `document`. Cross-source identity lives here, not inside DocumentRef. Future kinds (e.g. audio/video) and sources (e.g. github) extend Item; they do not widen DocumentRef.
 _Avoid_: document (when meaning the discovery payload rather than ArchiveDocument)
+
+**CommandSpec**:
+A registered terminal command: primary `name`, optional `aliases`, optional help `section` + `usage`, and `argComplete` policy. The table in `command-registry.ts` is the authority; Tab completion, `help` listing, alias resolve, and known-command highlighting derive from it. Handlers bind by `name` in `commands.ts`.
+_Avoid_: parallel PRIMARY_COMMANDS / PATH_ARG_COMMANDS / alias maps; help copy duplicated in i18n per command
