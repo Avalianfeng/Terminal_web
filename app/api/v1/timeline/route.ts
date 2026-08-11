@@ -1,4 +1,4 @@
-import { jsonOk, methodNotAllowed, optionsCors } from "@/lib/archive/api-read";
+import { jsonOk, methodNotAllowed, optionsCors } from "@/lib/archive/api-http";
 import { getArchiveSnapshot } from "@/lib/archive/content";
 
 export async function GET() {

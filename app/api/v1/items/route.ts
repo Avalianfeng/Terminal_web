@@ -1,15 +1,19 @@
 import {
   buildItemsIndex,
   findItemByKey,
+  validateKind,
+  validateSource,
+} from "@/lib/archive/discovery";
+import {
   jsonError,
   jsonOk,
   methodNotAllowed,
   optionsCors,
+} from "@/lib/archive/api-http";
+import {
   payloadFromRaw,
   toItemPayloadWithHash,
-  validateKind,
-  validateSource,
-} from "@/lib/archive/api-read";
+} from "@/lib/archive/read-adapter";
 import { getArchiveSnapshot } from "@/lib/archive/content";
 import { validateToken } from "@/lib/archive/token";
 import {

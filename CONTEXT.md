@@ -35,3 +35,7 @@ _Avoid_: parallel PRIMARY_COMMANDS / PATH_ARG_COMMANDS / alias maps; help copy d
 **ReadingSession**:
 Terminal reading UI session: `ReadingState` (main + rail) plus a `phase` (`idle` | `leaving` | `demoting`). Leave/demote transitions and `focusTerminal` effects live in `reading-session.ts`; React only applies results and plays CSS.
 _Avoid_: leave/demote orchestration only in components; embedding animation durations in the pure layer
+
+**discovery / api-http / read-adapter**:
+Split of the former `api-read` bag: **discovery** owns Item model, index/filter/lookup, and document→Item projection (`href` via injectable `ItemHrefFor`); **api-http** owns JSON envelopes (`jsonOk`/`jsonError`); **read-adapter** owns filesystem → `ItemPayload` (hash). `api-read.ts` remains a thin deprecated barrel.
+_Avoid_: mixing NextResponse or fs I/O into discovery; treating HTTP href strings as document identity

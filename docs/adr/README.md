@@ -15,7 +15,7 @@
 |-----|------|------|----------|
 | [0001](0001-document-ref.md) | DocumentRef 为本地文档权威身份 | Accepted | `8aaa852` |
 | [0002](0002-command-registry.md) | 终端命令注册表同源 | Accepted | `6055363` |
-| [0003](0003-discovery-http-split.md) | 发现域与 HTTP 适配分层 | Proposed（暂缓实现） | — |
+| [0003](0003-discovery-http-split.md) | 发现域与 HTTP 适配分层 | Accepted | （见该 ADR Commit） |
 | [0004](0004-reading-session.md) | 阅读会话 leave/demote 状态机 | Accepted | `74c317e` |
 | [0005](0005-unified-write-entry.md) | 统一写入口 + expectedHash | Accepted | `d678064` |
 | [0006](0006-post-write-reading-refresh.md) | 写后阅读面即时刷新 | Accepted | `3d88447` |

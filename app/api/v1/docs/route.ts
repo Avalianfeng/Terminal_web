@@ -1,11 +1,11 @@
+import { findDocumentByPath } from "@/lib/archive/discovery";
 import {
-  findDocumentByPath,
   jsonError,
   jsonOk,
   methodNotAllowed,
   optionsCors,
-  toItemPayloadWithHash,
-} from "@/lib/archive/api-read";
+} from "@/lib/archive/api-http";
+import { toItemPayloadWithHash } from "@/lib/archive/read-adapter";
 import { getArchiveSnapshot } from "@/lib/archive/content";
 import { WriteError } from "@/lib/archive/content-write";
 

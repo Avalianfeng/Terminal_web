@@ -1,9 +1,5 @@
-import {
-  buildDiscovery,
-  jsonOk,
-  methodNotAllowed,
-  optionsCors,
-} from "@/lib/archive/api-read";
+import { jsonOk, methodNotAllowed, optionsCors } from "@/lib/archive/api-http";
+import { buildDiscovery } from "@/lib/archive/discovery";
 
 export function GET() {
   return jsonOk(buildDiscovery(), new Date().toISOString());
