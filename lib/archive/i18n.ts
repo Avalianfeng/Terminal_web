@@ -61,6 +61,9 @@ export const zhCN = {
     deleteFailed: "删除失败",
     notSaved: "有未保存的修改，确定关闭？",
     unsavedChanged: "已修改",
+    conflict: "内容已在别处更新",
+    reload: "重新加载",
+    hintConflict: "保存冲突：重新加载后再改，或放弃本地修改",
   },
   clipboard: {
     multiConfirm: "剪贴板含 {n} 行。依次执行？ [Y/n]",

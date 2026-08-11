@@ -2,20 +2,18 @@ import { createHash } from "crypto";
 import { readFile, rename, unlink, writeFile } from "fs/promises";
 import path from "path";
 import {
-  CONTENT_GROUPS,
-  SLUG_PATTERN,
   parseFrontmatter,
   serializeDocument,
   type ContentGroup,
 } from "./content-format";
 import type { FrontmatterField } from "./content-format";
 import { contentRoot } from "./content";
+import { toLocalKey, type DocumentRef } from "./document-ref";
 
 export type { ContentGroup };
 
-export type DocumentWriteInput = {
-  group: ContentGroup;
-  slug: string;
+/** Structured PUT fields (identity is DocumentRef, not repeated here). */
+export type DocumentWriteFields = {
   title: string;
   summary?: string;
   status?: string;
@@ -39,9 +37,11 @@ export type DocumentPatch = {
 
 export type SaveResult = {
   created: boolean;
+  /** SHA-256 of bytes written (hex). */
+  hash: string;
 };
 
-/** 写操作可选约束：乐观并发（If-Match）。 */
+/** 写操作可选约束：乐观并发（If-Match / expectedHash）。 */
 export type WriteOptions = {
   /** 期望的当前文件内容 SHA-256（hex）；不匹配或文件不存在 → conflict。 */
   expectedHash?: string;
@@ -59,17 +59,9 @@ export class WriteError extends Error {
   }
 }
 
-export function resolveContentPath(group: ContentGroup, slug: string): string {
-  if (!CONTENT_GROUPS.includes(group)) {
-    throw new WriteError("bad_request", `Unknown group: ${group}`);
-  }
-  if (!SLUG_PATTERN.test(slug)) {
-    throw new WriteError(
-      "bad_request",
-      `Invalid slug: "${slug}". Allowed: [a-z0-9_-]+`,
-    );
-  }
-  return path.join(contentRoot, group, `${slug}.md`);
+/** Disk path for a validated DocumentRef (`content/<group>/<slug>.md`). */
+export function resolveContentPath(ref: DocumentRef): string {
+  return path.join(contentRoot, ref.group, `${ref.slug}.md`);
 }
 
 async function fileExists(filePath: string): Promise<boolean> {
@@ -90,8 +82,8 @@ export function hashRaw(raw: string): string {
 async function assertVersion(
   filePath: string,
   expectedHash: string | undefined,
-): Promise<boolean> {
-  if (expectedHash === undefined) return false;
+): Promise<void> {
+  if (expectedHash === undefined) return;
   const current = await readFile(filePath, "utf8").catch(() => null);
   if (current === null) {
     throw new WriteError(
@@ -105,7 +97,6 @@ async function assertVersion(
       "Document changed since baseHash; If-Match precondition failed",
     );
   }
-  return true;
 }
 
 /** 临时文件 + rename：避免写一半留下残缺文档。 */
@@ -125,27 +116,27 @@ function tagsToField(tags?: string[]): FrontmatterField | null {
   return { key: "tags", value: tags.join(", ") };
 }
 
-function toFields(input: DocumentWriteInput): FrontmatterField[] {
-  const fields: FrontmatterField[] = [
+function toFields(input: DocumentWriteFields): FrontmatterField[] {
+  return [
     { key: "title", value: input.title },
     ...(input.summary ? [{ key: "summary", value: input.summary }] : []),
     ...(input.status ? [{ key: "status", value: input.status }] : []),
     ...(tagsToField(input.tags) ? [tagsToField(input.tags)!] : []),
   ];
-  return fields;
 }
 
-/** 创建或覆盖 `content/<group>/<slug>.md`（upsert 语义，编辑即保存）。 */
+/** 创建或覆盖文档（upsert；编辑即保存）。 */
 export async function saveDocument(
-  input: DocumentWriteInput,
+  ref: DocumentRef,
+  fields: DocumentWriteFields,
   options?: WriteOptions,
 ): Promise<SaveResult> {
-  const filePath = resolveContentPath(input.group, input.slug);
+  const filePath = resolveContentPath(ref);
   const existed = await fileExists(filePath);
   await assertVersion(filePath, options?.expectedHash);
-  const content = serializeDocument(toFields(input), input.body ?? "");
+  const content = serializeDocument(toFields(fields), fields.body ?? "");
   await writeAtomic(filePath, content);
-  return { created: !existed };
+  return { created: !existed, hash: hashRaw(content) };
 }
 
 function upsertField(fields: FrontmatterField[], key: string, value: string) {
@@ -161,19 +152,17 @@ function removeField(fields: FrontmatterField[], key: string) {
 
 /**
  * 部分更新：省略=保留、null/""/[]=移除（原字段不存在 → no-op）、有值=覆盖。
- * 与原文件同一次读盘完成 If-Match 校验；在原 fields 数组上保序原位改，
- * 契约外未知字段保留、顺序不变（与 PUT 整份替换的「丢弃+重排」区分）。
+ * 与原文件同一次读盘完成 If-Match 校验；在原 fields 数组上保序原位改。
  */
 export async function patchDocument(
-  group: ContentGroup,
-  slug: string,
+  ref: DocumentRef,
   patch: DocumentPatch,
   options?: WriteOptions,
 ): Promise<SaveResult> {
-  const filePath = resolveContentPath(group, slug);
+  const filePath = resolveContentPath(ref);
   const raw = await readFile(filePath, "utf8").catch(() => null);
   if (raw === null) {
-    throw new WriteError("not_found", `No document at ${group}/${slug}`);
+    throw new WriteError("not_found", `No document at ${toLocalKey(ref)}`);
   }
   if (
     options?.expectedHash !== undefined &&
@@ -219,21 +208,19 @@ export async function patchDocument(
   const body = patch.body === undefined ? parsed.body : (patch.body ?? "");
   const content = serializeDocument(fields, body);
   await writeAtomic(filePath, content);
-  return { created: false };
+  return { created: false, hash: hashRaw(content) };
 }
 
 /**
  * 直接保存整份 raw markdown（终端编辑面板用）。
- * 解析 frontmatter 校验 title 必填，再规范化序列化写回——
- * 编辑器改不坏存储格式，读路径永远可解析。
+ * 解析 frontmatter 校验 title 必填，再规范化序列化写回。
  */
 export async function saveDocumentRaw(
-  group: ContentGroup,
-  slug: string,
+  ref: DocumentRef,
   raw: string,
   options?: WriteOptions,
 ): Promise<SaveResult> {
-  const filePath = resolveContentPath(group, slug);
+  const filePath = resolveContentPath(ref);
   const parsed = parseFrontmatter(raw);
 
   const title = parsed.fields.find((field) => field.key === "title")?.value.trim();
@@ -248,31 +235,29 @@ export async function saveDocumentRaw(
   await assertVersion(filePath, options?.expectedHash);
   const content = serializeDocument(parsed.fields, parsed.body);
   await writeAtomic(filePath, content);
-  return { created: !existed };
+  return { created: !existed, hash: hashRaw(content) };
 }
 
 /** 读取整份原文（含 frontmatter）；不存在 → not_found。 */
-export async function readDocumentRaw(
-  group: ContentGroup,
-  slug: string,
-): Promise<string> {
-  const filePath = resolveContentPath(group, slug);
+export async function readDocumentRaw(ref: DocumentRef): Promise<string> {
+  const filePath = resolveContentPath(ref);
   try {
     return await readFile(filePath, "utf8");
   } catch {
-    throw new WriteError("not_found", `No document at ${group}/${slug}`);
+    throw new WriteError("not_found", `No document at ${toLocalKey(ref)}`);
   }
 }
 
-/** 删除文档；不存在 → not_found。 */
+/** 删除文档；不存在 → not_found。可选 expectedHash。 */
 export async function deleteDocument(
-  group: ContentGroup,
-  slug: string,
+  ref: DocumentRef,
+  options?: WriteOptions,
 ): Promise<void> {
-  const filePath = resolveContentPath(group, slug);
+  const filePath = resolveContentPath(ref);
+  await assertVersion(filePath, options?.expectedHash);
   try {
     await unlink(filePath);
   } catch {
-    throw new WriteError("not_found", `No document at ${group}/${slug}`);
+    throw new WriteError("not_found", `No document at ${toLocalKey(ref)}`);
   }
 }

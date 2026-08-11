@@ -312,7 +312,7 @@ export async function PUT(request: Request) {
   if (!auth.authorized) return writeAuthFailure(auth.error);
 
   try {
-    const { group, slug } = requireDocumentRef(localKey);
+    const ref = requireDocumentRef(localKey);
 
     const body = await readBody(request);
     assertKnownKeys(body, PUT_KEYS);
@@ -326,9 +326,8 @@ export async function PUT(request: Request) {
 
     const expectedHash = request.headers.get("if-match") ?? undefined;
     const result = await saveDocument(
+      ref,
       {
-        group,
-        slug,
         title,
         summary: requireString(body, "summary"),
         status: requireString(body, "status"),
@@ -338,9 +337,9 @@ export async function PUT(request: Request) {
       { expectedHash },
     );
 
-    const raw = await readDocumentRaw(group, slug);
+    const raw = await readDocumentRaw(ref);
     revalidatePath("/");
-    const payload = payloadFromRaw(group, slug, raw);
+    const payload = payloadFromRaw(ref.group, ref.slug, raw);
     return jsonOk(
       { ...payload, created: result.created },
       new Date().toISOString(),
@@ -373,17 +372,17 @@ export async function PATCH(request: Request) {
   if (!auth.authorized) return writeAuthFailure(auth.error);
 
   try {
-    const { group, slug } = requireDocumentRef(localKey);
+    const ref = requireDocumentRef(localKey);
 
     const body = await readBody(request);
     const patch = parsePatchBody(body);
 
     const expectedHash = request.headers.get("if-match") ?? undefined;
-    await patchDocument(group, slug, patch, { expectedHash });
+    await patchDocument(ref, patch, { expectedHash });
 
-    const raw = await readDocumentRaw(group, slug);
+    const raw = await readDocumentRaw(ref);
     revalidatePath("/");
-    const payload = payloadFromRaw(group, slug, raw);
+    const payload = payloadFromRaw(ref.group, ref.slug, raw);
     return jsonOk(
       { ...payload, created: false },
       new Date().toISOString(),
@@ -415,8 +414,9 @@ export async function DELETE(request: Request) {
   if (!auth.authorized) return writeAuthFailure(auth.error);
 
   try {
-    const { group, slug } = requireDocumentRef(localKey);
-    await deleteDocument(group, slug);
+    const ref = requireDocumentRef(localKey);
+    const expectedHash = request.headers.get("if-match") ?? undefined;
+    await deleteDocument(ref, { expectedHash });
     revalidatePath("/");
     return jsonOk(
       { source: "local", localKey, deleted: true },

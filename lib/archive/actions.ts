@@ -1,24 +1,27 @@
 "use server";
 
 import {
-  CONTENT_GROUPS,
-  SLUG_PATTERN,
-  type ContentGroup,
-} from "./content-format";
-import {
   WriteError,
   deleteDocument,
+  hashRaw,
   readDocumentRaw,
   saveDocumentRaw,
 } from "./content-write";
+import { tryDocumentRef } from "./document-ref";
 
 export type EditActionResult =
-  | { ok: true; raw: string }
-  | { ok: true; saved: true; created: boolean }
+  | { ok: true; raw: string; hash: string }
+  | { ok: true; saved: true; created: boolean; hash: string }
   | { ok: true; deleted: true }
-  | { ok: false; error: "bad_request" | "not_found" | "conflict" | "unknown"; message: string };
+  | {
+      ok: false;
+      error: "bad_request" | "not_found" | "conflict" | "unknown";
+      message: string;
+    };
 
-function toResult(action: () => Promise<EditActionResult>): Promise<EditActionResult> {
+function toResult(
+  action: () => Promise<EditActionResult>,
+): Promise<EditActionResult> {
   return action().catch((error: unknown) => {
     if (error instanceof WriteError) {
       return {
@@ -35,17 +38,15 @@ function toResult(action: () => Promise<EditActionResult>): Promise<EditActionRe
   });
 }
 
-function checkTarget(group: string, slug: string): ContentGroup {
-  if (!CONTENT_GROUPS.includes(group as ContentGroup)) {
-    throw new WriteError("bad_request", `Unknown group: ${group}`);
-  }
-  if (!SLUG_PATTERN.test(slug)) {
+function requireRef(group: string, slug: string) {
+  const ref = tryDocumentRef(group, slug);
+  if (!ref) {
     throw new WriteError(
       "bad_request",
-      `Invalid slug: "${slug}". Allowed: [a-z0-9_-]+`,
+      `Invalid target: ${group}/${slug}. Allowed groups: projects|thoughts; slug: [a-z0-9_-]+`,
     );
   }
-  return group as ContentGroup;
+  return ref;
 }
 
 export async function getDocumentRaw(
@@ -53,9 +54,9 @@ export async function getDocumentRaw(
   slug: string,
 ): Promise<EditActionResult> {
   return toResult(async () => {
-    const target = checkTarget(group, slug);
-    const raw = await readDocumentRaw(target, slug);
-    return { ok: true, raw } as EditActionResult;
+    const ref = requireRef(group, slug);
+    const raw = await readDocumentRaw(ref);
+    return { ok: true, raw, hash: hashRaw(raw) };
   });
 }
 
@@ -63,24 +64,31 @@ export async function putDocumentRaw(
   group: string,
   slug: string,
   raw: string,
+  expectedHash?: string,
 ): Promise<EditActionResult> {
   return toResult(async () => {
-    const target = checkTarget(group, slug);
+    const ref = requireRef(group, slug);
     if (typeof raw !== "string" || raw.length > 1_000_000) {
       throw new WriteError("bad_request", "Body too large or invalid");
     }
-    const result = await saveDocumentRaw(target, slug, raw);
-    return { ok: true, saved: true, created: result.created } as EditActionResult;
+    const result = await saveDocumentRaw(ref, raw, { expectedHash });
+    return {
+      ok: true,
+      saved: true,
+      created: result.created,
+      hash: result.hash,
+    };
   });
 }
 
 export async function removeDocument(
   group: string,
   slug: string,
+  expectedHash?: string,
 ): Promise<EditActionResult> {
   return toResult(async () => {
-    const target = checkTarget(group, slug);
-    await deleteDocument(target, slug);
-    return { ok: true, deleted: true } as EditActionResult;
+    const ref = requireRef(group, slug);
+    await deleteDocument(ref, { expectedHash });
+    return { ok: true, deleted: true };
   });
 }

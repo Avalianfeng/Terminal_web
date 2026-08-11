@@ -8,6 +8,10 @@ A personal, terminal-first archive: local documents under `content/`, presented 
 The canonical identity of a local archive document: `{ group, slug }`. Projects to discovery `localKey` and VFS path; does not own filesystem paths.
 _Avoid_: path-as-identity, localKey-as-authority, VFS path as source of truth, embedding disk/`cwd` in the identity module
 
+**content hash**:
+SHA-256 hex of on-disk document bytes; used as the optimistic-concurrency token (`If-Match` / `expectedHash`) for human and Agent writers.
+_Avoid_: ETag as a separate concept (same value)
+
 **ContentGroup**:
 One of the local document collections on disk (`projects` | `thoughts`).
 _Avoid_: folder, category (when meaning the on-disk group)

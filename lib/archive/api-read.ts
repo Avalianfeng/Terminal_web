@@ -120,9 +120,8 @@ export function payloadFromRaw(
 export async function toItemPayloadWithHash(
   document: ArchiveDocument,
 ): Promise<ItemPayload> {
-  const { group, slug } = document.ref;
-  const raw = await readDocumentRaw(group, slug);
-  return payloadFromRaw(group, slug, raw);
+  const raw = await readDocumentRaw(document.ref);
+  return payloadFromRaw(document.ref.group, document.ref.slug, raw);
 }
 
 // --- Item lookup (unified key) ---
