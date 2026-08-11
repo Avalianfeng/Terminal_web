@@ -20,19 +20,24 @@ import {
   resolveScrollBehavior,
   type MotionLevel,
 } from "@/lib/archive/motion-spec";
+import { readingSurfaceKey } from "@/lib/archive/reading-state";
 import {
-  clearReadingState,
-  closeMain,
-  closeRailItem,
-  dismissDocumentByKey,
-  emptyReadingState,
-  openReading,
-  openReadingMany,
-  readingSurfaceKey,
-  reconcileReadingWithSnapshot,
-  replaceDocumentSurface,
-  type ReadingState,
-} from "@/lib/archive/reading-state";
+  demoteDone,
+  demoteGhost,
+  emptyReadingSession,
+  isLeaving,
+  leaveDone,
+  reconcileSession,
+  replaceDocument,
+  dismissDocument,
+  dismissRail,
+  requestClear,
+  requestClose,
+  requestPromote,
+  swapSurfaces,
+  type ReadingSession,
+  type ReadingSessionResult,
+} from "@/lib/archive/reading-session";
 import { parseDocument } from "@/lib/archive/parse-document";
 import { createSession, formatShellPromptTokens } from "@/lib/archive/vfs";
 import { toLocalKey } from "@/lib/archive/document-ref";
@@ -46,46 +51,39 @@ type ArchiveTerminalProps = {
   snapshot: ArchiveSnapshot;
 };
 
-type LeaveIntent = "close" | "clear" | null;
-
 export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
   const router = useRouter();
   const [motionLevel, setMotionLevel] = useState<MotionLevel>(1);
   const bootEntries = useMemo(() => initialEntries(snapshot), [snapshot]);
 
   const [session, setSession] = useState<TerminalSession>(() => createSession());
-  const [readingState, setReadingState] = useState<ReadingState>(emptyReadingState);
+  const [readingSession, setReadingSession] = useState<ReadingSession>(
+    emptyReadingSession,
+  );
   const [editorTarget, setEditorTarget] = useState<EditorTarget | null>(null);
-  const [leaving, setLeaving] = useState(false);
-  const [demoting, setDemoting] = useState<ReadingSurface | null>(null);
   const [completeCandidates, setCompleteCandidates] = useState<string[]>([]);
   const [fullscreen, setFullscreen] = useState(false);
   const xtermRef = useRef<ArchiveXtermHandle>(null);
   const terminalShellRef = useRef<HTMLElement>(null);
   const sessionRef = useRef(session);
-  const readingStateRef = useRef(readingState);
+  const readingSessionRef = useRef(readingSession);
   const editorTargetRef = useRef<EditorTarget | null>(null);
-  const leavingRef = useRef(leaving);
   const fullscreenRef = useRef(fullscreen);
-  const leaveFinishedRef = useRef(false);
-  const leaveIntentRef = useRef<LeaveIntent>(null);
 
   // 事件回调与子组件闭包都在提交后读取这些 ref；用效果同步保证读到最新值
   useEffect(() => {
     sessionRef.current = session;
-    readingStateRef.current = readingState;
-    leavingRef.current = leaving;
+    readingSessionRef.current = readingSession;
     fullscreenRef.current = fullscreen;
-  }, [session, readingState, leaving, fullscreen]);
+  }, [session, readingSession, fullscreen]);
 
   /** After router.refresh(), rebind open document surfaces from the new snapshot. */
   useEffect(() => {
-    const next = reconcileReadingWithSnapshot(
-      readingStateRef.current,
-      snapshot,
-    );
-    if (next === readingStateRef.current) return;
-    commitReadingState(next);
+    const result = reconcileSession(readingSessionRef.current, snapshot);
+    if (result.session === readingSessionRef.current) return;
+    applySessionResult(result);
+    // applySessionResult closes over motion/focus helpers; snapshot is the intentional trigger
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ref-driven apply on snapshot change only
   }, [snapshot]);
 
   useEffect(() => {
@@ -116,7 +114,7 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
-      if (readingStateRef.current.main) return;
+      if (readingSessionRef.current.reading.main) return;
       event.preventDefault();
       setFullscreen(false);
     }
@@ -144,108 +142,52 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
     xtermRef.current?.focus({ preventScroll: true });
   }
 
-  function commitReadingState(next: ReadingState) {
-    readingStateRef.current = next;
-    setReadingState(next);
-  }
-
-  function finishLeave() {
-    if (leaveFinishedRef.current) return;
-    leaveFinishedRef.current = true;
-    setLeaving(false);
-    leavingRef.current = false;
-
-    const intent = leaveIntentRef.current;
-    leaveIntentRef.current = null;
-
-    if (intent === "clear") {
-      commitReadingState(clearReadingState());
-      xtermRef.current?.focus({ preventScroll: true });
-      return;
-    }
-
-    // close main：有 rail 则晋升，否则清空并回终端
-    const next = closeMain(readingStateRef.current);
-    commitReadingState(next);
-    if (!next.main) {
-      xtermRef.current?.focus({ preventScroll: true });
+  function applySessionResult(result: ReadingSessionResult) {
+    readingSessionRef.current = result.session;
+    setReadingSession(result.session);
+    for (const effect of result.effects) {
+      if (effect === "focusTerminal") {
+        revealTerminal();
+      }
     }
   }
 
-  function beginLeaveMain(intent: Exclude<LeaveIntent, null>) {
-    if (!readingStateRef.current.main || leavingRef.current) return;
-    leaveFinishedRef.current = false;
-    leaveIntentRef.current = intent;
+  function animateLeave() {
+    return resolvePanelLeaveMs(motionLevel) > 0;
+  }
 
-    const willPromote =
-      intent === "close" && readingStateRef.current.rail.length > 0;
-
-    if (resolvePanelLeaveMs(motionLevel) <= 0) {
-      if (!willPromote) revealTerminal();
-      finishLeave();
-      return;
-    }
-
-    setLeaving(true);
-    leavingRef.current = true;
-    if (!willPromote) {
-      revealTerminal();
-    }
+  function animateDemote() {
+    return resolveDemoteMs(motionLevel) > 0;
   }
 
   function closeReading() {
-    setDemoting(null);
-    beginLeaveMain("close");
+    applySessionResult(
+      requestClose(readingSessionRef.current, {
+        animateLeave: animateLeave(),
+      }),
+    );
+  }
+
+  function finishLeave() {
+    applySessionResult(leaveDone(readingSessionRef.current));
   }
 
   /** Phase 2b：有旧主槽且换文时，幽灵 demote + 新主槽 Phase 1 进场并行 */
   function swapReading(surfaces: ReadingSurface[]) {
-    if (surfaces.length === 0) return;
-
-    if (leavingRef.current) {
-      finishLeave();
-    }
-
-    const prevMain = readingStateRef.current.main;
-    const opened =
-      surfaces.length === 1
-        ? openReading(readingStateRef.current, surfaces[0]!)
-        : openReadingMany(readingStateRef.current, surfaces);
-
-    const nextMain = opened.main;
-    const willDemote =
-      Boolean(prevMain) &&
-      Boolean(nextMain) &&
-      readingSurfaceKey(prevMain!) !== readingSurfaceKey(nextMain!) &&
-      resolveDemoteMs(motionLevel) > 0;
-
-    commitReadingState(opened);
-    setLeaving(false);
-    leavingRef.current = false;
-    leaveFinishedRef.current = false;
-    leaveIntentRef.current = null;
-
-    if (willDemote && prevMain) {
-      setDemoting(prevMain);
-    } else {
-      setDemoting(null);
-    }
+    applySessionResult(
+      swapSurfaces(readingSessionRef.current, surfaces, {
+        animateDemote: animateDemote(),
+      }),
+    );
   }
 
   function applyReading(next: ReadingSurface | ReadingSurface[] | null) {
     if (next === null) {
-      setDemoting(null);
-      // clear：立刻清空 rail，主槽走退场
-      commitReadingState({
-        main: readingStateRef.current.main,
-        rail: [],
-      });
-      if (!readingStateRef.current.main) {
-        commitReadingState(clearReadingState());
-        revealTerminal();
-        return;
-      }
-      beginLeaveMain("clear");
+      applySessionResult(
+        requestClear(readingSessionRef.current, {
+          animateLeave: animateLeave(),
+        }),
+      );
       return;
     }
 
@@ -255,12 +197,15 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
   }
 
   function promoteFromRail(surface: ReadingSurface) {
-    if (leavingRef.current) return;
-    swapReading([surface]);
+    applySessionResult(
+      requestPromote(readingSessionRef.current, surface, {
+        animateDemote: animateDemote(),
+      }),
+    );
   }
 
   function dismissRailItem(key: string) {
-    commitReadingState(closeRailItem(readingStateRef.current, key));
+    applySessionResult(dismissRail(readingSessionRef.current, key));
   }
 
   /** 编辑面板关闭：保存则即时刷新已打开阅读面；删除则关掉该文；并 refresh 快照。 */
@@ -274,11 +219,8 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
     setEditorTarget(null);
 
     if (result.deleted && target) {
-      commitReadingState(
-        dismissDocumentByKey(
-          readingStateRef.current,
-          toLocalKey(target.ref),
-        ),
+      applySessionResult(
+        dismissDocument(readingSessionRef.current, toLocalKey(target.ref)),
       );
       router.refresh();
     } else if (result.saved && target && result.raw) {
@@ -287,9 +229,7 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
         target.ref.slug,
         result.raw,
       );
-      commitReadingState(
-        replaceDocumentSurface(readingStateRef.current, document),
-      );
+      applySessionResult(replaceDocument(readingSessionRef.current, document));
       router.refresh();
     } else if (result.saved || result.deleted) {
       router.refresh();
@@ -298,14 +238,17 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
   }
 
   function finishDemote() {
-    setDemoting(null);
+    applySessionResult(demoteDone(readingSessionRef.current));
   }
 
   const panelEnterMs = resolvePanelEnterMs(motionLevel);
   const panelLeaveMs = resolvePanelLeaveMs(motionLevel);
   const demoteMs = resolveDemoteMs(motionLevel);
-  const main = readingState.main;
-  const hasReading = Boolean(main) || readingState.rail.length > 0 || Boolean(demoting);
+  const main = readingSession.reading.main;
+  const leaving = isLeaving(readingSession);
+  const demoting = demoteGhost(readingSession);
+  const hasReading =
+    Boolean(main) || readingSession.reading.rail.length > 0 || Boolean(demoting);
   const arrivingKey = demoting ? readingSurfaceKey(demoting) : null;
 
   return (
@@ -382,7 +325,7 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
               }}
               onCandidatesChange={setCompleteCandidates}
               onEscape={() => {
-                if (readingStateRef.current.main) {
+                if (readingSessionRef.current.reading.main) {
                   closeReading();
                   return true;
                 }
@@ -429,7 +372,7 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
               ) : null}
             </div>
             <ReadingRail
-              items={readingState.rail}
+              items={readingSession.reading.rail}
               arrivingKey={arrivingKey}
               onPromote={promoteFromRail}
               onDismiss={dismissRailItem}
