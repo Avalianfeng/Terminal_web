@@ -1,20 +1,113 @@
 "use client";
 
-import { useEffect, useRef, useState, type RefObject } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { zhCN } from "@/lib/archive/i18n";
+import {
+  resolveBgmCollapseMs,
+  resolveBgmExpandMs,
+} from "@/lib/archive/motion-spec";
 import { lyricIndexAt, usableLyricLines, type LyricLine } from "@/lib/music/lyric";
 import type {
   MusicPlaylistIndex,
   PlaylistTrack,
 } from "@/lib/music/playlist-types";
 import { playlistTrackCount } from "@/lib/music/playlist-types";
-import { BgmFoldArrow } from "@/components/bgm-fold-arrow";
+import {
+  BgmFoldArrow,
+  BgmSequenceIcon,
+  BgmShuffleIcon,
+} from "@/components/bgm-fold-arrow";
 
 /** 与 `.bgm-bar__lyric-line` 高度一致，用于步进滚到视口中线。 */
 const LYRIC_LINE_PX = 16;
 const LYRIC_VIEW_LINES = 3;
 /** 比 timeupdate 更紧；略超时间戳避免视觉落后半拍。 */
 const LYRIC_LOOKAHEAD_MS = 40;
+
+/**
+ * 曲目列表开合：grid 0fr/1fr 改真实高度；与歌单覆盖层互不抢槽。
+ */
+function BgmExpandPanel({
+  open,
+  children,
+}: {
+  open: boolean;
+  children: ReactNode;
+}) {
+  const [mounted, setMounted] = useState(open);
+  const [expanded, setExpanded] = useState(false);
+  const expandedRef = useRef(expanded);
+  const timerRef = useRef<number | null>(null);
+
+  expandedRef.current = expanded;
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current != null) window.clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (timerRef.current != null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+
+    if (open) {
+      setMounted(true);
+      if (expandedRef.current) return;
+      if (resolveBgmExpandMs() <= 0) {
+        setExpanded(true);
+        return;
+      }
+      const frame = requestAnimationFrame(() => {
+        requestAnimationFrame(() => setExpanded(true));
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+
+    if (!expandedRef.current && !open) return;
+
+    setExpanded(false);
+    const ms = resolveBgmCollapseMs();
+    if (ms <= 0) {
+      setMounted(false);
+      return;
+    }
+    timerRef.current = window.setTimeout(() => {
+      setMounted(false);
+      timerRef.current = null;
+    }, ms + 40);
+  }, [open]);
+
+  if (!mounted) return null;
+
+  const style = {
+    "--bgm-expand-ms": `${resolveBgmExpandMs()}ms`,
+    "--bgm-collapse-ms": `${resolveBgmCollapseMs()}ms`,
+  } as CSSProperties;
+
+  return (
+    <div
+      className={
+        expanded ? "bgm-player__expand is-open" : "bgm-player__expand"
+      }
+      style={style}
+      aria-hidden={!expanded}
+    >
+      <div className="bgm-player__expand-clip">
+        <div className="bgm-player__expand-body">{children}</div>
+      </div>
+    </div>
+  );
+}
 
 export type BgmNowPlaying = {
   playlistId: string;
@@ -309,7 +402,7 @@ export function BgmBar({
   onNext,
   onSelectIndex,
   onToggleQueue,
-  onQueueOpenChange,
+  onQueueOpenChange: _onQueueOpenChange,
   onSelectPlaylist,
   onToggleShuffle,
   onSrcError,
@@ -341,6 +434,11 @@ export function BgmBar({
   const trackId = playback?.now?.tracks[playback.now.index]?.id;
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- close on playlist identity change
+    setPlaylistOpen(false);
+  }, [playback?.playlistId]);
+
+  useEffect(() => {
     if (!playlistOpen) return;
 
     function onPointerDown(event: MouseEvent) {
@@ -361,23 +459,12 @@ export function BgmBar({
     };
   }, [playlistOpen]);
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- close on playlist identity change
-    setPlaylistOpen(false);
-  }, [playback?.playlistId]);
-
   function toggleQueue() {
-    setPlaylistOpen(false);
     onToggleQueue();
   }
 
-  function togglePlaylistPicker() {
-    if (playlistOpen) {
-      setPlaylistOpen(false);
-      return;
-    }
-    if (playback?.queueOpen) onQueueOpenChange(false);
-    setPlaylistOpen(true);
+  function togglePlaylistCatalog() {
+    setPlaylistOpen((open) => !open);
   }
 
   function pickPlaylist(playlist: MusicPlaylistIndex) {
@@ -408,6 +495,9 @@ export function BgmBar({
     ? zhCN.music.queueHide
     : zhCN.music.queueShow;
   const activeIndex = browseActiveIndex(playback);
+  const orderLabel = playback.shuffle
+    ? zhCN.music.shuffleOn
+    : zhCN.music.shuffleOff;
 
   return (
     <div
@@ -458,16 +548,13 @@ export function BgmBar({
               </button>
               <button
                 type="button"
-                className={
-                  playback.shuffle
-                    ? "bgm-bar__btn is-active"
-                    : "bgm-bar__btn"
-                }
-                aria-label={zhCN.music.shuffleToggle}
+                className="bgm-bar__btn bgm-bar__btn--icon"
+                aria-label={orderLabel}
                 aria-pressed={playback.shuffle}
+                title={orderLabel}
                 onClick={onToggleShuffle}
               >
-                随
+                {playback.shuffle ? <BgmShuffleIcon /> : <BgmSequenceIcon />}
               </button>
             </div>
           </div>
@@ -498,57 +585,80 @@ export function BgmBar({
             <BgmFoldArrow open={playback.queueOpen} />
           </button>
         </div>
-      </div>
 
-      <div ref={playlistPickerRef} className="bgm-player__caption">
-        <span className="bgm-player__caption-name" title={playback.playlistName}>
-          {playback.playlistName}
-        </span>
-        <button
-          type="button"
-          className="bgm-bar__btn bgm-bar__btn--fold"
-          aria-label={zhCN.music.playlistPickerToggle}
-          aria-expanded={playlistOpen}
-          onClick={togglePlaylistPicker}
+        <div
+          ref={playlistPickerRef}
+          className={
+            playlistOpen
+              ? "bgm-player__caption is-picker-open"
+              : "bgm-player__caption"
+          }
         >
-          <BgmFoldArrow open={playlistOpen} />
-        </button>
-        {playlistOpen ? (
-          <div className="bgm-bar__playlist-popover" role="listbox">
-            {playlists.map((playlist) => {
-              const active =
-                playlist.neteasePlaylistId === playback.playlistId;
-              return (
-                <button
-                  key={playlist.neteasePlaylistId}
-                  type="button"
-                  role="option"
-                  aria-selected={active}
-                  className={
-                    active
-                      ? "bgm-bar__playlist-option is-active"
-                      : "bgm-bar__playlist-option"
-                  }
-                  onClick={() => pickPlaylist(playlist)}
-                >
-                  <span className="bgm-bar__playlist-option-name">
-                    {playlist.name}
-                  </span>
-                  <span className="bgm-bar__playlist-option-count">
-                    {playlistTrackCount(playlist)}
-                    {zhCN.music.trackUnit}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        ) : null}
+          <span
+            className="bgm-player__caption-name"
+            title={playback.playlistName}
+          >
+            {playback.playlistName}
+          </span>
+          <button
+            type="button"
+            className="bgm-bar__btn bgm-bar__btn--fold"
+            aria-label={zhCN.music.playlistPickerToggle}
+            aria-expanded={playlistOpen}
+            onClick={togglePlaylistCatalog}
+          >
+            <BgmFoldArrow open={playlistOpen} />
+          </button>
+          {playlistOpen ? (
+            <div
+              className="bgm-player__playlist-layer"
+              role="listbox"
+              style={
+                {
+                  "--bgm-expand-ms": `${resolveBgmExpandMs()}ms`,
+                } as CSSProperties
+              }
+            >
+              {playlists.length === 0 ? (
+                <p className="bgm-player__queue-empty is-embedded">
+                  {zhCN.music.empty}
+                </p>
+              ) : (
+                playlists.map((playlist) => {
+                  const active =
+                    playlist.neteasePlaylistId === playback.playlistId;
+                  return (
+                    <button
+                      key={playlist.neteasePlaylistId}
+                      type="button"
+                      role="option"
+                      aria-selected={active}
+                      className={
+                        active
+                          ? "bgm-player__playlist is-active"
+                          : "bgm-player__playlist"
+                      }
+                      onClick={() => pickPlaylist(playlist)}
+                    >
+                      <span className="bgm-player__playlist-name">
+                        {playlist.name}
+                      </span>
+                      <span className="bgm-player__playlist-count">
+                        {playlistTrackCount(playlist)}
+                        {zhCN.music.trackUnit}
+                      </span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          ) : null}
+        </div>
       </div>
 
-      {playback.queueOpen ? (
-        playback.tracksLoading ||
-        (playback.tracks.length === 0 &&
-          (playback.trackCount ?? 0) > 0) ? (
+      <BgmExpandPanel open={playback.queueOpen}>
+        {playback.tracksLoading ||
+        (playback.tracks.length === 0 && (playback.trackCount ?? 0) > 0) ? (
           <p className="bgm-player__queue-empty">{zhCN.music.queueLoading}</p>
         ) : playback.tracks.length === 0 ? (
           <p className="bgm-player__queue-empty">{zhCN.music.queueEmpty}</p>
@@ -558,8 +668,8 @@ export function BgmBar({
             activeIndex={activeIndex}
             onSelectIndex={onSelectIndex}
           />
-        )
-      ) : null}
+        )}
+      </BgmExpandPanel>
     </div>
   );
 }

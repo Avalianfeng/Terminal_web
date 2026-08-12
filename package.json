@@ -12,6 +12,7 @@
     "smoke:write-api": "node scripts/smoke-write-api.mjs",
     "test:document-ref": "tsx --test lib/archive/document-ref.test.ts",
     "test:command-registry": "tsx --test lib/archive/command-registry.test.ts",
+    "test:complete": "tsx --test lib/archive/complete.test.ts",
     "test:reading-session": "tsx --test lib/archive/reading-session.test.ts",
     "test:discovery": "tsx --test lib/archive/discovery.test.ts",
     "test:resource-embed": "tsx --test lib/archive/resource-embed.test.ts",

@@ -4,7 +4,14 @@
  * in `commands.ts` (`runCommand`).
  */
 
-export type ArgComplete = "none" | "dirs" | "all" | "cat" | "open";
+export type ArgComplete =
+  | "none"
+  | "dirs"
+  | "all"
+  | "cat"
+  | "open"
+  /** `music` 子命令 / 二级开关（候选表在 `lib/music/music-command.ts`） */
+  | "music";
 
 export type HelpSection = "explore" | "read" | "session";
 
@@ -150,8 +157,8 @@ export const COMMANDS: readonly CommandSpec[] = [
     {
       name: "music",
       section: "session",
-      usage: "music [ls|play|show|hide|…]  热队列 BGM",
-      argComplete: "none",
+      usage: "music <子命令…>     热队列 BGM（Tab 补子命令）",
+      argComplete: "music",
     },
   ] as const;
 

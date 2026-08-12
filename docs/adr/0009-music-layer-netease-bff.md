@@ -70,7 +70,7 @@ Cookie 存仓根 **`.netease-cookie`**（gitignore；须含 `MUSIC_U`），**不
 ## Consequences
 
 - 新依赖：`NeteaseCloudMusicApi`（或等价）仅服务端引用。
-- 终端将增 `music` 子命令（import / play / …），注册方式遵循 [0002](0002-command-registry.md)。
+- 终端将增 `music` 子命令（import / play / …），注册方式遵循 [0002](0002-command-registry.md)：`CommandSpec.argComplete: "music"`，Tab 候选由 `musicArgCandidates`（与 `parseMusicArgs` 同源）派生；歌名/歌单名运行时补全另议。
 - 122 首歌单 ≈ 一条 yaml + 流式播放；内存仅缓冲当前曲。
 - 非官方 API / 版权 / Cookie 过期：个人 local-dev 可接受；公网部署前须评估并加闸门。
 

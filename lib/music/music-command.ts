@@ -40,6 +40,75 @@ export type MusicAction =
   | { type: "lyric"; query: string }
   | { type: "shuffle"; mode: "toggle" | "on" | "off" };
 
+/** Tab 第一参候选（与 `parseMusicArgs` 可识别子命令同源；含别名）。 */
+export const MUSIC_SUBCOMMANDS = [
+  "ls",
+  "list",
+  "help",
+  "play",
+  "pause",
+  "resume",
+  "stop",
+  "next",
+  "prev",
+  "previous",
+  "show",
+  "hide",
+  "lyric",
+  "lyrics",
+  "lrc",
+  "shuffle",
+  "random",
+  "playlist",
+  "pl",
+  "import",
+  "sync",
+] as const;
+
+export const MUSIC_PLAYLIST_SUBS = [
+  "next",
+  "prev",
+  "previous",
+  "use",
+] as const;
+
+export const MUSIC_SHUFFLE_MODES = ["on", "off"] as const;
+
+function filterMusicPrefix(values: readonly string[], partial: string) {
+  const needle = partial.toLowerCase();
+  return values.filter((value) => value.toLowerCase().startsWith(needle));
+}
+
+/**
+ * `music` 参数 Tab 候选。
+ * `completedArgs` = 命令后、当前 partial 之前已敲完的词（不含 trailing partial）。
+ * 歌名/歌单名需运行时目录，此处只补静态子命令与二级开关。
+ */
+export function musicArgCandidates(
+  completedArgs: readonly string[],
+  partial: string,
+): string[] {
+  if (completedArgs.length === 0) {
+    return filterMusicPrefix(MUSIC_SUBCOMMANDS, partial);
+  }
+
+  const sub = completedArgs[0]?.toLowerCase() ?? "";
+  if (
+    (sub === "playlist" || sub === "pl") &&
+    completedArgs.length === 1
+  ) {
+    return filterMusicPrefix(MUSIC_PLAYLIST_SUBS, partial);
+  }
+  if (
+    (sub === "shuffle" || sub === "random") &&
+    completedArgs.length === 1
+  ) {
+    return filterMusicPrefix(MUSIC_SHUFFLE_MODES, partial);
+  }
+
+  return [];
+}
+
 export function parseMusicArgs(args: string[]): MusicIntent {
   const [sub = "", ...rest] = args;
   if (!sub || sub === "ls" || sub === "list") {

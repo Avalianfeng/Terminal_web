@@ -7,6 +7,15 @@ export const motionSpec = {
   panelLeaveMs: 480,
   /** 旧主槽 demote 进 rail（scale + 位移；位移感最强，宜偏慢） */
   demoteMs: 520,
+  /**
+   * BGM 曲目列表开合：与阅读面板同源（进场 cardFadeMs / 退场 panelLeaveMs）。
+   * 真高度仍用 grid 0fr→1fr；观感对齐 scaleY + 淡入淡出。
+   */
+  bgmExpandMs: 720,
+  /** BGM 列表收起（对齐阅读面板退场） */
+  bgmCollapseMs: 480,
+  /** BGM 歌单覆盖层进场（略短于主列表，避免盖层拖沓） */
+  bgmSwapMs: 420,
   cursorBlinkMs: 1120,
   /** 多条输出之间的短间隔，模拟 streaming output 的加载感（非真流式）。 */
   lineDelayMs: 64,
@@ -40,4 +49,17 @@ export function resolvePanelEnterMs(level: MotionLevel = resolveMotionLevel()): 
 
 export function resolveDemoteMs(level: MotionLevel = resolveMotionLevel()): number {
   return level === 0 ? 0 : motionSpec.demoteMs;
+}
+
+export function resolveBgmExpandMs(level: MotionLevel = resolveMotionLevel()): number {
+  // 与阅读面板进场同源，避免两套开合节奏
+  return resolvePanelEnterMs(level);
+}
+
+export function resolveBgmCollapseMs(level: MotionLevel = resolveMotionLevel()): number {
+  return resolvePanelLeaveMs(level);
+}
+
+export function resolveBgmSwapMs(level: MotionLevel = resolveMotionLevel()): number {
+  return level === 0 ? 0 : motionSpec.bgmSwapMs;
 }

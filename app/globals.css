@@ -1826,7 +1826,10 @@ textarea {
   .reading-panel.is-entering,
   .reading-panel.is-leaving,
   .reading-demote-ghost,
-  .reading-rail__item.is-arriving {
+  .reading-rail__item.is-arriving,
+  .bgm-player__expand,
+  .bgm-player__expand-body,
+  .bgm-player__playlist-layer {
     animation: none !important;
     transition: none !important;
     opacity: 1 !important;
@@ -1995,6 +1998,8 @@ textarea {
 }
 
 .bgm-player__frame {
+  position: relative;
+  z-index: 2;
   border: 1px solid var(--archive-line);
   border-radius: 5px;
   background:
@@ -2060,15 +2065,26 @@ textarea {
 }
 
 .bgm-bar__btn[aria-expanded="true"],
-.bgm-bar__btn[aria-pressed="true"],
 .bgm-bar__btn.is-active {
   background: color-mix(in srgb, var(--archive-paper-ink) 8%, var(--archive-paper));
 }
 
+/* 顺序/随机：只靠图标切换，不吃 pressed 灰底 */
+.bgm-bar__btn[aria-pressed="true"]:not(.bgm-bar__btn--icon) {
+  background: color-mix(in srgb, var(--archive-paper-ink) 8%, var(--archive-paper));
+}
+
 .bgm-bar__btn--fold {
-  min-width: 1.55rem;
-  min-height: 1.4rem;
-  padding: 0.22rem;
+  min-width: 1.35rem;
+  min-height: 1.35rem;
+  padding: 0.15rem;
+  border-color: transparent;
+  background: transparent;
+}
+
+.bgm-bar__btn--fold:hover {
+  border-color: var(--archive-line);
+  background: color-mix(in srgb, var(--archive-paper) 70%, transparent);
 }
 
 .bgm-bar__btn--list {
@@ -2211,69 +2227,159 @@ textarea {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 0.3rem;
-  margin-top: 0.28rem;
-  padding: 0 0.15rem;
-  max-width: min(100%, 18rem);
+  gap: 0.45rem;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0.38rem 0.65rem 0.42rem;
+  border-top: 1px solid color-mix(in srgb, var(--archive-line) 70%, transparent);
+}
+
+.bgm-player__caption.is-picker-open {
+  z-index: 40;
 }
 
 .bgm-player__caption-name {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 11px;
-  line-height: 1.2;
+  line-height: 1.35;
   color: var(--archive-muted);
 }
 
-.bgm-bar__playlist-popover {
+/* 歌单目录：挂在 caption 下方、盖住曲目列表，互不抢槽 */
+.bgm-player__playlist-layer {
   position: absolute;
   left: 0;
-  bottom: calc(100% + 0.35rem);
-  z-index: 20;
+  right: 0;
+  top: calc(100% - 1px);
+  z-index: 50;
   display: flex;
-  min-width: min(100vw, 14rem);
-  max-width: 18rem;
-  max-height: min(36vh, 14rem);
+  max-height: min(42vh, 22rem);
   flex-direction: column;
   overflow: auto;
   border: 1px solid var(--archive-line);
+  border-radius: 0 0 5px 5px;
   background: var(--archive-paper);
-  box-shadow: 0 6px 18px color-mix(in srgb, var(--archive-paper-ink) 12%, transparent);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--archive-paper-ink) 16%, transparent);
+  transform-origin: top center;
+  animation: bgm-playlist-layer-in var(--bgm-expand-ms, 720ms)
+    cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.bgm-bar__playlist-option {
+@keyframes bgm-playlist-layer-in {
+  from {
+    opacity: 0;
+    transform: scaleY(0.04);
+  }
+
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+.motion-level-0 .bgm-player__playlist-layer {
+  animation: none !important;
+}
+
+/* BGM 曲目列表开合：真高度 + 阅读面板同系 scaleY/淡入 */
+.bgm-player__expand {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--bgm-collapse-ms, 480ms)
+    cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.bgm-player__expand.is-open {
+  grid-template-rows: 1fr;
+  transition-duration: var(--bgm-expand-ms, 720ms);
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.bgm-player__expand-clip {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.bgm-player__expand-body {
+  margin-top: 0.35rem;
+  transform-origin: top center;
+  opacity: 0;
+  transform: scaleY(0.04);
+  transition:
+    opacity var(--bgm-collapse-ms, 480ms) cubic-bezier(0.4, 0, 0.2, 1),
+    transform var(--bgm-collapse-ms, 480ms) cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.bgm-player__expand.is-open .bgm-player__expand-body {
+  opacity: 1;
+  transform: scaleY(1);
+  transition-duration: var(--bgm-expand-ms, 720ms);
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.motion-level-0 .bgm-player__expand,
+.motion-level-0 .bgm-player__expand-body {
+  transition: none !important;
+}
+
+.motion-level-0 .bgm-player__expand-body {
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+.bgm-order-icon {
+  display: block;
+  flex: 0 0 auto;
+  color: inherit;
+}
+
+.bgm-bar__btn--icon {
+  min-width: 1.85rem;
+  padding-inline: 0.32rem;
+}
+
+.bgm-player__playlist {
   display: flex;
   width: 100%;
+  flex: 0 0 auto;
   align-items: baseline;
   justify-content: space-between;
   gap: 0.65rem;
+  box-sizing: border-box;
+  margin: 0;
   border: 0;
+  border-radius: 3px;
   background: transparent;
   color: inherit;
   cursor: pointer;
   text-align: left;
-  padding: 0.4rem 0.5rem;
+  padding: 0.55rem 0.65rem;
   font-size: 12px;
+  line-height: 1.3;
 }
 
-.bgm-bar__playlist-option:hover {
+.bgm-player__playlist:hover {
   background: color-mix(in srgb, var(--archive-paper-ink) 8%, transparent);
 }
 
-.bgm-bar__playlist-option.is-active {
+.bgm-player__playlist.is-active {
   background: color-mix(in srgb, var(--archive-paper-ink) 12%, transparent);
 }
 
-.bgm-bar__playlist-option-name {
+.bgm-player__playlist-name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.bgm-bar__playlist-option-count {
+.bgm-player__playlist-count {
   flex: 0 0 auto;
   font-size: 11px;
   color: var(--archive-muted);
@@ -2295,6 +2401,11 @@ textarea {
     min-width: 2.9rem;
     padding: 0.3rem 0.4rem;
   }
+
+  .bgm-player__caption {
+    padding-left: 0.45rem;
+    padding-right: 0.45rem;
+  }
 }
 
 .bgm-player__queue {
@@ -2303,7 +2414,7 @@ textarea {
   flex-direction: column;
   gap: 0.15rem;
   overflow: auto;
-  margin-top: 0.35rem;
+  margin-top: 0;
   border: 1px solid var(--archive-line);
   border-radius: 5px;
   background: var(--archive-paper);
@@ -2328,13 +2439,20 @@ textarea {
 }
 
 .bgm-player__queue-empty {
-  margin: 0.35rem 0 0;
+  margin: 0;
   padding: 0.5rem 0.45rem;
   border: 1px solid var(--archive-line);
   border-radius: 5px;
   background: var(--archive-paper);
   font-size: 12px;
   color: var(--archive-muted);
+}
+
+.bgm-player__queue-empty.is-embedded {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .bgm-player__track {

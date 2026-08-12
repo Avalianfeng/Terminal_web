@@ -4,6 +4,7 @@ import {
   getArgComplete,
   resolveAlias,
 } from "./command-registry";
+import { musicArgCandidates } from "../music/music-command";
 import { createVfs, listNode, resolveVfsPath, type VfsNode } from "./vfs";
 
 export type CompleteResult = {
@@ -141,6 +142,8 @@ function argumentCandidates(
   cwd: string,
   command: string,
   partial: string,
+  /** 命令后、当前 partial 之前已完成的词（供 music 等嵌套策略） */
+  completedArgs: readonly string[] = [],
 ) {
   const policy = getArgComplete(resolveAlias(command.toLowerCase()));
 
@@ -160,6 +163,10 @@ function argumentCandidates(
     return uniqueSorted(pathCandidates(snapshot, cwd, partial, "all"));
   }
 
+  if (policy === "music") {
+    return uniqueSorted(musicArgCandidates(completedArgs, partial));
+  }
+
   return [];
 }
 
@@ -168,6 +175,8 @@ type ParsedInput = {
   partial: string;
   mode: "command" | "argument";
   command: string;
+  /** 命令后已敲完的词（不含当前 partial） */
+  completedArgs: string[];
 };
 
 function parseInput(raw: string): ParsedInput {
@@ -175,7 +184,13 @@ function parseInput(raw: string): ParsedInput {
   const hasTrailingSpace = /\s$/.test(raw);
 
   if (!leading) {
-    return { linePrefix: "", partial: "", mode: "command", command: "" };
+    return {
+      linePrefix: "",
+      partial: "",
+      mode: "command",
+      command: "",
+      completedArgs: [],
+    };
   }
 
   const firstSpace = leading.search(/\s/);
@@ -185,6 +200,7 @@ function parseInput(raw: string): ParsedInput {
       partial: leading,
       mode: "command",
       command: leading,
+      completedArgs: [],
     };
   }
 
@@ -198,6 +214,7 @@ function parseInput(raw: string): ParsedInput {
       partial: "",
       mode: "argument",
       command,
+      completedArgs: [],
     };
   }
 
@@ -208,23 +225,27 @@ function parseInput(raw: string): ParsedInput {
       partial: afterCommand,
       mode: "argument",
       command,
+      completedArgs: [],
     };
   }
 
+  const beforePartial = afterCommand.slice(0, lastSpace).trim();
   return {
     linePrefix: `${command} ${afterCommand.slice(0, lastSpace + 1)}`,
     partial: afterCommand.slice(lastSpace + 1),
     mode: "argument",
     command,
+    completedArgs: beforePartial ? beforePartial.split(/\s+/) : [],
   };
 }
 
 /**
- * Tab 补全：命令名 / 路径（策略来自 command-registry.argComplete）。
+ * Tab 补全：命令名 / 路径 / music 子命令（策略来自 command-registry.argComplete）。
  * - dirs → 仅目录
  * - cat → 终端查看文件（唯一目录自动下钻）
  * - open → 目录 + 文件 + * / .
  * - all → 目录 + 文件
+ * - music → 子命令与 playlist/shuffle 二级开关
  */
 export function completeInput(
   rawInput: string,
@@ -236,7 +257,13 @@ export function completeInput(
   const candidates =
     parsed.mode === "command"
       ? filterPrefix(completableCommandNames(), parsed.partial)
-      : argumentCandidates(snapshot, cwd, parsed.command, parsed.partial);
+      : argumentCandidates(
+          snapshot,
+          cwd,
+          parsed.command,
+          parsed.partial,
+          parsed.completedArgs,
+        );
 
   if (candidates.length === 0) {
     return { input: rawInput, candidates: [], applied: false };

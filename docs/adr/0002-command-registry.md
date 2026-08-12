@@ -14,7 +14,7 @@
 
 1. **CommandSpec 表**为权威：`name`、`aliases?`、`section?`+`usage`、`argComplete`。  
 2. Tab 补全、`help` 分段、alias 解析、已知命令高亮均 **派生** 自该表。  
-3. `argComplete` 为策略枚举：`none | dirs | all | cat | open`；算法仍在 `complete.ts`。  
+3. `argComplete` 为策略枚举：`none | dirs | all | cat | open | music`；算法仍在 `complete.ts`（`music` 的候选词表同源自 `lib/music/music-command.ts`）。  
 4. 落点：`command-registry.ts`；删除平行 `aliases.ts`；`i18n.help` 只留 title / 段标题 / shortcuts。  
 5. **handlers** 仍按 `name` 绑在 `commands.ts`（避免 registry↔commands 循环依赖）；`run` 不挂在 Spec 对象上。
 

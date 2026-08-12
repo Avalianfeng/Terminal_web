@@ -46,6 +46,7 @@ describe("command-registry", () => {
     assert.equal(getArgComplete("edit"), "open");
     assert.equal(getArgComplete("dir"), "all");
     assert.equal(getArgComplete("help"), "none");
+    assert.equal(getArgComplete("music"), "music");
     assert.equal(getArgComplete("unknown"), "none");
   });
 

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   defaultPlaylist,
+  musicArgCandidates,
   parseMusicArgs,
   resolveImportUrl,
   resolvePlayQuery,
@@ -116,6 +117,30 @@ describe("defaultPlaylist / stepPlaylist", () => {
       stepPlaylist([sample, other], "1", 1)?.neteasePlaylistId,
       "7590034564",
     );
+  });
+});
+
+describe("musicArgCandidates", () => {
+  it("completes first-level subcommands", () => {
+    assert.ok(musicArgCandidates([], "pl").includes("play"));
+    assert.ok(musicArgCandidates([], "pl").includes("playlist"));
+    assert.ok(musicArgCandidates([], "sh").includes("shuffle"));
+    assert.ok(musicArgCandidates([], "ly").includes("lyric"));
+  });
+
+  it("completes playlist / shuffle second level", () => {
+    assert.deepEqual(musicArgCandidates(["playlist"], "n"), ["next"]);
+    assert.ok(musicArgCandidates(["pl"], "").includes("use"));
+    assert.deepEqual(
+      [...musicArgCandidates(["shuffle"], "o")].sort(),
+      ["off", "on"],
+    );
+    assert.deepEqual(musicArgCandidates(["random"], "on"), ["on"]);
+  });
+
+  it("stops after free-text args", () => {
+    assert.deepEqual(musicArgCandidates(["play"], "一"), []);
+    assert.deepEqual(musicArgCandidates(["playlist", "use"], "如"), []);
   });
 });
 
