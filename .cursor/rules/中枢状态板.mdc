@@ -1,5 +1,5 @@
 ---
-description: 本仓库 ↔ 中枢状态板强关联（开场读状态、收尾回写）
+description: 本仓库 ↔ 中枢状态板强关联（本机开场读状态、收尾回写；云端跳过）
 alwaysApply: true
 ---
 
@@ -13,7 +13,15 @@ alwaysApply: true
 
 `C:\Users\m1995\Desktop\agent\状态\项目\使用说明.md`
 
-## 硬动作
+## 云端 Cloud Agent
+
+**不要**尝试 Read 上列 Windows 中枢路径（本机路径在云端不存在）。
+
+- 开场：读仓内 `docs/00-文档入口.md` + 轻量比 Git（`rev-parse HEAD` / `log -1 --format=%ci`；必要时 `status`）。
+- 权威：契约 `docs/08` · 结构 `docs/adr/` · 下一刀 `docs/09` · 运行说明 `AGENTS.md`。
+- 收尾：只提交/推送代码与仓内文档；**不要**在仓内另建平行状态板。本机主人事后拉取云端更改后再回写中枢。
+
+## 本机硬动作（仅当中枢路径可读时）
 
 1. 动手前：Read 上列状态文件；若尚未读过使用说明，先 Read 使用说明。
 2. 对该仓库轻量比 Git（`rev-parse HEAD` / `log -1 --format=%ci`；必要时 `status` / `diff --stat`）。禁止为验状态通读业务代码。
