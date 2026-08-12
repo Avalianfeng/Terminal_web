@@ -81,6 +81,7 @@ Cookie 存仓根 **`.netease-cookie`**（gitignore；须含 `MUSIC_U`），**不
 - 与 GitHub 外源、resources discovery `kind` 扩展混在同一 PR。
 - 公网首期暴露无鉴权 `/api/music/*` 代理。
 - 把站点做成完整网易云替代；终端内百首点选作为主路径。
+- **冷库管理页（原落地序 C）**：与终端 + 盘内 yaml 平行，主人侧低频维护不值得单开 UI。
 
 ## 修订（2026-08-12 · 热队列多列表播放器）
 
@@ -93,7 +94,7 @@ Cookie 存仓根 **`.netease-cookie`**（gitignore；须含 `MUSIC_U`），**不
 | `music show` / `hide` | **纯显示开关**（H1：藏整块 UI，声音可续）；show 有会话则展开当前列表，无会话则装默认第一份（按名排序） |
 | 切歌单（P2） | 只换**浏览框**（歌单名/曲目列表）；**不打断**当前曲目会话（不清 src、不暂停）；点曲目才切 now |
 | `music pause` / `music play` | pause 只暂停；无参 `play`（或 `resume`）恢复本终端曾有过的 now；无会话则提示没有 |
-| 冷库管理页 | 后置（C） |
+| 冷库维护 | **不做**单独管理页；`music sync` / `import` + 直接改/删 `content/music/playlists/*.yaml` 即可 |
 
 ### 落地序（动态调整）
 
@@ -102,9 +103,20 @@ Cookie 存仓根 **`.netease-cookie`**（gitignore；须含 `MUSIC_U`），**不
 | **A′** | 布局（条下列表）+ show/hide 显示开关 + 默认首列表 | 本刀 |
 | **A″** | 中置歌单名 + 旁箭头 picker；右「列表」；描边钮；挂载分界 | 本刀 |
 | **A‴** | 切歌单命令与按钮对齐 | 本刀 |
-| **A⁺** | 账号歌单目录同步 + 按需载入 tracks | 本刀 |
+| **A⁺** | 账号歌单目录同步 + 按需载入 tracks | 已做 |
 | **B** | 播放会话引擎（停干净 / 预取） | 已做 |
-| **C** | 冷库管理页 | 待做 |
+| ~~**C**~~ | ~~冷库管理页~~ | **否决**（见下） |
+
+### 否决：冷库管理页（原 C）
+
+主人侧维护已够用，不再单开管理 UI：
+
+- 目录：`music sync`（启动 + 定时 + 手动）
+- 全量导入：`music import` / BFF import
+- 删歌单：直接删 `content/music/playlists/<id>.yaml`（sync 只 prune 空 stub，已 hydrate 的须手删——可接受）
+- Cookie：写 `.netease-cookie` / login API（local-dev）
+
+再做管理页会与「终端 + 盘内 yaml」平行，收益低；真要图形化再议，不占路线图。
 
 ### B · 播放会话引擎（边界）
 
@@ -156,4 +168,4 @@ Cookie 存仓根 **`.netease-cookie`**（gitignore；须含 `MUSIC_U`），**不
 7. **A′ / A″**：播放器布局 + show/hide + 多列表切单 UI（本刀）
 8. **A‴**：切歌单命令
 9. **B**：播放会话引擎（世代 / Abort / 下一首 URL 预取 / TTL 缓存）— 已做
-10. **C**：冷库管理页
+10. ~~**C**：冷库管理页~~ — **否决**（终端 + yaml 维护足够）
