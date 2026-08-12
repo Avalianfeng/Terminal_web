@@ -4,6 +4,7 @@ import type {
   ArchiveSnapshot,
   ReadingSurface,
 } from "@/lib/archive/types";
+import { allSnapshotDocuments, isResourceDocument } from "@/lib/archive/types";
 import { refsEqual, toLocalKey, toVfsPath } from "@/lib/archive/document-ref";
 
 /** rail 硬顶：超出丢最旧（数组末尾） */
@@ -37,9 +38,13 @@ export function surfacePath(surface: ReadingSurface): string {
 }
 
 export function surfaceMetaType(surface: ReadingSurface): string {
-  return surface.kind === "document"
-    ? zhCN.reading.typeDocument
-    : zhCN.reading.typeTimeline;
+  if (surface.kind !== "document") {
+    return zhCN.reading.typeTimeline;
+  }
+  if (isResourceDocument(surface.document)) {
+    return zhCN.reading.typeResource;
+  }
+  return zhCN.reading.typeDocument;
 }
 
 function pushRail(rail: ReadingSurface[], item: ReadingSurface): ReadingSurface[] {
@@ -193,7 +198,7 @@ export function reconcileReadingWithSnapshot(
   state: ReadingState,
   snapshot: ArchiveSnapshot,
 ): ReadingState {
-  const documents = [...snapshot.projects, ...snapshot.thoughts];
+  const documents = allSnapshotDocuments(snapshot);
 
   function refresh(surface: ReadingSurface): ReadingSurface | null {
     if (surface.kind !== "document") return surface;

@@ -43,7 +43,7 @@ function requireRef(group: string, slug: string) {
   if (!ref) {
     throw new WriteError(
       "bad_request",
-      `Invalid target: ${group}/${slug}. Allowed groups: projects|thoughts; slug: [a-z0-9_-]+`,
+      `Invalid target: ${group}/${slug}. Allowed groups: projects|thoughts|resources; slug: [a-z0-9_-]+`,
     );
   }
   return ref;

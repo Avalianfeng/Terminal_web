@@ -1,6 +1,7 @@
 import {
   CONTENT_GROUPS,
   SLUG_PATTERN,
+  contentGroupLocalKeyHint,
   type ContentGroup,
 } from "./content-format";
 
@@ -72,14 +73,14 @@ export function fromLocalKey(localKey: string): DocumentRef {
   const parts = normalized.split("/").filter(Boolean);
   if (parts.length !== 2) {
     throw new DocumentRefError(
-      `Invalid localKey: "${localKey}". Must be projects/<slug> or thoughts/<slug>.`,
+      `Invalid localKey: "${localKey}". Must be ${contentGroupLocalKeyHint()}.`,
     );
   }
   const [group, slug] = parts;
   const ref = tryDocumentRef(group!, slug!);
   if (!ref) {
     throw new DocumentRefError(
-      `Invalid localKey: "${localKey}". Must be projects/<slug> or thoughts/<slug>.`,
+      `Invalid localKey: "${localKey}". Must be ${contentGroupLocalKeyHint()}.`,
     );
   }
   return ref;
@@ -102,14 +103,14 @@ export function fromVfsPath(vfsPath: string): DocumentRef {
   const parts = normalized.split("/").filter(Boolean);
   if (parts.length !== 2) {
     throw new DocumentRefError(
-      `Invalid VFS document path: "${vfsPath}". Expected /projects/<slug> or /thoughts/<slug>.`,
+      `Invalid VFS document path: "${vfsPath}". Expected /projects/<slug>, /thoughts/<slug>, or /resources/<slug>.`,
     );
   }
   const [group, slug] = parts;
   const ref = tryDocumentRef(group!, slug!);
   if (!ref) {
     throw new DocumentRefError(
-      `Invalid VFS document path: "${vfsPath}". Expected /projects/<slug> or /thoughts/<slug>.`,
+      `Invalid VFS document path: "${vfsPath}". Expected /projects/<slug>, /thoughts/<slug>, or /resources/<slug>.`,
     );
   }
   return ref;

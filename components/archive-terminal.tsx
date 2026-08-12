@@ -8,9 +8,18 @@ import { EditorPanel, type EditorTarget } from "@/components/editor-panel";
 import { ReadingDemoteGhost } from "@/components/reading-demote-ghost";
 import { ReadingPanel } from "@/components/reading-panel";
 import { ReadingRail } from "@/components/reading-rail";
+import { BgmBar, type BgmPlayback } from "@/components/bgm-bar";
 import { completeInput } from "@/lib/archive/complete";
 import { initialEntries, runCommand } from "@/lib/archive/commands";
 import { zhCN } from "@/lib/archive/i18n";
+import {
+  PlaybackSessionEngine,
+  fetchSongProxyUrl,
+} from "@/lib/music/playback-session";
+import { nextSongIdForPrefetch, stepTrackIndex } from "@/lib/music/play-order";
+import { resolvePlayTarget } from "@/lib/music/music-command";
+import { firstTrackHit } from "@/lib/music/track-resolve";
+import type { LyricLine } from "@/lib/music/lyric";
 import {
   motionSpec,
   resolveDemoteMs,
@@ -44,14 +53,26 @@ import { toLocalKey } from "@/lib/archive/document-ref";
 import type {
   ArchiveSnapshot,
   ReadingSurface,
+  TerminalEntry,
   TerminalSession,
 } from "@/lib/archive/types";
+import type { MusicPlaylistIndex } from "@/lib/music/playlist-types";
+import {
+  defaultPlaylist,
+  stepPlaylist,
+} from "@/lib/music/music-command";
+
+const PLAYLIST_SYNC_INTERVAL_MS = 30 * 60 * 1000;
 
 type ArchiveTerminalProps = {
   snapshot: ArchiveSnapshot;
+  playlists?: MusicPlaylistIndex[];
 };
 
-export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
+export function ArchiveTerminal({
+  snapshot,
+  playlists = [],
+}: ArchiveTerminalProps) {
   const router = useRouter();
   const [motionLevel, setMotionLevel] = useState<MotionLevel>(1);
   const bootEntries = useMemo(() => initialEntries(snapshot), [snapshot]);
@@ -64,11 +85,38 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
   const [completeCandidates, setCompleteCandidates] = useState<string[]>([]);
   const [fullscreen, setFullscreen] = useState(false);
   const xtermRef = useRef<ArchiveXtermHandle>(null);
-  const terminalShellRef = useRef<HTMLElement>(null);
+  const terminalShellRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef(session);
   const readingSessionRef = useRef(readingSession);
   const editorTargetRef = useRef<EditorTarget | null>(null);
   const fullscreenRef = useRef(fullscreen);
+  const [hydratedById, setHydratedById] = useState<
+    Record<string, MusicPlaylistIndex>
+  >({});
+  const playlistCatalog = useMemo(
+    () =>
+      playlists.map((item) => {
+        if (item.tracks.length > 0) return item;
+        return hydratedById[item.neteasePlaylistId] ?? item;
+      }),
+    [playlists, hydratedById],
+  );
+  const playlistsRef = useRef(playlistCatalog);
+  playlistsRef.current = playlistCatalog;
+  const [bgm, setBgm] = useState<BgmPlayback | null>(null);
+  const [bgmSrc, setBgmSrc] = useState<string | null>(null);
+  const [playGeneration, setPlayGeneration] = useState(0);
+  const bgmRef = useRef(bgm);
+  bgmRef.current = bgm;
+  const bgmSrcRef = useRef(bgmSrc);
+  bgmSrcRef.current = bgmSrc;
+  const hydrateRequestRef = useRef(0);
+  const playbackEngineRef = useRef<PlaybackSessionEngine | null>(null);
+  if (!playbackEngineRef.current) {
+    playbackEngineRef.current = new PlaybackSessionEngine({
+      resolveUrl: fetchSongProxyUrl,
+    });
+  }
 
   // 事件回调与子组件闭包都在提交后读取这些 ref；用效果同步保证读到最新值
   useEffect(() => {
@@ -76,6 +124,34 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
     readingSessionRef.current = readingSession;
     fullscreenRef.current = fullscreen;
   }, [session, readingSession, fullscreen]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function syncCatalog() {
+      try {
+        const statusRes = await fetch("/api/music/login/status");
+        const status = (await statusRes.json()) as { loggedIn?: boolean };
+        if (!status.loggedIn || cancelled) return;
+
+        const res = await fetch("/api/music/playlists/sync", { method: "POST" });
+        const body = (await res.json()) as { ok?: boolean };
+        if (!body.ok || cancelled) return;
+        router.refresh();
+      } catch {
+        // 背景同步失败不打扰终端
+      }
+    }
+
+    void syncCatalog();
+    const timer = window.setInterval(() => {
+      void syncCatalog();
+    }, PLAYLIST_SYNC_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [router]);
 
   /** After router.refresh(), rebind open document surfaces from the new snapshot. */
   useEffect(() => {
@@ -237,8 +313,367 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
     revealTerminal();
   }
 
+  async function loadBgmTrack(
+    playback: BgmPlayback,
+    skips = 0,
+    generation?: number,
+    bypassCache = false,
+  ) {
+    const engine = playbackEngineRef.current!;
+    const gen = generation ?? engine.currentGeneration();
+    const now = playback.now;
+    const track = now?.tracks[now.index];
+    if (
+      !now ||
+      !track ||
+      now.tracks.length === 0 ||
+      skips > now.tracks.length
+    ) {
+      if (engine.isCurrent(gen)) setBgmSrc(null);
+      return;
+    }
+
+    const result = await engine.loadTrack(String(track.id), gen, {
+      prefetchNextId: nextSongIdForPrefetch(
+        now.tracks,
+        now.index,
+        playback.shuffle ? "shuffle" : "sequential",
+      ),
+      bypassCache,
+    });
+
+    if (result.kind === "aborted" || !engine.isCurrent(gen)) return;
+
+    if (result.kind === "unplayable" || result.kind === "empty") {
+      if (result.kind === "empty") {
+        setBgmSrc(null);
+        return;
+      }
+      const nextIndex = stepTrackIndex(
+        now.tracks.length,
+        now.index,
+        1,
+        playback.shuffle ? "shuffle" : "sequential",
+      );
+      const nextNow = {
+        ...now,
+        index: nextIndex,
+      };
+      const next: BgmPlayback = {
+        ...playback,
+        status: zhCN.music.unplayable,
+        now: nextNow,
+      };
+      setPlayback(next);
+      await loadBgmTrack(next, skips + 1, gen);
+      return;
+    }
+
+    setBgmSrc(result.proxyUrl);
+  }
+
+  /** 切歌：抬世代 Abort + 清 src 停声，再取址（命中预取则秒切）。 */
+  async function jumpBgm(
+    current: BgmPlayback,
+    queue: {
+      playlistId: string;
+      playlistName: string;
+      tracks: BgmPlayback["tracks"];
+    },
+    index: number,
+    options: {
+      paused?: boolean;
+      bypassCache?: boolean;
+      browse?: Partial<BgmPlayback>;
+    } = {},
+  ) {
+    const engine = playbackEngineRef.current!;
+    const gen = engine.beginJump();
+    setPlayGeneration(gen);
+    const next: BgmPlayback = {
+      ...current,
+      ...options.browse,
+      status: "",
+      now: {
+        playlistId: queue.playlistId,
+        playlistName: queue.playlistName,
+        tracks: queue.tracks,
+        index,
+        paused: options.paused ?? false,
+      },
+    };
+    setBgmSrc(null);
+    setPlayback(next);
+    await loadBgmTrack(next, 0, gen, options.bypassCache === true);
+  }
+
+  /** CDN / 代理失败：作废缓存并同曲重取。 */
+  function handleBgmSrcError() {
+    const current = bgmRef.current;
+    const now = current?.now;
+    if (!current || !now) return;
+    const track = now.tracks[now.index];
+    if (!track) return;
+    playbackEngineRef.current?.invalidate(String(track.id));
+    void jumpBgm(current, now, now.index, {
+      paused: now.paused,
+      bypassCache: true,
+    });
+  }
+
+  function stepBgm(delta: number) {
+    const current = bgmRef.current;
+    const now = current?.now;
+    if (!current || !now || now.tracks.length === 0) return;
+    const index = stepTrackIndex(
+      now.tracks.length,
+      now.index,
+      delta,
+      current.shuffle ? "shuffle" : "sequential",
+    );
+    void jumpBgm(current, now, index);
+  }
+
+  function toggleShuffle(force?: boolean) {
+    const current = bgmRef.current;
+    if (!current) return false;
+    const shuffle = force ?? !current.shuffle;
+    setPlayback({ ...current, shuffle });
+    return shuffle;
+  }
+
   function finishDemote() {
     applySessionResult(demoteDone(readingSessionRef.current));
+  }
+
+  function playbackFromPlaylist(
+    playlist: MusicPlaylistIndex,
+    extras: Partial<BgmPlayback> = {},
+  ): BgmPlayback {
+    return {
+      playlistId: playlist.neteasePlaylistId,
+      playlistName: playlist.name,
+      tracks: playlist.tracks,
+      trackCount: playlist.trackCount ?? playlist.tracks.length,
+      status: "",
+      hidden: false,
+      queueOpen: false,
+      shuffle: bgmRef.current?.shuffle ?? false,
+      now: null,
+      ...extras,
+    };
+  }
+
+  function setPlayback(
+    next:
+      | BgmPlayback
+      | null
+      | ((prev: BgmPlayback | null) => BgmPlayback | null),
+  ) {
+    const resolved = typeof next === "function" ? next(bgmRef.current) : next;
+    bgmRef.current = resolved;
+    setBgm(resolved);
+  }
+
+  async function hydratePlaylist(
+    playlist: MusicPlaylistIndex,
+  ): Promise<MusicPlaylistIndex> {
+    if (playlist.tracks.length > 0) return playlist;
+    try {
+      const res = await fetch(
+        `/api/music/playlist/tracks?playlistId=${encodeURIComponent(playlist.neteasePlaylistId)}`,
+      );
+      const body = (await res.json()) as {
+        ok?: boolean;
+        tracks?: MusicPlaylistIndex["tracks"];
+        name?: string;
+      };
+      if (!body.ok || !Array.isArray(body.tracks)) return playlist;
+      const hydrated: MusicPlaylistIndex = {
+        ...playlist,
+        name: body.name ?? playlist.name,
+        tracks: body.tracks,
+        trackCount: body.tracks.length,
+      };
+      setHydratedById((current) => ({
+        ...current,
+        [hydrated.neteasePlaylistId]: hydrated,
+      }));
+      return hydrated;
+    } catch {
+      return playlist;
+    }
+  }
+
+  async function ensurePlaylistTracks(
+    playlist: MusicPlaylistIndex,
+  ): Promise<MusicPlaylistIndex> {
+    if (playlist.tracks.length > 0) return playlist;
+
+    const requestId = ++hydrateRequestRef.current;
+    setPlayback((prev) => {
+      if (!prev || prev.playlistId !== playlist.neteasePlaylistId) return prev;
+      return { ...prev, tracksLoading: true };
+    });
+
+    try {
+      const loaded = await hydratePlaylist(playlist);
+      if (requestId !== hydrateRequestRef.current) return loaded;
+
+      setPlayback((prev) => {
+        if (!prev || prev.playlistId !== loaded.neteasePlaylistId) return prev;
+        const next: BgmPlayback = {
+          ...prev,
+          tracks: loaded.tracks,
+          trackCount: loaded.trackCount ?? loaded.tracks.length,
+          tracksLoading: false,
+        };
+        if (prev.now?.playlistId === loaded.neteasePlaylistId) {
+          next.now = { ...prev.now, tracks: loaded.tracks };
+        }
+        return next;
+      });
+      return loaded;
+    } catch {
+      if (requestId === hydrateRequestRef.current) {
+        setPlayback((prev) =>
+          prev && prev.playlistId === playlist.neteasePlaylistId
+            ? { ...prev, tracksLoading: false }
+            : prev,
+        );
+      }
+      return playlist;
+    }
+  }
+
+  /** 只换浏览框；不打断当前曲目会话（不清 src / 不抬世代）。 */
+  async function applyPlaylistWithHydration(
+    nextPlaylist: MusicPlaylistIndex,
+    keepQueueOpen?: boolean,
+  ) {
+    hydrateRequestRef.current += 1;
+    applyPlaylist(nextPlaylist, keepQueueOpen);
+    if (nextPlaylist.tracks.length === 0) {
+      await ensurePlaylistTracks(nextPlaylist);
+    }
+  }
+
+  /** 只换浏览框；保留 now + src。 */
+  function applyPlaylist(nextPlaylist: MusicPlaylistIndex, keepQueueOpen?: boolean) {
+    const current = bgmRef.current;
+    setPlayback({
+      playlistId: nextPlaylist.neteasePlaylistId,
+      playlistName: nextPlaylist.name,
+      tracks: nextPlaylist.tracks,
+      trackCount: nextPlaylist.trackCount ?? nextPlaylist.tracks.length,
+      status: current?.status ?? "",
+      hidden: false,
+      queueOpen: keepQueueOpen ?? current?.queueOpen ?? true,
+      tracksLoading: nextPlaylist.tracks.length === 0,
+      shuffle: current?.shuffle ?? false,
+      now: current?.now ?? null,
+    });
+  }
+
+  function switchPlaylist(delta: number) {
+    const current = bgmRef.current;
+    if (!current) return false;
+    const nextPlaylist = stepPlaylist(
+      playlistsRef.current,
+      current.playlistId,
+      delta,
+    );
+    if (!nextPlaylist || nextPlaylist.neteasePlaylistId === current.playlistId) {
+      return false;
+    }
+    applyPlaylistWithHydration(nextPlaylist);
+    return true;
+  }
+
+  function revealPlayer(openQueue: boolean) {
+    const current = bgmRef.current;
+    if (current) {
+      setPlayback({
+        ...current,
+        hidden: false,
+        queueOpen: openQueue ? true : current.queueOpen,
+      });
+      return true;
+    }
+    const fallback = defaultPlaylist(playlistsRef.current);
+    if (!fallback) return false;
+    setPlayback(
+      playbackFromPlaylist(fallback, {
+        hidden: false,
+        queueOpen: openQueue,
+        now: null,
+      }),
+    );
+    return true;
+  }
+
+  /** 合并 SSR 目录与已 hydrate 缓存，供曲目扫描。 */
+  function catalogWithHydration(): MusicPlaylistIndex[] {
+    return playlistsRef.current.map(
+      (item) => hydratedById[item.neteasePlaylistId] ?? item,
+    );
+  }
+
+  async function hydrateAllStubs(): Promise<MusicPlaylistIndex[]> {
+    const catalog = playlistsRef.current;
+    const loaded = await Promise.all(
+      catalog.map(async (item) => {
+        const cached = hydratedById[item.neteasePlaylistId];
+        if (cached?.tracks.length) return cached;
+        if (item.tracks.length > 0) return item;
+        return hydratePlaylist(item);
+      }),
+    );
+    return loaded;
+  }
+
+  async function startPlaylistAt(
+    playlist: MusicPlaylistIndex,
+    trackIndex: number,
+  ) {
+    const loaded =
+      playlist.tracks.length > 0
+        ? playlist
+        : await ensurePlaylistTracks(playlist);
+    const index = Math.max(
+      0,
+      Math.min(trackIndex, Math.max(0, loaded.tracks.length - 1)),
+    );
+    const now = {
+      playlistId: loaded.neteasePlaylistId,
+      playlistName: loaded.name,
+      tracks: loaded.tracks,
+      index,
+      paused: false,
+    };
+    const playback = playbackFromPlaylist(loaded, {
+      hidden: false,
+      queueOpen: false,
+      now,
+    });
+    const gen = playbackEngineRef.current!.beginJump();
+    setPlayGeneration(gen);
+    setBgmSrc(null);
+    setPlayback(playback);
+    await loadBgmTrack(playback, 0, gen);
+  }
+
+  async function fetchLyricLines(songId: number): Promise<LyricLine[]> {
+    try {
+      const res = await fetch(`/api/music/song/lyric?id=${songId}`);
+      const body = (await res.json()) as {
+        ok?: boolean;
+        lines?: LyricLine[];
+      };
+      return body.ok && Array.isArray(body.lines) ? body.lines : [];
+    } catch {
+      return [];
+    }
   }
 
   const panelEnterMs = resolvePanelEnterMs(motionLevel);
@@ -268,7 +703,8 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
       }
     >
       <div className="archive-workspace__stage">
-        <section ref={terminalShellRef} className="terminal-shell">
+        <div ref={terminalShellRef} className="terminal-mount">
+        <section className="terminal-shell">
           <header className="terminal-shell__chrome">
             <div className="terminal-shell__brand">
               <p className="terminal-shell__title">{zhCN.shell.title}</p>
@@ -304,8 +740,13 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
               getComplete={(input, cycle) =>
                 completeInput(input, snapshot, sessionRef.current.cwd, cycle)
               }
-              onCommand={(command) => {
-                const result = runCommand(snapshot, command, sessionRef.current);
+              onCommand={async (command) => {
+                const result = runCommand(
+                  snapshot,
+                  command,
+                  sessionRef.current,
+                  playlistsRef.current,
+                );
                 sessionRef.current = result.session;
                 setSession(result.session);
 
@@ -317,8 +758,457 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
                   setEditorTarget(result.edit);
                 }
 
+                const extra: TerminalEntry[] = [];
+                if (result.music?.type === "play") {
+                  await startPlaylistAt(
+                    result.music.playlist,
+                    result.music.trackIndex ?? 0,
+                  );
+                }
+                if (result.music?.type === "play-search") {
+                  const ready = await hydrateAllStubs();
+                  const target = resolvePlayTarget(
+                    playlistsRef.current,
+                    result.music.query,
+                    ready,
+                  );
+                  if (!target.ok) {
+                    extra.push({
+                      id: `music-play-miss-${Date.now()}`,
+                      kind: "system",
+                      lines: [
+                        {
+                          tokens: [
+                            {
+                              text:
+                                target.reason === "ambiguous"
+                                  ? `${zhCN.music.ambiguous}: ${target.matches.map((item) => item.name).join("、")}`
+                                  : zhCN.music.trackNotFound,
+                              tone: "error",
+                            },
+                          ],
+                        },
+                      ],
+                    });
+                  } else if (target.kind === "playlist") {
+                    extra.push({
+                      id: `music-play-pl-${Date.now()}`,
+                      kind: "system",
+                      lines: [
+                        {
+                          tokens: [
+                            { text: zhCN.music.playing, tone: "hint" },
+                            { text: target.playlist.name, tone: "path" },
+                          ],
+                        },
+                      ],
+                    });
+                    await startPlaylistAt(target.playlist, 0);
+                  } else {
+                    const { hit } = target;
+                    extra.push({
+                      id: `music-play-tr-${Date.now()}`,
+                      kind: "system",
+                      lines: [
+                        {
+                          tokens: [
+                            { text: zhCN.music.playingTrack, tone: "hint" },
+                            { text: hit.track.name, tone: "path" },
+                            {
+                              text: ` · ${hit.playlist.name}`,
+                              tone: "muted",
+                            },
+                          ],
+                        },
+                      ],
+                    });
+                    await startPlaylistAt(hit.playlist, hit.index);
+                  }
+                }
+                if (result.music?.type === "lyric") {
+                  const query = result.music.query.trim();
+                  let songId: number | null = null;
+                  let songLabel = "";
+                  if (!query) {
+                    const now = bgmRef.current?.now;
+                    const track = now?.tracks[now.index];
+                    if (!track) {
+                      extra.push({
+                        id: `music-lyric-none-${Date.now()}`,
+                        kind: "system",
+                        lines: [
+                          {
+                            tokens: [
+                              { text: zhCN.music.lyricNone, tone: "hint" },
+                            ],
+                          },
+                        ],
+                      });
+                    } else {
+                      songId = track.id;
+                      songLabel = track.name;
+                    }
+                  } else {
+                    const ready = await hydrateAllStubs();
+                    const hit =
+                      firstTrackHit(ready, query) ??
+                      firstTrackHit(catalogWithHydration(), query);
+                    if (!hit) {
+                      extra.push({
+                        id: `music-lyric-miss-${Date.now()}`,
+                        kind: "system",
+                        lines: [
+                          {
+                            tokens: [
+                              { text: zhCN.music.trackNotFound, tone: "error" },
+                            ],
+                          },
+                        ],
+                      });
+                    } else {
+                      songId = hit.track.id;
+                      songLabel = hit.track.name;
+                    }
+                  }
+                  if (songId != null) {
+                    const lines = await fetchLyricLines(songId);
+                    if (lines.length === 0) {
+                      extra.push({
+                        id: `music-lyric-empty-${Date.now()}`,
+                        kind: "system",
+                        lines: [
+                          {
+                            tokens: [
+                              {
+                                text: `${zhCN.music.lyricHeader}${songLabel}`,
+                                tone: "muted",
+                              },
+                            ],
+                          },
+                          {
+                            tokens: [
+                              { text: zhCN.music.lyricEmpty, tone: "hint" },
+                            ],
+                          },
+                        ],
+                      });
+                    } else {
+                      extra.push({
+                        id: `music-lyric-${Date.now()}`,
+                        kind: "system",
+                        lines: [
+                          {
+                            tokens: [
+                              {
+                                text: `${zhCN.music.lyricHeader}${songLabel}`,
+                                tone: "success",
+                              },
+                            ],
+                          },
+                          ...lines.map((line) => ({
+                            tokens: [{ text: line.text, tone: "normal" as const }],
+                          })),
+                        ],
+                      });
+                    }
+                  }
+                }
+                if (result.music?.type === "shuffle") {
+                  const current = bgmRef.current;
+                  if (!current) {
+                    if (!revealPlayer(false)) {
+                      extra.push({
+                        id: `music-shuffle-none-${Date.now()}`,
+                        kind: "system",
+                        lines: [
+                          {
+                            tokens: [
+                              {
+                                text: zhCN.music.needShowSession,
+                                tone: "error",
+                              },
+                            ],
+                          },
+                        ],
+                      });
+                    }
+                  }
+                  const mode = result.music.mode;
+                  const next =
+                    mode === "on"
+                      ? true
+                      : mode === "off"
+                        ? false
+                        : !(bgmRef.current?.shuffle ?? false);
+                  if (bgmRef.current) {
+                    toggleShuffle(next);
+                    extra.push({
+                      id: `music-shuffle-${Date.now()}`,
+                      kind: "system",
+                      lines: [
+                        {
+                          tokens: [
+                            {
+                              text: next
+                                ? zhCN.music.shuffleOn
+                                : zhCN.music.shuffleOff,
+                              tone: "hint",
+                            },
+                          ],
+                        },
+                      ],
+                    });
+                  }
+                }
+                if (result.music?.type === "show") {
+                  if (!revealPlayer(true)) {
+                    extra.push({
+                      id: `music-show-${Date.now()}`,
+                      kind: "system",
+                      lines: [
+                        {
+                          tokens: [
+                            {
+                              text: zhCN.music.needShowSession,
+                              tone: "error",
+                            },
+                          ],
+                        },
+                      ],
+                    });
+                  } else {
+                    const current = bgmRef.current;
+                    const stub = playlistsRef.current.find(
+                      (item) => item.neteasePlaylistId === current?.playlistId,
+                    );
+                    if (stub && stub.tracks.length === 0) {
+                      await ensurePlaylistTracks(stub);
+                    }
+                  }
+                }
+                if (result.music?.type === "hide") {
+                  if (bgmRef.current) {
+                    setPlayback({
+                      ...bgmRef.current,
+                      hidden: true,
+                      queueOpen: false,
+                    });
+                  }
+                }
+                if (
+                  result.music?.type === "playlist-next" ||
+                  result.music?.type === "playlist-prev"
+                ) {
+                  if (!bgmRef.current && !revealPlayer(true)) {
+                    extra.push({
+                      id: `music-pl-${Date.now()}`,
+                      kind: "system",
+                      lines: [
+                        {
+                          tokens: [
+                            {
+                              text: zhCN.music.needPlaylistSession,
+                              tone: "error",
+                            },
+                          ],
+                        },
+                      ],
+                    });
+                  } else {
+                    const ok = switchPlaylist(
+                      result.music.type === "playlist-next" ? 1 : -1,
+                    );
+                    if (!ok && playlistsRef.current.length <= 1) {
+                      extra.push({
+                        id: `music-pl-one-${Date.now()}`,
+                        kind: "system",
+                        lines: [
+                          {
+                            tokens: [
+                              {
+                                text: zhCN.music.needPlaylistSession,
+                                tone: "hint",
+                              },
+                            ],
+                          },
+                        ],
+                      });
+                    }
+                  }
+                }
+                if (result.music?.type === "playlist-use") {
+                  await applyPlaylistWithHydration(result.music.playlist, true);
+                }
+                if (result.music?.type === "sync") {
+                  try {
+                    const res = await fetch("/api/music/playlists/sync", {
+                      method: "POST",
+                    });
+                    const body = (await res.json()) as {
+                      ok?: boolean;
+                      synced?: number;
+                      pruned?: number;
+                      message?: string;
+                    };
+                    extra.push({
+                      id: `music-sync-${Date.now()}`,
+                      kind: "system",
+                      lines: [
+                        {
+                          tokens: [
+                            {
+                              text: body.ok
+                                ? `${zhCN.music.synced}（${body.synced ?? 0}${body.pruned ? `，清理 ${body.pruned} 个孤儿 stub` : ""}）`
+                                : `${zhCN.music.syncFailed}：${body.message ?? ""}`,
+                              tone: body.ok ? "success" : "error",
+                            },
+                          ],
+                        },
+                      ],
+                    });
+                    if (body.ok) router.refresh();
+                  } catch {
+                    extra.push({
+                      id: `music-sync-err-${Date.now()}`,
+                      kind: "system",
+                      lines: [
+                        {
+                          tokens: [
+                            { text: zhCN.music.syncFailed, tone: "error" },
+                          ],
+                        },
+                      ],
+                    });
+                  }
+                }
+                if (result.music?.type === "import") {
+                  try {
+                    const response = await fetch("/api/music/playlist/import", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ url: result.music.url }),
+                    });
+                    const body = (await response.json()) as {
+                      ok?: boolean;
+                      name?: string;
+                      trackCount?: number;
+                      message?: string;
+                    };
+                    extra.push({
+                      id: `music-import-${Date.now()}`,
+                      kind: "system",
+                      lines: [
+                        {
+                          tokens: [
+                            {
+                              text: body.ok
+                                ? `${zhCN.music.imported}：${body.name}（${body.trackCount}${zhCN.music.trackUnit}）`
+                                : `${zhCN.music.importFailed}：${body.message ?? ""}`,
+                              tone: body.ok ? "success" : "error",
+                            },
+                          ],
+                        },
+                      ],
+                    });
+                    if (body.ok) router.refresh();
+                  } catch {
+                    extra.push({
+                      id: `music-import-err-${Date.now()}`,
+                      kind: "system",
+                      lines: [
+                        {
+                          tokens: [
+                            { text: zhCN.music.importFailed, tone: "error" },
+                          ],
+                        },
+                      ],
+                    });
+                  }
+                }
+                if (result.music?.type === "stop") {
+                  const gen = playbackEngineRef.current!.beginJump();
+                  setPlayGeneration(gen);
+                  setPlayback(null);
+                  setBgmSrc(null);
+                }
+                if (result.music?.type === "pause") {
+                  const current = bgmRef.current;
+                  if (!current?.now) {
+                    extra.push({
+                      id: `music-pause-${Date.now()}`,
+                      kind: "system",
+                      lines: [
+                        {
+                          tokens: [
+                            { text: zhCN.music.nothingToPause, tone: "error" },
+                          ],
+                        },
+                      ],
+                    });
+                  } else {
+                    setPlayback({
+                      ...current,
+                      now: { ...current.now, paused: true },
+                    });
+                    extra.push({
+                      id: `music-pause-${Date.now()}`,
+                      kind: "system",
+                      lines: [
+                        {
+                          tokens: [{ text: zhCN.music.paused, tone: "hint" }],
+                        },
+                      ],
+                    });
+                  }
+                }
+                if (result.music?.type === "resume") {
+                  const current = bgmRef.current;
+                  if (!current?.now) {
+                    extra.push({
+                      id: `music-resume-${Date.now()}`,
+                      kind: "system",
+                      lines: [
+                        {
+                          tokens: [
+                            { text: zhCN.music.nothingToResume, tone: "error" },
+                          ],
+                        },
+                      ],
+                    });
+                  } else {
+                    const next = {
+                      ...current,
+                      hidden: false,
+                      now: { ...current.now, paused: false },
+                    };
+                    setPlayback(next);
+                    if (!bgmSrcRef.current) {
+                      await loadBgmTrack(
+                        next,
+                        0,
+                        playbackEngineRef.current!.currentGeneration(),
+                      );
+                    }
+                    extra.push({
+                      id: `music-resume-${Date.now()}`,
+                      kind: "system",
+                      lines: [
+                        {
+                          tokens: [{ text: zhCN.music.resumed, tone: "hint" }],
+                        },
+                      ],
+                    });
+                  }
+                }
+                if (result.music?.type === "next") {
+                  stepBgm(1);
+                }
+                if (result.music?.type === "prev") {
+                  stepBgm(-1);
+                }
+
                 return {
-                  entries: result.entries,
+                  entries: [...result.entries, ...extra],
                   clear: result.clear,
                   pager: result.pager,
                 };
@@ -350,6 +1240,88 @@ export function ArchiveTerminal({ snapshot }: ArchiveTerminalProps) {
             ) : null}
           </div>
         </section>
+
+      <BgmBar
+        playback={bgm}
+        src={bgmSrc}
+        playGeneration={playGeneration}
+        playlists={playlistCatalog}
+        onTogglePause={() => {
+          const current = bgmRef.current;
+          if (!current?.now) return;
+          setPlayback({
+            ...current,
+            now: { ...current.now, paused: !current.now.paused },
+          });
+        }}
+        onPrev={() => stepBgm(-1)}
+        onNext={() => stepBgm(1)}
+        onToggleShuffle={() => {
+          toggleShuffle();
+        }}
+        onSelectPlaylist={(playlist) => {
+          void applyPlaylistWithHydration(playlist, true);
+        }}
+        onQueueOpenChange={(open) => {
+          const current = bgmRef.current;
+          if (!current) return;
+          setPlayback({ ...current, queueOpen: open });
+        }}
+        onSelectIndex={(index) => {
+          const current = bgmRef.current;
+          if (!current) return;
+          void (async () => {
+            const stub = playlistsRef.current.find(
+              (item) => item.neteasePlaylistId === current.playlistId,
+            );
+            let tracks = current.tracks;
+            let playlistName = current.playlistName;
+            let playlistId = current.playlistId;
+            if (stub) {
+              const loaded =
+                stub.tracks.length === 0
+                  ? await ensurePlaylistTracks(stub)
+                  : stub;
+              tracks = loaded.tracks;
+              playlistName = loaded.name;
+              playlistId = loaded.neteasePlaylistId;
+            }
+            const browse = bgmRef.current ?? current;
+            await jumpBgm(
+              browse,
+              { playlistId, playlistName, tracks },
+              index,
+              {
+                browse: {
+                  playlistId,
+                  playlistName,
+                  tracks,
+                  trackCount: tracks.length,
+                },
+              },
+            );
+          })();
+        }}
+        onToggleQueue={() => {
+          const current = bgmRef.current;
+          if (!current) return;
+          const opening = !current.queueOpen;
+          if (!opening) {
+            setPlayback({ ...current, queueOpen: false });
+            return;
+          }
+          const stub = playlistsRef.current.find(
+            (item) => item.neteasePlaylistId === current.playlistId,
+          );
+          setPlayback({ ...current, queueOpen: true });
+          if (stub && stub.tracks.length === 0) {
+            void ensurePlaylistTracks(stub);
+          }
+        }}
+        onEnded={() => stepBgm(1)}
+        onSrcError={handleBgmSrcError}
+      />
+        </div>
 
         {hasReading ? (
           <div className="reading-row">

@@ -13,7 +13,7 @@ SHA-256 hex of on-disk document bytes; used as the optimistic-concurrency token 
 _Avoid_: ETag as a separate concept (same value)
 
 **ContentGroup**:
-One of the local document collections on disk (`projects` | `thoughts`).
+One of the local document collections on disk (`projects` | `thoughts` | `resources`).
 _Avoid_: folder, category (when meaning the on-disk group)
 
 **localKey**:
@@ -21,7 +21,7 @@ Discovery-layer key for `source: local`; for local documents it is the projectio
 _Avoid_: treating localKey as a second authority beside DocumentRef
 
 **ArchiveDocument**:
-A local markdown document as loaded into the archive snapshot (title, body, tags, etc.). Identity is nested as `ref: DocumentRef` (not flat `group`/`slug`/`path` on the document).
+A local markdown document as loaded into the archive snapshot (title, body, tags, etc.). Identity is nested as `ref: DocumentRef` (not flat `group`/`slug`/`path` on the document). `resources` group entries may include `url`, `resourceType`, optional `platform`/`embed` (ADR 0008).
 _Avoid_: item (prefer discovery **Item** when meaning the HTTP/discovery shape); path-as-stored-identity; top-level group/slug as a second authority beside `ref`
 
 **Item**:

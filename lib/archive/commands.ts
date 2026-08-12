@@ -1,3 +1,11 @@
+import type { MusicAction } from "@/lib/music/music-command";
+import {
+  parseMusicArgs,
+  resolveImportUrl,
+  resolvePlayQuery,
+} from "@/lib/music/music-command";
+import type { MusicPlaylistIndex } from "@/lib/music/playlist-types";
+import { playlistTrackCount } from "@/lib/music/playlist-types";
 import type {
   ArchiveDocument,
   ArchiveSnapshot,
@@ -7,6 +15,7 @@ import type {
   TerminalEntry,
   TerminalToken,
 } from "./types";
+import { allSnapshotDocuments } from "./types";
 import { zhCN } from "./i18n";
 import {
   getCommand,
@@ -51,6 +60,8 @@ type CommandResult = {
   pager?: { logicalLines: string[] } | null;
   /** 打开全屏编辑面板（原文由编辑面板异步读取）。 */
   edit?: DocumentEditTarget | null;
+  /** 音乐层副作用（播放 / 导入）；由终端 UI 异步执行。 */
+  music?: MusicAction | null;
 };
 
 type LinuxHandlerResult = {
@@ -96,7 +107,13 @@ function normalize(value: string) {
 }
 
 function allDocuments(snapshot: ArchiveSnapshot) {
-  return [...snapshot.projects, ...snapshot.thoughts];
+  return allSnapshotDocuments(snapshot);
+}
+
+function groupFromCwd(cwd: string): ContentGroup {
+  if (cwd.startsWith("/resources")) return "resources";
+  if (cwd.startsWith("/thoughts")) return "thoughts";
+  return "projects";
 }
 
 function findDocument(snapshot: ArchiveSnapshot, query: string) {
@@ -265,6 +282,10 @@ function archiveStatus(snapshot: ArchiveSnapshot) {
         token(`${snapshot.thoughts.length} ${zhCN.labels.countUnit}`, "path"),
       ],
       [
+        token(`${zhCN.labels.statusResources}: `, "muted"),
+        token(`${snapshot.resources.length} ${zhCN.labels.countUnit}`, "path"),
+      ],
+      [
         token(`${zhCN.labels.statusTimeline}: `, "muted"),
         token(
           `${snapshot.timeline.length} ${zhCN.labels.timelineUnit}`,
@@ -297,7 +318,7 @@ function surfaceFromNode(
   if (node.type === "timeline") {
     return { kind: "timeline", entries: snapshot.timeline };
   }
-  if (node.type === "project" || node.type === "thought") {
+  if (node.type === "project" || node.type === "thought" || node.type === "resource") {
     const document = toDocumentEntry(snapshot, node.path);
     return document ? { kind: "document", document } : null;
   }
@@ -338,7 +359,11 @@ function resolveEditTarget(
 
   // 显式组前缀：新建或编辑均可（优先于 VFS 解析，支持不存在的路径）
   // 注意：不可对整段 token 做 SLUG_PATTERN——含 `/` 的路径（help 示例）会被误拒
-  if (token.startsWith("projects/") || token.startsWith("thoughts/")) {
+  if (
+    token.startsWith("projects/") ||
+    token.startsWith("thoughts/") ||
+    token.startsWith("resources/")
+  ) {
     const ref = tryFromLocalKey(token);
     if (!ref) {
       return { ok: false, hint: `${zhCN.errors.invalidPath}: ${token}` };
@@ -356,7 +381,7 @@ function resolveEditTarget(
 
   const node = resolveVfsPath(root, cwd, token);
   if (node) {
-    if (node.type === "project" || node.type === "thought") {
+    if (node.type === "project" || node.type === "thought" || node.type === "resource") {
       const ref = tryFromVfsPath(node.path);
       if (!ref) {
         return { ok: false, hint: zhCN.errors.notFile };
@@ -390,9 +415,7 @@ function resolveEditTarget(
   if (!SLUG_PATTERN.test(token)) {
     return { ok: false, hint: `${zhCN.errors.invalidPath}: ${token}` };
   }
-  const group: ContentGroup = cwd.startsWith("/thoughts")
-    ? "thoughts"
-    : "projects";
+  const group: ContentGroup = groupFromCwd(cwd);
   return {
     ok: true,
     target: { ref: documentRef(group, token), exists: false },
@@ -764,10 +787,226 @@ export function initialEntries(snapshot: ArchiveSnapshot): TerminalEntry[] {
   ];
 }
 
+function formatPlaylistList(playlists: MusicPlaylistIndex[]): TerminalLine[] {
+  if (playlists.length === 0) {
+    return [line([token(zhCN.music.empty, "hint")])];
+  }
+  return playlists.map((playlist) =>
+    line([
+      token(playlist.name, "path"),
+      token(`  ${playlistTrackCount(playlist)}${zhCN.music.trackUnit}  `, "muted"),
+      token(playlist.neteasePlaylistId, "muted"),
+    ]),
+  );
+}
+
+function handleMusicCommand(
+  commandEcho: TerminalEntry,
+  args: string[],
+  session: TerminalSession,
+  playlists: MusicPlaylistIndex[],
+): CommandResult {
+  const intent = parseMusicArgs(args);
+
+  if (intent.kind === "help") {
+    return {
+      entries: [
+        commandEcho,
+        lineEntry(
+          lines(
+            [token(zhCN.music.usageTitle, "success")],
+            zhCN.music.usageList,
+            zhCN.music.usagePlay,
+            zhCN.music.usageLyric,
+            zhCN.music.usageShuffle,
+            zhCN.music.usageShow,
+            zhCN.music.usageHide,
+            zhCN.music.usagePlaylist,
+            zhCN.music.usageImport,
+            zhCN.music.usageSync,
+            zhCN.music.usagePause,
+            zhCN.music.usagePrev,
+            zhCN.music.usageNext,
+            zhCN.music.usageStop,
+          ),
+        ),
+      ],
+      session,
+    };
+  }
+
+  if (intent.kind === "list") {
+    return {
+      entries: [commandEcho, lineEntry(formatPlaylistList(playlists))],
+      session,
+    };
+  }
+
+  if (intent.kind === "lyric") {
+    return {
+      entries: [commandEcho],
+      session,
+      music: { type: "lyric", query: intent.query },
+    };
+  }
+
+  if (intent.kind === "shuffle") {
+    return {
+      entries: [commandEcho],
+      session,
+      music: { type: "shuffle", mode: intent.mode },
+    };
+  }
+
+  if (intent.kind === "play") {
+    const resolved = resolvePlayQuery(playlists, intent.query);
+    if (resolved.ok) {
+      return {
+        entries: [
+          commandEcho,
+          lineEntry(
+            lines([
+              token(zhCN.music.playing, "hint"),
+              token(resolved.playlist.name, "path"),
+              token(
+                `  ${playlistTrackCount(resolved.playlist)}${zhCN.music.trackUnit}`,
+                "muted",
+              ),
+            ]),
+          ),
+        ],
+        session,
+        music: { type: "play", playlist: resolved.playlist },
+      };
+    }
+    // 非唯一歌单：交 UI 扫曲目（可 hydrate stub）
+    return {
+      entries: [
+        commandEcho,
+        lineEntry(lines([token(zhCN.music.searchingTrack, "hint")])),
+      ],
+      session,
+      music: { type: "play-search", query: intent.query },
+    };
+  }
+
+  if (intent.kind === "show" || intent.kind === "hide") {
+    return {
+      entries: [
+        commandEcho,
+        lineEntry(
+          lines([
+            token(
+              intent.kind === "show" ? zhCN.music.showing : zhCN.music.hiding,
+              "hint",
+            ),
+          ]),
+        ),
+      ],
+      session,
+      music: { type: intent.kind },
+    };
+  }
+
+  if (intent.kind === "playlist-next" || intent.kind === "playlist-prev") {
+    return {
+      entries: [
+        commandEcho,
+        lineEntry(lines([token(zhCN.music.switchedPlaylist, "hint")])),
+      ],
+      session,
+      music: { type: intent.kind },
+    };
+  }
+
+  if (intent.kind === "playlist-use") {
+    const resolved = resolvePlayQuery(playlists, intent.query);
+    if (!resolved.ok) {
+      const hint =
+        resolved.reason === "missing"
+          ? zhCN.music.usagePlaylist
+          : resolved.reason === "none"
+            ? zhCN.music.notFound
+            : `${zhCN.music.ambiguous}: ${resolved.matches.map((item) => item.name).join("、")}`;
+      return {
+        entries: [commandEcho, systemError(hint)],
+        session,
+      };
+    }
+    return {
+      entries: [
+        commandEcho,
+        lineEntry(
+          lines([
+            token(zhCN.music.switchedPlaylist, "hint"),
+            token(resolved.playlist.name, "path"),
+          ]),
+        ),
+      ],
+      session,
+      music: { type: "playlist-use", playlist: resolved.playlist },
+    };
+  }
+
+  if (intent.kind === "import") {
+    const url = resolveImportUrl(intent.url);
+    if (!url) {
+      return {
+        entries: [commandEcho, systemError(zhCN.music.needImportUrl)],
+        session,
+      };
+    }
+    return {
+      entries: [
+        commandEcho,
+        lineEntry(lines([token(zhCN.music.importing, "hint")])),
+      ],
+      session,
+      music: { type: "import", url },
+    };
+  }
+
+  if (intent.kind === "sync") {
+    return {
+      entries: [
+        commandEcho,
+        lineEntry(lines([token(zhCN.music.syncing, "hint")])),
+      ],
+      session,
+      music: { type: "sync" },
+    };
+  }
+
+  if (intent.kind === "pause" || intent.kind === "resume") {
+    return {
+      entries: [commandEcho],
+      session,
+      music: { type: intent.kind },
+    };
+  }
+
+  const statusKey =
+    intent.kind === "prev"
+      ? "prev"
+      : intent.kind === "next"
+        ? "next"
+        : "stop";
+
+  return {
+    entries: [
+      commandEcho,
+      lineEntry(lines([token(zhCN.music[statusKey], "hint")])),
+    ],
+    session,
+    music: { type: intent.kind },
+  };
+}
+
 export function runCommand(
   snapshot: ArchiveSnapshot,
   rawCommand: string,
   session: TerminalSession = createSession(),
+  playlists: MusicPlaylistIndex[] = [],
 ): CommandResult {
   const trimmed = rawCommand.trim();
   const [rawCommandName = "", ...args] = trimmed.split(/\s+/);
@@ -862,6 +1101,12 @@ export function runCommand(
     case "thoughts":
       return {
         entries: [commandEcho, lineEntry(formatDocumentList(snapshot.thoughts))],
+        session: nextSession,
+      };
+
+    case "resources":
+      return {
+        entries: [commandEcho, lineEntry(formatDocumentList(snapshot.resources))],
         session: nextSession,
       };
 
@@ -1113,6 +1358,9 @@ export function runCommand(
         ],
         session: nextSession,
       };
+
+    case "music":
+      return handleMusicCommand(commandEcho, args, nextSession, playlists);
 
     case "clear":
       return {

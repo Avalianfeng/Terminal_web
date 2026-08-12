@@ -30,7 +30,7 @@ Preferred order: `npm run lint` → `npx tsc --noEmit` → `npm run test:documen
 
 Notes / non-obvious caveats:
 
-- No full test suite (no Jest/Vitest/Playwright). Contract regression for the write API: `npm run smoke:write-api`. Unit tests: `test:document-ref`, `test:command-registry`, `test:reading-session`, `test:discovery`. Also use `npm run lint`, `npx tsc --noEmit`, `npm run build`, and manual terminal UI checks.
+- No full test suite (no Jest/Vitest/Playwright). Contract regression for the write API: `npm run smoke:write-api`. Unit tests: `test:document-ref`, `test:command-registry`, `test:reading-session`, `test:discovery`, `test:playback-session`（及 music 其它 `test:*`）。 Also use `npm run lint`, `npx tsc --noEmit`, `npm run build`, and manual terminal UI checks.
 - The UI is a fake shell: interact by typing commands (`help`, `ls`, `about`, `projects`, `thoughts`, `timeline`, `search`, `find`, `open`, `edit`, `themes`, `cd`, `cat`, `tree`, etc.). A basic smoke test is loading `/` and running `help`.
 - Owner editing: terminal `edit <path|slug>` opens a full-screen editor (server actions → `content-write.ts`). **local-dev only** by design; public deploy must gate UI write per `docs/adr/0007-security-deployment-posture.md`. Manual regression checklist: `docs/11-终端edit手测清单.md`. Agent writing: `PUT`/`PATCH`/`DELETE /api/v1/items?source=local&localKey=…` with `Authorization: Bearer <token>` and optional `If-Match` (see `docs/08` §5.7 / §5.8). Playbook: `docs/10-agent-写API验收.md`.
 - UI language is Chinese (`lang="zh-CN"`).

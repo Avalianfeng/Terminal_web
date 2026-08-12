@@ -1,0 +1,19 @@
+slug: 8682671493
+neteasePlaylistId: "8682671493"
+name: "悠悠古典"
+sourceUrl: "https://music.163.com/#/playlist?id=8682671493"
+importedAt: "2026-08-12T14:36:06.176Z"
+trackCount: 3
+tracks:
+  - id: 5276795
+    name: "摇篮曲"
+    artists: ["Gabriel Fauré"]
+    durationMs: 184826
+  - id: 5276807
+    name: "悲怆奏鸣曲"
+    artists: ["Ludwig van Beethoven"]
+    durationMs: 334904
+  - id: 5276793
+    name: "梦幻曲"
+    artists: ["Robert Schumann"]
+    durationMs: 190000

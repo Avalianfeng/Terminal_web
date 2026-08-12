@@ -8,6 +8,9 @@ out/
 # env files
 .env*.local
 
+# NetEase music cookie (ADR 0009; local-dev secret)
+.netease-cookie
+
 # debug
 npm-debug.log*
 

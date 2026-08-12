@@ -117,6 +117,12 @@ export const COMMANDS: readonly CommandSpec[] = [
     argComplete: "none",
   },
   {
+    name: "resources",
+    section: "read",
+    usage: "resources          列出外部收藏",
+    argComplete: "none",
+  },
+  {
     name: "about",
     section: "read",
     usage: "about              人物摘要（终端）",
@@ -135,13 +141,19 @@ export const COMMANDS: readonly CommandSpec[] = [
     usage: "edit <路径|slug>    编辑/新建文档（全屏 Markdown 原文）",
     argComplete: "open",
   },
-  {
-    name: "themes",
-    section: "session",
-    usage: "themes             主题试验台",
-    argComplete: "none",
-  },
-] as const;
+    {
+      name: "themes",
+      section: "session",
+      usage: "themes             主题试验台",
+      argComplete: "none",
+    },
+    {
+      name: "music",
+      section: "session",
+      usage: "music [ls|play|show|hide|…]  热队列 BGM",
+      argComplete: "none",
+    },
+  ] as const;
 
 const byName = new Map<string, CommandSpec>();
 const aliasToName = new Map<string, string>();

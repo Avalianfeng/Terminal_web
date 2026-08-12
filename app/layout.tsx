@@ -50,6 +50,7 @@ export default function RootLayout({
       data-paper-grain="medium"
       data-type-scale="reading"
       className={`${fontPaperLatin.variable} ${fontPaperCjk.variable} ${fontMono.variable}`}
+      suppressHydrationWarning
     >
       <body>
         <PaletteBootstrap />

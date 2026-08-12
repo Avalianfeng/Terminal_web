@@ -9,7 +9,7 @@ import {
 import type { ArchiveDocument, ArchiveSnapshot } from "./types.ts";
 
 function doc(
-  group: "projects" | "thoughts",
+  group: "projects" | "thoughts" | "resources",
   slug: string,
   extra: Partial<ArchiveDocument> = {},
 ): ArchiveDocument {
@@ -34,6 +34,7 @@ function snapshot(docs: ArchiveDocument[]): ArchiveSnapshot {
     },
     projects: docs.filter((d) => d.ref.group === "projects"),
     thoughts: docs.filter((d) => d.ref.group === "thoughts"),
+    resources: docs.filter((d) => d.ref.group === "resources"),
     timeline: [],
     generatedAt: "2026-08-11T00:00:00.000Z",
   };
@@ -70,8 +71,12 @@ describe("discovery", () => {
   });
 
   it("findItemByKey resolves local documents only", () => {
-    const snap = snapshot([doc("projects", "p1")]);
+    const snap = snapshot([
+      doc("projects", "p1"),
+      doc("resources", "r1", { url: "https://example.com", resourceType: "article" }),
+    ]);
     assert.ok(findItemByKey(snap, "local", "projects/p1"));
+    assert.ok(findItemByKey(snap, "local", "resources/r1"));
     assert.equal(findItemByKey(snap, "github", "projects/p1"), null);
     assert.equal(findItemByKey(snap, "local", "projects/missing"), null);
   });

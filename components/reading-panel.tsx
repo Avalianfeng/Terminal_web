@@ -9,6 +9,7 @@ import {
 } from "react";
 import { zhCN } from "@/lib/archive/i18n";
 import { MarkdownProse } from "@/lib/archive/markdown-prose";
+import { ResourceReadingBody } from "@/lib/archive/resource-reading";
 import {
   resolvePanelLeaveMs,
   resolveScrollBehavior,
@@ -16,6 +17,7 @@ import {
 import { readingSurfaceKey } from "@/lib/archive/reading-state";
 import { toVfsPath } from "@/lib/archive/document-ref";
 import type { ArchiveDocument, ReadingSurface, TimelineEntry } from "@/lib/archive/types";
+import { isResourceDocument } from "@/lib/archive/types";
 
 export { readingSurfaceKey };
 
@@ -229,7 +231,11 @@ export function ReadingPanel({
             {surface.document.summary ? (
               <p className="reading-panel__summary">{surface.document.summary}</p>
             ) : null}
-            <MarkdownBody document={surface.document} />
+            {isResourceDocument(surface.document) ? (
+              <ResourceReadingBody document={surface.document} />
+            ) : (
+              <MarkdownBody document={surface.document} />
+            )}
           </>
         ) : (
           <TimelineBody entries={surface.entries} />

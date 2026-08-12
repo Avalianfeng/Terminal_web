@@ -9,6 +9,8 @@ import type {
   TimelineEntry,
 } from "./types";
 
+export { allSnapshotDocuments } from "./types";
+
 export const contentRoot = path.join(process.cwd(), "content");
 export { parseDocument } from "./parse-document";
 
@@ -60,9 +62,10 @@ export async function getArchiveSnapshot(): Promise<ArchiveSnapshot> {
   const person = JSON.parse(
     await readFile(path.join(contentRoot, "person.json"), "utf8"),
   ) as PersonRecord;
-  const [projects, thoughts, timelineMarkdown] = await Promise.all([
+  const [projects, thoughts, resources, timelineMarkdown] = await Promise.all([
     readMarkdownGroup("projects"),
     readMarkdownGroup("thoughts"),
+    readMarkdownGroup("resources"),
     readFile(path.join(contentRoot, "timeline.md"), "utf8").catch(() => ""),
   ]);
 
@@ -70,6 +73,7 @@ export async function getArchiveSnapshot(): Promise<ArchiveSnapshot> {
     person,
     projects,
     thoughts,
+    resources,
     timeline: parseTimeline(timelineMarkdown),
     generatedAt: new Date().toISOString(),
   };

@@ -39,7 +39,11 @@ type ArchiveXtermProps = {
     entries: TerminalEntry[];
     clear?: boolean;
     pager?: { logicalLines: string[] } | null;
-  };
+  } | Promise<{
+    entries: TerminalEntry[];
+    clear?: boolean;
+    pager?: { logicalLines: string[] } | null;
+  }>;
   onCandidatesChange: (candidates: string[]) => void;
   /** Esc：先清候选；若返回 true 表示已处理（如关阅读面板） */
   onEscape: () => boolean;
@@ -399,7 +403,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       if (!term) return;
 
       historyRef.current = [...historyRef.current, command];
-      const result = callbacksRef.current.onCommand(command);
+      const result = await Promise.resolve(callbacksRef.current.onCommand(command));
 
       if (result.clear) {
         writeQueueRef.current += 1;

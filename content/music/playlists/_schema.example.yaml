@@ -1,0 +1,11 @@
+# ADR 0009 歌单索引示例（import 后生成；文件名为网易云 id）
+slug: 7590034564
+neteasePlaylistId: "7590034564"
+name: "如人饮水，冷暖自知"
+sourceUrl: "https://music.163.com/#/my/m/music/playlist?id=7590034564"
+importedAt: "2026-08-12T00:00:00.000Z"
+tracks:
+  - id: 357312
+    name: "示例曲名"
+    artists: ["示例歌手"]
+    durationMs: 303000

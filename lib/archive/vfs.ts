@@ -2,7 +2,7 @@ import type { ArchiveSnapshot, TerminalSession, TerminalToken } from "./types";
 import { zhCN } from "./i18n";
 import { toVfsPath } from "./document-ref";
 
-type VfsNodeType = "dir" | "project" | "thought" | "timeline" | "person";
+type VfsNodeType = "dir" | "project" | "thought" | "resource" | "timeline" | "person";
 
 export type VfsNode = {
   path: string;
@@ -89,6 +89,17 @@ export function createVfs(snapshot: ArchiveSnapshot): VfsNode {
           name: thought.ref.slug,
           type: "thought",
           refSlug: thought.ref.slug,
+        })),
+      },
+      {
+        path: "/resources",
+        name: zhCN.vfs.resources,
+        type: "dir",
+        children: snapshot.resources.map((resource) => ({
+          path: toVfsPath(resource.ref),
+          name: resource.ref.slug,
+          type: "resource",
+          refSlug: resource.ref.slug,
         })),
       },
       {

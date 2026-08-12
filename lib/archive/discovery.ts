@@ -4,6 +4,7 @@
  */
 
 import type { ArchiveDocument, ArchiveSnapshot } from "./types";
+import { allSnapshotDocuments } from "./types";
 import { refsEqual, toLocalKey, tryFromLocalKey } from "./document-ref";
 
 export type ItemKind = "document";
@@ -87,7 +88,7 @@ export function findItemByKey(
   const ref = tryFromLocalKey(localKey);
   if (!ref) return null;
   return (
-    [...snapshot.projects, ...snapshot.thoughts].find((document) =>
+    allSnapshotDocuments(snapshot).find((document) =>
       refsEqual(document.ref, ref),
     ) ?? null
   );
@@ -141,7 +142,7 @@ export function buildItemsIndex(
   filters?: ItemsIndexFilters,
   hrefFor: ItemHrefFor = defaultItemHref,
 ): { items: Partial<ItemListItem>[] } {
-  const allDocs = [...snapshot.projects, ...snapshot.thoughts];
+  const allDocs = allSnapshotDocuments(snapshot);
   const items = allDocs
     .map((document) => toItemListItem(document, hrefFor))
     .filter(

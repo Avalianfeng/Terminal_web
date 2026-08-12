@@ -1,6 +1,15 @@
-export type ContentGroup = "projects" | "thoughts";
+export type ContentGroup = "projects" | "thoughts" | "resources";
 
-export const CONTENT_GROUPS: readonly ContentGroup[] = ["projects", "thoughts"];
+export const CONTENT_GROUPS: readonly ContentGroup[] = [
+  "projects",
+  "thoughts",
+  "resources",
+];
+
+/** 错误提示用：`projects/<slug> or …`。 */
+export function contentGroupLocalKeyHint(): string {
+  return CONTENT_GROUPS.map((group) => `${group}/<slug>`).join(" or ");
+}
 
 /** slug 白名单：与现有内容命名一致，天然防路径穿越。 */
 export const SLUG_PATTERN = /^[a-z0-9_-]+$/;
@@ -85,4 +94,23 @@ export function emptyDocumentTemplate(slug: string): string {
     ],
     "",
   );
+}
+
+/** resources 组新建模板（url + resourceType 必填）。 */
+export function emptyResourceTemplate(slug: string): string {
+  return serializeDocument(
+    [
+      { key: "title", value: slug },
+      { key: "summary", value: "" },
+      { key: "url", value: "https://" },
+      { key: "resourceType", value: "article" },
+      { key: "status", value: "" },
+      { key: "tags", value: "" },
+    ],
+    "## 笔记\n\n",
+  );
+}
+
+export function documentTemplateForGroup(group: ContentGroup, slug: string): string {
+  return group === "resources" ? emptyResourceTemplate(slug) : emptyDocumentTemplate(slug);
 }

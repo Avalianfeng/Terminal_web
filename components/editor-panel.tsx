@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { getDocumentRaw, putDocumentRaw, removeDocument } from "@/lib/archive/actions";
-import { emptyDocumentTemplate } from "@/lib/archive/content-format";
+import { documentTemplateForGroup } from "@/lib/archive/content-format";
 import { zhCN } from "@/lib/archive/i18n";
 import {
   toLocalKey,
@@ -62,7 +62,7 @@ export function EditorPanel({ target, onDone }: EditorPanelProps) {
         return;
       }
       if (!result.ok && result.error === "not_found") {
-        const template = emptyDocumentTemplate(slug);
+        const template = documentTemplateForGroup(group, slug);
         setInitialRaw(template);
         setRaw(template);
         setBaseHash(null);

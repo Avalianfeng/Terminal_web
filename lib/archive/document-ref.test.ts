@@ -68,6 +68,10 @@ describe("fromLocalKey", () => {
   });
 
   it("rejects nested, empty, and unknown groups", () => {
+    assert.deepEqual(fromLocalKey("resources/foo"), {
+      group: "resources",
+      slug: "foo",
+    });
     assert.throws(() => fromLocalKey("thoughts/a/b"), DocumentRefError);
     assert.throws(() => fromLocalKey("thoughts/"), DocumentRefError);
     assert.throws(() => fromLocalKey("other/foo"), DocumentRefError);

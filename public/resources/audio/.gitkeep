@@ -1,0 +1,2 @@
+# 自托管音频文件放这里，例如 demo.mp3
+# 在 resources markdown 的 frontmatter 中：audio: "/resources/audio/demo.mp3"

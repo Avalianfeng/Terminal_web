@@ -13,6 +13,15 @@ export type PersonRecord = {
 
 import type { DocumentRef } from "./document-ref";
 
+export type ResourceType = "article" | "video" | "audio" | "link";
+
+export const RESOURCE_TYPES: readonly ResourceType[] = [
+  "article",
+  "video",
+  "audio",
+  "link",
+];
+
 export type ArchiveDocument = {
   ref: DocumentRef;
   title: string;
@@ -20,6 +29,13 @@ export type ArchiveDocument = {
   status?: string;
   body: string;
   tags: string[];
+  /** resources 组：外站链接与类型（parseDocument 写入）。 */
+  url?: string;
+  resourceType?: ResourceType;
+  platform?: string;
+  embed?: boolean;
+  /** resources 音频：自托管播放路径（public/ 下，如 /resources/audio/foo.mp3）。 */
+  audioSrc?: string;
 };
 
 export type TimelineEntry = {
@@ -32,6 +48,7 @@ export type ArchiveSnapshot = {
   person: PersonRecord;
   projects: ArchiveDocument[];
   thoughts: ArchiveDocument[];
+  resources: ArchiveDocument[];
   timeline: TimelineEntry[];
   generatedAt: string;
 };
@@ -82,3 +99,11 @@ export type ReadingSurface =
 
 /** main=主槽文档流；rail=已打开侧栏。 */
 export type ReadingLayout = "main" | "rail";
+
+export function allSnapshotDocuments(snapshot: ArchiveSnapshot): ArchiveDocument[] {
+  return [...snapshot.projects, ...snapshot.thoughts, ...snapshot.resources];
+}
+
+export function isResourceDocument(document: ArchiveDocument): boolean {
+  return document.ref.group === "resources";
+}
