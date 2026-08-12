@@ -7,16 +7,26 @@ This is a single Next.js 16 (App Router) + React 19 + TypeScript + Tailwind v4 w
 database or external service; content lives under `content/` and is served via
 Next.js (read snapshot + optional authenticated write API).
 
-Docs map (what to read first): `docs/00-文档入口.md`. Contract authority: `docs/08`. Structural decisions: `docs/adr/`. Backlog / debt tiers: `docs/09`. WIP status lives in the owner's local hub, not a second board in-repo.
+### Cloud Agent bootstrap
+
+- Environment is repo-managed: `.cursor/environment.json` (`npm ci` + `terminals.dev` → `npm run dev` on port 3000).
+- **Do not** look for the owner's local hub status files (Windows paths). They are intentionally absent in cloud. After cloud PRs merge, the owner syncs hub on their machine.
+- Open with: `docs/00-文档入口.md` + light Git fingerprint (`rev-parse HEAD` / `log -1 --format=%ci`). Authority: `docs/08` (contract), `docs/adr/` (structure), `docs/09` (backlog). Do not create a second in-repo WIP board.
+
+Docs map (what to read first): `docs/00-文档入口.md`. Contract authority: `docs/08`. Structural decisions: `docs/adr/`. Backlog / debt tiers: `docs/09`.
 
 Standard commands are defined in `package.json` (`dev`, `build`, `start`, `lint`, `token:generate`, `smoke:write-api`, `test:document-ref`, `test:command-registry`, `test:reading-session`, `test:discovery`):
 
-- Dev server: `npm run dev` (Next.js + Turbopack, serves on http://localhost:3000).
+- Dev server: `npm run dev` (Next.js + Turbopack, serves on http://localhost:3000). Cloud environments usually start this via `terminals`.
 - Lint: `npm run lint` (ESLint flat config).
 - Type-check: `npx tsc --noEmit` (there is no dedicated `typecheck` script; `next build` also runs TS).
 - Build: `npm run build`.
-- Write token: `npm run token:generate [--scope <scope>]` (prints plaintext once; stores SHA-256 in `.env.local`).
+- Write token: `npm run token:generate [--scope <scope>]` (prints plaintext once; stores SHA-256 in `.env.local`). Prefer Cursor environment Secrets for cloud; never commit tokens.
 - Write API smoke: `ARCHIVE_WRITE_TOKEN=<token> npm run smoke:write-api` (needs `thoughts/*` scope + restarted dev; see `docs/10-agent-写API验收.md`).
+
+### Cloud verification (when touching API / env / write path)
+
+Preferred order: `npm run lint` → `npx tsc --noEmit` → `npm run test:document-ref` → `npm run test:command-registry` → `npm run test:reading-session` → `npm run test:discovery` → (optional) `npm run smoke:write-api` if a write token Secret is available → load `/` and run terminal `help`.
 
 Notes / non-obvious caveats:
 

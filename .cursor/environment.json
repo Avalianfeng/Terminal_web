@@ -1,0 +1,17 @@
+{
+  "name": "Terminal_web",
+  "install": "npm ci",
+  "terminals": [
+    {
+      "name": "dev",
+      "command": "npm run dev",
+      "description": "Next.js dev server (http://localhost:3000). Restart if port 3000 is free but the app is down."
+    }
+  ],
+  "ports": [
+    {
+      "name": "web",
+      "port": 3000
+    }
+  ]
+}
