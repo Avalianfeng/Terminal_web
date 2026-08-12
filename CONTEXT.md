@@ -39,3 +39,11 @@ _Avoid_: leave/demote orchestration only in components; embedding animation dura
 **discovery / api-http / read-adapter**:
 Split of the former `api-read` bag: **discovery** owns Item model, index/filter/lookup, and document→Item projection (`href` via injectable `ItemHrefFor`); **api-http** owns JSON envelopes (`jsonOk`/`jsonError`); **read-adapter** owns filesystem → `ItemPayload` (hash). `api-read.ts` remains a thin deprecated barrel.
 _Avoid_: mixing NextResponse or fs I/O into discovery; treating HTTP href strings as document identity
+
+**DeploymentPosture**:
+`local-dev` (owner `edit` / Server Actions allowed without Bearer) vs `public-production` (visitors read-only; UI write must be gated off or auth-equivalent to HTTP). Authority: `docs/adr/0007-security-deployment-posture.md`.
+_Avoid_: treating ADR 0005 "no Bearer on Actions" as global; adding new unauthenticated write surfaces on the public web
+
+**UiWriteGate**:
+The env-controlled switch (planned: `ARCHIVE_UI_WRITE`) that disables terminal `edit`, command-registry registration, and Server Action mutations in `public-production`. HTTP Bearer write stays enabled when tokens are configured.
+_Avoid_: hiding `edit` from help only while leaving Actions callable; direct `fs` writes outside `content-write.ts`

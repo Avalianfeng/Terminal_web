@@ -5,6 +5,7 @@
 - **Commit**: `d678064`
 - **Code**: `lib/archive/content-write.ts`；`lib/archive/actions.ts`；`components/editor-panel.tsx`；`app/api/v1/items/route.ts`
 - **Contract**: `docs/08` §5.7 / §5.8；手测 `docs/11`
+- **See also**: [0007 安全与部署姿态](0007-security-deployment-posture.md) — Decision 第 3 条「Actions 无 Bearer」**仅 local-dev**；公网 UI 写闸门见 0007
 
 ## Context
 

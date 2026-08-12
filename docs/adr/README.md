@@ -5,9 +5,10 @@
 
 ## 怎么用
 
-1. 改身份、写路径、命令注册、阅读会话、发现/HTTP 边界等**模块形状**前：先读相关 ADR。  
+1. 改身份、写路径、命令注册、阅读会话、发现/HTTP 边界、**公网写面 / 部署安全**等**模块形状**前：先读相关 ADR。  
 2. 若要推翻某条：新开 ADR（`Supersedes: NNNN`），勿改写历史 Decision 装成从未选过。  
-3. 新 ADR：复制最短模板（Context / Decision / Consequences / Rejected）；编号递增。
+3. 新 ADR：复制最短模板（Context / Decision / Consequences / Rejected）；编号递增。  
+4. **加任何写能力**：必读 [0007](0007-security-deployment-posture.md) §3 纪律 A–E。
 
 ## 索引
 
@@ -19,5 +20,6 @@
 | [0004](0004-reading-session.md) | 阅读会话 leave/demote 状态机 | Accepted | `74c317e` |
 | [0005](0005-unified-write-entry.md) | 统一写入口 + expectedHash | Accepted | `d678064` |
 | [0006](0006-post-write-reading-refresh.md) | 写后阅读面即时刷新 | Accepted | `3d88447` |
+| [0007](0007-security-deployment-posture.md) | 安全与部署姿态（写面分轨） | Accepted | （文档刀；上线闸门代码未落地） |
 
-编号与 2026-08-11 架构深化候选 #1–#6 对齐，便于对照；落地顺序不必等于编号顺序。
+编号与 2026-08-11 架构深化候选 #1–#6 对齐，便于对照；#7 为 2026-08-12 安全审计后的部署原则；落地顺序不必等于编号顺序。

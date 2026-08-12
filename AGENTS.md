@@ -13,7 +13,7 @@ Next.js (read snapshot + optional authenticated write API).
 - **Do not** look for the owner's local hub status files (Windows paths). They are intentionally absent in cloud. After cloud PRs merge, the owner syncs hub on their machine.
 - Open with: `docs/00-文档入口.md` + light Git fingerprint (`rev-parse HEAD` / `log -1 --format=%ci`). Authority: `docs/08` (contract), `docs/adr/` (structure), `docs/09` (backlog). Do not create a second in-repo WIP board.
 
-Docs map (what to read first): `docs/00-文档入口.md`. Contract authority: `docs/08`. Structural decisions: `docs/adr/`. Backlog / debt tiers: `docs/09`.
+Docs map (what to read first): `docs/00-文档入口.md`. Contract authority: `docs/08`. Structural decisions: `docs/adr/` (security / deploy posture: `docs/adr/0007-security-deployment-posture.md`). Backlog / debt tiers: `docs/09`.
 
 Standard commands are defined in `package.json` (`dev`, `build`, `start`, `lint`, `token:generate`, `smoke:write-api`, `test:document-ref`, `test:command-registry`, `test:reading-session`, `test:discovery`):
 
@@ -32,5 +32,5 @@ Notes / non-obvious caveats:
 
 - No full test suite (no Jest/Vitest/Playwright). Contract regression for the write API: `npm run smoke:write-api`. Unit tests: `test:document-ref`, `test:command-registry`, `test:reading-session`, `test:discovery`. Also use `npm run lint`, `npx tsc --noEmit`, `npm run build`, and manual terminal UI checks.
 - The UI is a fake shell: interact by typing commands (`help`, `ls`, `about`, `projects`, `thoughts`, `timeline`, `search`, `find`, `open`, `edit`, `themes`, `cd`, `cat`, `tree`, etc.). A basic smoke test is loading `/` and running `help`.
-- Owner editing: terminal `edit <path|slug>` opens a full-screen editor (server actions → `content-write.ts`). Manual regression checklist: `docs/11-终端edit手测清单.md`. Agent writing: `PUT`/`PATCH`/`DELETE /api/v1/items?source=local&localKey=…` with `Authorization: Bearer <token>` and optional `If-Match` (see `docs/08` §5.7 / §5.8). Playbook: `docs/10-agent-写API验收.md`.
+- Owner editing: terminal `edit <path|slug>` opens a full-screen editor (server actions → `content-write.ts`). **local-dev only** by design; public deploy must gate UI write per `docs/adr/0007-security-deployment-posture.md`. Manual regression checklist: `docs/11-终端edit手测清单.md`. Agent writing: `PUT`/`PATCH`/`DELETE /api/v1/items?source=local&localKey=…` with `Authorization: Bearer <token>` and optional `If-Match` (see `docs/08` §5.7 / §5.8). Playbook: `docs/10-agent-写API验收.md`.
 - UI language is Chinese (`lang="zh-CN"`).
