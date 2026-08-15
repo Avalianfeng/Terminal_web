@@ -34,7 +34,14 @@
 | 8 | `edit`（无参） | `用法: edit <路径\|slug>…` | 2026-08-10 |
 | 9 | `edit timeline` | `目标不是可读取节点`（timeline 非文档） | 2026-08-10 |
 
-## 说明
+## 身份闸门（ADR 0010）
+
+| # | 步骤 | 期望 | 抽查 |
+|---|------|------|------|
+| 10 | 本机 `npm run dev` 不 login，`edit` 仍可用 | implicit owner | |
+| 11 | 公网 / `NODE_ENV=production` 未登录：`help` 无 edit；手打 `edit` 提示需要主人会话 | visitor | |
+| 12 | 公网未登录直接调 Server Action 保存 | 失败（forbidden） | |
+| 13 | `login`（help 不列出）→ 掩码口令 → `whoami` 角色 owner → `edit` 可保存 | session | |
 
 - 不自动化进 CI；改 `resolveEditTarget` / 编辑面板读路径后重跑本表即可。
 - 破坏性步骤（#7）用一次性 slug（如 `_edit_smoke_tmp`），勿动真实档案。

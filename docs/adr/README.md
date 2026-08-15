@@ -22,6 +22,7 @@
 | [0006](0006-post-write-reading-refresh.md) | 写后阅读面即时刷新 | Accepted | `3d88447` |
 | [0007](0007-security-deployment-posture.md) | 安全与部署姿态（写面分轨） | Accepted | （文档刀；上线闸门代码未落地） |
 | [0008](0008-resources-content-group.md) | resources 组与外部收藏呈现 | Accepted | （resources MVP） |
-| [0009](0009-music-layer-netease-bff.md) | 音乐层（网易云 BFF + 歌单 + BGM） | Accepted | 热队列已收口；冷库管理页否决 |
+| [0009](0009-music-layer-netease-bff.md) | 音乐层（网易云 BFF + 歌单 + BGM） | Accepted | 热队列已收口；冷库管理页否决；BFF 闸见 0010 |
+| [0010](0010-site-principal.md) | 站点主语 SitePrincipal（visitor / owner） | Accepted | 口令 session + UI 写 / 音乐 BFF |
 
-编号与 2026-08-11 架构深化候选 #1–#6 对齐，便于对照；#7 为 2026-08-12 安全审计后的部署原则；#8 resources；#9 music 层；落地顺序不必等于编号顺序。
+编号与 2026-08-11 架构深化候选 #1–#6 对齐，便于对照；#7 为 2026-08-12 安全审计后的部署原则；#8 resources；#9 music 层；#10 网页身份；落地顺序不必等于编号顺序。

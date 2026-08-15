@@ -4,6 +4,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { allowedWriteOrigin } from "./write-cors";
 
 export const API_VERSION = 1 as const;
 
@@ -15,7 +16,29 @@ export type ApiErrorCode =
   | "forbidden"
   | "conflict";
 
-function corsHeaders(generatedAt?: string): HeadersInit {
+type CorsMode = "read" | "write";
+
+function corsHeaders(
+  generatedAt?: string,
+  cors?: { mode?: CorsMode; request?: Request },
+): HeadersInit {
+  if (cors?.mode === "write") {
+    const origin = allowedWriteOrigin({
+      origin: cors.request?.headers.get("origin") ?? null,
+      requestUrl: cors.request?.url,
+      configuredOrigin: process.env.ARCHIVE_PUBLIC_ORIGIN,
+      nodeEnv: process.env.NODE_ENV,
+    });
+    const headers: Record<string, string> = {
+      "Access-Control-Allow-Methods": "GET, PUT, PATCH, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, If-Match",
+      Vary: "Origin",
+    };
+    if (origin) headers["Access-Control-Allow-Origin"] = origin;
+    if (generatedAt) headers["X-Archive-Generated-At"] = generatedAt;
+    return headers;
+  }
+
   const headers: Record<string, string> = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, PUT, PATCH, DELETE, OPTIONS",
@@ -30,7 +53,7 @@ function corsHeaders(generatedAt?: string): HeadersInit {
 export function jsonOk<T>(
   data: T,
   generatedAt: string,
-  init?: { status?: number },
+  init?: { status?: number; request?: Request; cors?: CorsMode },
 ) {
   return NextResponse.json(
     {
@@ -41,7 +64,10 @@ export function jsonOk<T>(
     },
     {
       status: init?.status ?? 200,
-      headers: corsHeaders(generatedAt),
+      headers: corsHeaders(generatedAt, {
+        mode: init?.cors ?? "read",
+        request: init?.request,
+      }),
     },
   );
 }
@@ -51,6 +77,7 @@ export function jsonError(
   message: string,
   status: number,
   extraHeaders?: HeadersInit,
+  cors?: { mode?: CorsMode; request?: Request },
 ) {
   return NextResponse.json(
     {
@@ -62,7 +89,7 @@ export function jsonError(
     {
       status,
       headers: {
-        ...corsHeaders(),
+        ...corsHeaders(undefined, cors),
         ...extraHeaders,
       },
     },
@@ -82,5 +109,12 @@ export function optionsCors() {
   return new NextResponse(null, {
     status: 204,
     headers: corsHeaders(),
+  });
+}
+
+export function optionsCorsWrite(request: Request) {
+  return new NextResponse(null, {
+    status: 204,
+    headers: corsHeaders(undefined, { mode: "write", request }),
   });
 }

@@ -2,6 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-08-12
+- **Revised**: 2026-08-15（公网 UI 写改认 [0010](0010-site-principal.md) owner session；`ARCHIVE_UI_WRITE` 降为事故闸）
 - **Supersedes**: 无（**收窄** [0005](0005-unified-write-entry.md) 第 3 条「Actions 无 Bearer」的适用语境，见下文 §与 0005 的关系）
 - **Code**（落地时）：`lib/archive/actions.ts`；`lib/archive/command-registry.ts`；`lib/archive/markdown-prose.tsx`；`lib/archive/api-http.ts`；部署 env / runbook（见 [`09`](../09-v1.x-后续工作.md) §3.4）
 - **Contract**: [`06`](../06-v1.0-路线纲要.md) §3.2 / AI 入口原则；[`08`](../08-发现层对象模型.md) §5.7 / §5.8；清单 [`09`](../09-v1.x-后续工作.md) §3.4
@@ -19,14 +20,14 @@
 | 姿态 | 含义 | 访客 | 人写（`edit` / Actions） | Agent 写（HTTP） |
 |------|------|------|---------------------------|------------------|
 | **local-dev** | 本机 `npm run dev`、未对公网暴露 | 通常无真实访客 | **允许**无 Bearer（0005 原意） | Bearer + scope（与生产相同） |
-| **public-production** | cylf.me 或任意公网实例 | 只读 | **禁止**无鉴权写；须关 UI 写或同级鉴权 | Bearer + scope（必须） |
+| **public-production** | cylf.me 或任意公网实例 | 未登录只读 | **禁止**无鉴权写；须 [0010](0010-site-principal.md) owner session（或事故闸关死） | Bearer + scope（必须） |
 
 **不变量**：无论姿态，**盘路径只经 `content-write.ts` 拼接**；身份只经 **DocumentRef**（[0001](0001-document-ref.md)）。
 
 ### 2. 写面双轨（不变）
 
 1. **HTTP**（`PUT` / `PATCH` / `DELETE /api/v1/items`）：**始终** Bearer + scope + 可选 `If-Match`；所有姿态一致。  
-2. **UI**（终端 `edit` → Server Actions → 同一写内核）：**仅 local-dev 默认可用**；public-production **必须**通过 env 闸门关闭（见 §落地项），不得依赖「访客不知道命令」。
+2. **UI**（终端 `edit` → Server Actions → 同一写内核）：**local-dev 默认可用**（implicit owner，[0010](0010-site-principal.md)）；public-production **必须** owner session（或 `ARCHIVE_UI_WRITE=false` 事故关死），不得依赖「访客不知道命令」。
 
 ### 3. 新功能纪律（防矛盾）
 
@@ -56,10 +57,10 @@
 
 - **有意暴露**写能力给 Agent；不是漏洞。公网仍靠 Bearer，不靠隐藏 capability 位。
 
-### 7. 未来「完整权限 / 审计 / session」（[`09`](../09-v1.x-后续工作.md) §3.3）
+### 7. Session 化 UI 写（[`0010`](0010-site-principal.md)）
 
-- 属能力扩展，**不**替代 §2 的公网 UI 写闸门。  
-- 若日后为 UI 写引入 session，须与 HTTP scope 模型对齐，并修订本 ADR 或新开 ADR（`Supersedes: 0007`）。
+- 单主人口令 + httpOnly cookie 已落地（visitor / owner）。**不**替代 HTTP Bearer；不引入多人 RBAC / 审计（仍见 [`09`](../09-v1.x-后续工作.md) §3.3）。  
+- 可选事故闸：`ARCHIVE_UI_WRITE=false` 时即使 owner 也关 UI 写。
 
 ## 路线图（当前仅 local-dev）
 
@@ -81,16 +82,16 @@
 
 > 合成一次「部署姿态落地」PR 即可；不必等功能齐全。顺序建议：
 
-1. **UI 写闸门** `ARCHIVE_UI_WRITE`（名可微调，语义不变）  
-   - 默认：`public-production` = `false`；`local-dev` = `true`（或未设时 dev 友好）。  
-   - `command-registry`：`edit` 不注册 / `help` 不展示。  
-   - `actions.ts`：`getDocumentRaw` / `putDocumentRaw` / `removeDocument` 入口硬拒（防直接调 Server Action）。  
-   - [`11`](../11-终端edit手测清单.md) 增「闸门关闭」用例；可选 smoke 断言。
+1. **UI 写闸门** = [0010](0010-site-principal.md) owner principal（local-dev implicit；公网须 session）  
+   - `command-registry`：visitor 的 help/Tab 不列 `edit`。  
+   - `actions.ts`：`getDocumentRaw` / `putDocumentRaw` / `removeDocument` 入口硬拒 visitor。  
+   - 可选 `ARCHIVE_UI_WRITE=false` 事故关死。  
+   - [`11`](../11-终端edit手测清单.md) / [`12`](../12-站点身份手测.md)。
 2. **Markdown `href` 协议白名单**（`markdown-prose.tsx`）。
 3. **写 API CORS** 收紧（`api-http.ts`）。
 4. **cylf.me 短 runbook**（[`09`](../09-v1.x-后续工作.md) §3.2）：env 清单、token 轮换、`ARCHIVE_UI_WRITE=false`、冒烟口令链到 [`10`](../10-agent-写API验收.md)。
 
-**过关信号**：公网实例上访客终端无 `edit`；直接 POST Server Action 失败；`smoke:write-api` 仍全绿；手测 `open`/`cat` 只读正常。
+**过关信号**：公网实例上访客终端无 `edit`；直接 POST Server Action 失败；owner `login` 后可 edit；`smoke:write-api` 仍全绿；手测 `open`/`cat` 只读正常。
 
 ### 上线后 / 有刚需再做（[`09`](../09-v1.x-后续工作.md) §3.3）
 
@@ -105,7 +106,7 @@
 
 ## Rejected
 
-- **现在**就关 `edit` 或给 Actions 上完整 session（无公网部署，过度工程）。  
+- **现在**就把 local-dev 的 `edit` 关掉或给 Actions 上 Bearer（无必要；0010 已用 principal）。  
 - 删掉 `edit` / Actions 代码，只留 HTTP（损失本机主人面，与 0005 目标冲突）。  
 - 把安全原则只写在 [`09`](../09-v1.x-后续工作.md) 或审计聊天记录里，而不进 ADR（无法约束结构变更）。  
 - public-production 仅靠「不在 help 里写 `edit`」、Actions 不校验（可被直接调用）。
@@ -114,4 +115,4 @@
 
 - 0005 的 Decision 第 3 条 **仍然成立**，但**仅适用于 local-dev 姿态**。  
 - 0005 Rejected「Actions 模仿 HTTP 引入 Bearer」在 **public-production** 下由 **关 UI 写** 满足「禁止无鉴权可写」，**不要求**本刀给 Actions 加 Bearer。  
-- 若未来 public-production 也要浏览器内 `edit`，须 **新开 ADR**（`Supersedes: 0007` 相关条款），设计 UI 写与 HTTP 同级鉴权，而非悄悄恢复无 Bearer Actions。
+- 若未来 public-production 要换鉴权方式（OAuth / Passkey），须 **新开 ADR**（`Supersedes: 0010`），不得悄悄恢复无鉴权 Actions。

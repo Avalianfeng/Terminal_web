@@ -12,7 +12,7 @@
 
 ## Decision
 
-1. **CommandSpec 表**为权威：`name`、`aliases?`、`section?`+`usage`、`argComplete`。  
+1. **CommandSpec 表**为权威：`name`、`aliases?`、`section?`+`usage`、`argComplete`、可选 `secret`（help/Tab 均不列出）、可选 `requiresOwner`（visitor 的 help/Tab 省略）。  
 2. Tab 补全、`help` 分段、alias 解析、已知命令高亮均 **派生** 自该表。  
 3. `argComplete` 为策略枚举：`none | dirs | all | cat | open | music`；算法仍在 `complete.ts`（`music` 的候选词表同源自 `lib/music/music-command.ts`）。  
 4. 落点：`command-registry.ts`；删除平行 `aliases.ts`；`i18n.help` 只留 title / 段标题 / shortcuts。  

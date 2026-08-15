@@ -43,20 +43,22 @@ export function createSession(): TerminalSession {
   };
 }
 
-/** Shell 提示符：根目录显示 ~，否则 ~/相对路径。 */
-export function formatShellPrompt(cwd: string) {
+export function formatShellPrompt(cwd: string, role: "visitor" | "owner" = "visitor") {
   const pathPart = cwd === "/" ? "~" : `~${cwd}`;
-  return `visitor@archive:${pathPart}$`;
+  return `${role}@archive:${pathPart}$`;
 }
 
 /**
  * 传统 shell 配色：`user@host` 同色（绿），路径蓝，
  * `:` / `$` 用默认前景（无色分割）。
  */
-export function formatShellPromptTokens(cwd: string): TerminalToken[] {
+export function formatShellPromptTokens(
+  cwd: string,
+  role: "visitor" | "owner" = "visitor",
+): TerminalToken[] {
   const pathPart = cwd === "/" ? "~" : `~${cwd}`;
   return [
-    { text: "visitor@archive", tone: "user" },
+    { text: `${role}@archive`, tone: "user" },
     { text: ":", tone: "normal" },
     { text: pathPart, tone: "path" },
     { text: "$", tone: "normal" },

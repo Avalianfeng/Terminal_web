@@ -43,7 +43,7 @@
 
 契约回归（本机）：`ARCHIVE_WRITE_TOKEN=<token> npm run smoke:write-api`（推荐 scope `thoughts/*`，改 `.env.local` 后需重启 `dev`）。短 playbook：[`docs/10-agent-写API验收.md`](docs/10-agent-写API验收.md)。
 
-完整契约见 [`docs/08-发现层对象模型.md`](docs/08-发现层对象模型.md) §5（§5.7 为写契约）。旧版 [`docs/07-公开读API.md`](docs/07-公开读API.md) 已被替代，保留作为历史记录。终端内 `edit` 命令供所有者本机直接编辑内容文件（server actions，不走 HTTP）。
+完整契约见 [`docs/08-发现层对象模型.md`](docs/08-发现层对象模型.md) §5（§5.7 为写契约）。旧版 [`docs/07-公开读API.md`](docs/07-公开读API.md) 已被替代，保留作为历史记录。终端内 `edit` 命令供所有者编辑内容文件（server actions；local-dev 隐式主人，公网须 `login`，见 [`docs/adr/0010-site-principal.md`](docs/adr/0010-site-principal.md)）。
 
 ## 终端功能
 
@@ -63,7 +63,8 @@
 | `find [关键词]`    | 按路径 / 名称检索（空则列出可打开节点） |
 | `status`         | 档案计数与索引状态 |
 | `open <slug>`   | 打开项目或文章   |
-| `edit <路径>`     | 在终端内编辑/新建/删除文档（仅本机所有者） |
+| `edit <路径>`     | 编辑/新建/删除文档（owner；本机可不 login） |
+| `whoami`            | 档案人物名与站点角色 |
 | `themes`        | 提示主题试验台路径 |
 | `clear` / `cls` | 清空终端会话    |
 
@@ -80,7 +81,7 @@
 | `cd <路径>`           | 切换工作目录   |
 | `tree`              | 显示目录树    |
 | `cat <文件>`          | 读取节点内容   |
-| `whoami`            | 显示人物姓名   |
+| `whoami`            | 档案人物名与站点角色 |
 | `history`           | 显示会话命令历史 |
 
 
@@ -132,7 +133,7 @@ Markdown 文件支持 YAML frontmatter（`title`、`summary`、`status`、`tags`
 **已实现：**
 
 - 终端浏览、打开、搜索、阅读公开记录
-- 终端内编辑：`edit` 命令打开编辑器面板，可改 frontmatter + 正文、新建、删除（`content-write.ts` 原子写）
+- 终端内编辑：`edit`（owner；本机 implicit，公网 `login`）打开编辑器面板，可改 frontmatter + 正文、新建、删除（`content-write.ts` 原子写）
 - Markdown/JSON 内容层
 - 命令历史（上下箭头）
 - 基础动效与 `prefers-reduced-motion` 适配

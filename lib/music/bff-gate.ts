@@ -1,4 +1,9 @@
-/** 音乐 BFF 仅 local-dev；公网闸门另开（ADR 0007 / 0009）。 */
-export function isMusicBffEnabled(): boolean {
-  return process.env.NODE_ENV !== "production";
+import { requireOwnerPrincipal } from "@/lib/archive/site-auth";
+
+/** @deprecated 用 requireOwnerPrincipal；保留别名以免旧 import 断裂。 */
+export { requireOwnerPrincipal };
+
+export async function isMusicBffEnabled(): Promise<boolean> {
+  const denied = await requireOwnerPrincipal();
+  return denied === null;
 }

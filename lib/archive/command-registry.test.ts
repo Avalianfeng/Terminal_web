@@ -36,6 +36,16 @@ describe("command-registry", () => {
     assert.ok(names.includes("?"));
     assert.ok(names.includes("cls"));
     assert.ok(names.includes("dir"));
+    assert.ok(!names.includes("login"));
+    assert.ok(!names.includes("logout"));
+    assert.ok(names.includes("edit"));
+  });
+
+  it("hides owner-only and secret commands for visitors", () => {
+    const names = completableCommandNames("visitor");
+    assert.ok(!names.includes("edit"));
+    assert.ok(!names.includes("login"));
+    assert.ok(names.includes("ls"));
   });
 
   it("looks up argComplete from the table", () => {
@@ -57,6 +67,14 @@ describe("command-registry", () => {
     assert.ok(!explore.some((line) => line.startsWith("help")));
     assert.equal(getCommand("help")?.section, undefined);
     assert.ok(helpUsagesForSection("session").some((line) => line.startsWith("edit ")));
+    assert.ok(
+      !helpUsagesForSection("session", "visitor").some((line) =>
+        line.startsWith("edit "),
+      ),
+    );
+    assert.equal(getCommand("login")?.secret, true);
+    assert.equal(getCommand("logout")?.secret, true);
+    assert.ok(!helpUsagesForSection("session").some((line) => line.startsWith("login")));
   });
 
   it("recognizes known commands via alias", () => {

@@ -13,15 +13,16 @@ Next.js (read snapshot + optional authenticated write API).
 - **Do not** look for the owner's local hub status files (Windows paths). They are intentionally absent in cloud. After cloud PRs merge, the owner syncs hub on their machine.
 - Open with: `docs/00-文档入口.md` + light Git fingerprint (`rev-parse HEAD` / `log -1 --format=%ci`). Authority: `docs/08` (contract), `docs/adr/` (structure), `docs/09` (backlog). Do not create a second in-repo WIP board.
 
-Docs map (what to read first): `docs/00-文档入口.md`. Contract authority: `docs/08`. Structural decisions: `docs/adr/` (security / deploy posture: `docs/adr/0007-security-deployment-posture.md`). Backlog / debt tiers: `docs/09`.
+Docs map (what to read first): `docs/00-文档入口.md`. Contract authority: `docs/08`. Structural decisions: `docs/adr/` (security / deploy: `0007`; site identity: `0010`). Backlog / debt tiers: `docs/09`.
 
-Standard commands are defined in `package.json` (`dev`, `build`, `start`, `lint`, `token:generate`, `smoke:write-api`, `test:document-ref`, `test:command-registry`, `test:reading-session`, `test:discovery`):
+Standard commands are defined in `package.json` (`dev`, `build`, `start`, `lint`, `token:generate`, `owner:password`, `smoke:write-api`, `test:document-ref`, `test:command-registry`, `test:reading-session`, `test:discovery`, `test:site-principal`, `test:owner-session`, `test:owner-password`):
 
 - Dev server: `npm run dev` (Next.js + Turbopack, serves on http://localhost:3000). Cloud environments usually start this via `terminals`.
 - Lint: `npm run lint` (ESLint flat config).
 - Type-check: `npx tsc --noEmit` (there is no dedicated `typecheck` script; `next build` also runs TS).
 - Build: `npm run build`.
 - Write token: `npm run token:generate [--scope <scope>]` (prints plaintext once; stores SHA-256 in `.env.local`). Prefer Cursor environment Secrets for cloud; never commit tokens.
+- Owner password: `npm run owner:password` (TTY 下掩码输入；scrypt hash → `ARCHIVE_OWNER_PASSWORD_HASH`; also ensures `ARCHIVE_SESSION_SECRET`). Non-TTY: `npm run owner:password -- --password <明文>`. See `docs/adr/0010-site-principal.md`.
 - Write API smoke: `ARCHIVE_WRITE_TOKEN=<token> npm run smoke:write-api` (needs `thoughts/*` scope + restarted dev; see `docs/10-agent-写API验收.md`).
 
 ### Cloud verification (when touching API / env / write path)
@@ -32,5 +33,5 @@ Notes / non-obvious caveats:
 
 - No full test suite (no Jest/Vitest/Playwright). Contract regression for the write API: `npm run smoke:write-api`. Unit tests: `test:document-ref`, `test:command-registry`, `test:reading-session`, `test:discovery`, `test:playback-session`（及 music 其它 `test:*`）。 Also use `npm run lint`, `npx tsc --noEmit`, `npm run build`, and manual terminal UI checks.
 - The UI is a fake shell: interact by typing commands (`help`, `ls`, `about`, `projects`, `thoughts`, `timeline`, `search`, `find`, `open`, `edit`, `themes`, `cd`, `cat`, `tree`, etc.). A basic smoke test is loading `/` and running `help`.
-- Owner editing: terminal `edit <path|slug>` opens a full-screen editor (server actions → `content-write.ts`). **local-dev only** by design; public deploy must gate UI write per `docs/adr/0007-security-deployment-posture.md`. Manual regression checklist: `docs/11-终端edit手测清单.md`. Agent writing: `PUT`/`PATCH`/`DELETE /api/v1/items?source=local&localKey=…` with `Authorization: Bearer <token>` and optional `If-Match` (see `docs/08` §5.7 / §5.8). Playbook: `docs/10-agent-写API验收.md`.
+- Owner editing: terminal `edit <path|slug>` opens a full-screen editor (server actions → `content-write.ts`). **local-dev** is implicit owner; **public** requires terminal `login` (hidden from help) per `docs/adr/0010-site-principal.md`. Manual lists: `docs/11-终端edit手测清单.md`, `docs/12-站点身份手测.md`. Agent writing: `PUT`/`PATCH`/`DELETE /api/v1/items?source=local&localKey=…` with `Authorization: Bearer <token>` and optional `If-Match` (see `docs/08` §5.7 / §5.8). Playbook: `docs/10-agent-写API验收.md`.
 - UI language is Chinese (`lang="zh-CN"`).

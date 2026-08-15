@@ -5,7 +5,7 @@
 - **Commit**: `d678064`
 - **Code**: `lib/archive/content-write.ts`；`lib/archive/actions.ts`；`components/editor-panel.tsx`；`app/api/v1/items/route.ts`
 - **Contract**: `docs/08` §5.7 / §5.8；手测 `docs/11`
-- **See also**: [0007 安全与部署姿态](0007-security-deployment-posture.md) — Decision 第 3 条「Actions 无 Bearer」**仅 local-dev**；公网 UI 写闸门见 0007
+- **See also**: [0007 安全与部署姿态](0007-security-deployment-posture.md)；[0010 SitePrincipal](0010-site-principal.md) — Actions **无 Bearer** 仍成立，但必须 owner principal（local-dev implicit 或 session）
 
 ## Context
 
@@ -15,7 +15,7 @@ HTTP 写与终端 Server Actions 曾分叉；终端 `edit` 未接乐观并发，
 
 1. 写内核四操作（save / saveRaw / patch / delete）统一吃 **DocumentRef** + options（含 `expectedHash`）。  
 2. **终端 edit 接 expectedHash**：冲突提示 + 重载；本刀含最小可用 UI。  
-3. Actions **无 Bearer**（本机主人面）；HTTP 仍 Bearer + scope；盘路径只在写内核。  
+3. Actions **无 Bearer**（本机 / 浏览器主人面）；须 [0010](0010-site-principal.md) owner principal；HTTP 仍 Bearer + scope；盘路径只在写内核。  
 4. 读回 raw 时带上 hash，供编辑器 `baseHash` / `If-Match`。
 
 ## Consequences

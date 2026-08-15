@@ -8,7 +8,7 @@ import {
   jsonError,
   jsonOk,
   methodNotAllowed,
-  optionsCors,
+  optionsCorsWrite,
 } from "@/lib/archive/api-http";
 import {
   payloadFromRaw,
@@ -65,28 +65,38 @@ function requireWriteScope(
   return { authorized: true };
 }
 
-function writeErrorResponse(error: WriteError) {
+function writeErrorResponse(error: WriteError, request: Request) {
   const status =
     error.code === "bad_request"
       ? 400
       : error.code === "not_found"
         ? 404
         : 409;
-  return jsonError(error.code, error.message, status);
+  return jsonError(error.code, error.message, status, undefined, {
+    mode: "write",
+    request,
+  });
 }
 
-function writeAuthFailure(error: "unauthorized" | "forbidden") {
+function writeAuthFailure(
+  error: "unauthorized" | "forbidden",
+  request: Request,
+) {
   if (error === "unauthorized") {
     return jsonError(
       "unauthorized",
       "Missing or invalid token. Use Authorization: Bearer <token>.",
       401,
+      undefined,
+      { mode: "write", request },
     );
   }
   return jsonError(
     "forbidden",
     "Token does not cover this localKey (scope insufficient).",
     403,
+    undefined,
+    { mode: "write", request },
   );
 }
 
@@ -313,7 +323,7 @@ export async function PUT(request: Request) {
     request.headers.get("authorization"),
     localKey,
   );
-  if (!auth.authorized) return writeAuthFailure(auth.error);
+  if (!auth.authorized) return writeAuthFailure(auth.error, request);
 
   try {
     const ref = requireDocumentRef(localKey);
@@ -347,10 +357,10 @@ export async function PUT(request: Request) {
     return jsonOk(
       { ...payload, created: result.created },
       new Date().toISOString(),
-      { status: result.created ? 201 : 200 },
+      { status: result.created ? 201 : 200, cors: "write", request },
     );
   } catch (error) {
-    if (error instanceof WriteError) return writeErrorResponse(error);
+    if (error instanceof WriteError) return writeErrorResponse(error, request);
     throw error;
   }
 }
@@ -373,7 +383,7 @@ export async function PATCH(request: Request) {
     request.headers.get("authorization"),
     localKey,
   );
-  if (!auth.authorized) return writeAuthFailure(auth.error);
+  if (!auth.authorized) return writeAuthFailure(auth.error, request);
 
   try {
     const ref = requireDocumentRef(localKey);
@@ -390,9 +400,10 @@ export async function PATCH(request: Request) {
     return jsonOk(
       { ...payload, created: false },
       new Date().toISOString(),
+      { cors: "write", request },
     );
   } catch (error) {
-    if (error instanceof WriteError) return writeErrorResponse(error);
+    if (error instanceof WriteError) return writeErrorResponse(error, request);
     throw error;
   }
 }
@@ -415,7 +426,7 @@ export async function DELETE(request: Request) {
     request.headers.get("authorization"),
     localKey,
   );
-  if (!auth.authorized) return writeAuthFailure(auth.error);
+  if (!auth.authorized) return writeAuthFailure(auth.error, request);
 
   try {
     const ref = requireDocumentRef(localKey);
@@ -425,15 +436,16 @@ export async function DELETE(request: Request) {
     return jsonOk(
       { source: "local", localKey, deleted: true },
       new Date().toISOString(),
+      { cors: "write", request },
     );
   } catch (error) {
-    if (error instanceof WriteError) return writeErrorResponse(error);
+    if (error instanceof WriteError) return writeErrorResponse(error, request);
     throw error;
   }
 }
 
-export function OPTIONS() {
-  return optionsCors();
+export function OPTIONS(request: Request) {
+  return optionsCorsWrite(request);
 }
 
 export function POST() {

@@ -39,11 +39,14 @@ type ArchiveXtermProps = {
     entries: TerminalEntry[];
     clear?: boolean;
     pager?: { logicalLines: string[] } | null;
+    passwordPrompt?: boolean;
   } | Promise<{
     entries: TerminalEntry[];
     clear?: boolean;
     pager?: { logicalLines: string[] } | null;
+    passwordPrompt?: boolean;
   }>;
+  onPassword?: (password: string) => Promise<{ entries: TerminalEntry[] }>;
   onCandidatesChange: (candidates: string[]) => void;
   /** Esc：先清候选；若返回 true 表示已处理（如关阅读面板） */
   onEscape: () => boolean;
@@ -78,6 +81,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       getPromptTokens,
       getComplete,
       onCommand,
+      onPassword,
       onCandidatesChange,
       onEscape,
     },
@@ -107,6 +111,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
     const pasteBusyRef = useRef(false);
     /** 防止 Ctrl+V 与原生 paste→onData 双触发。 */
     const pasteGuardRef = useRef(0);
+    const passwordRef = useRef<string | null>(null);
     const bootRef = useRef(bootEntries);
     bootRef.current = bootEntries;
 
@@ -114,6 +119,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       getPromptTokens,
       getComplete,
       onCommand,
+      onPassword,
       onCandidatesChange,
       onEscape,
       lineDelayMs,
@@ -122,6 +128,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       getPromptTokens,
       getComplete,
       onCommand,
+      onPassword,
       onCandidatesChange,
       onEscape,
       lineDelayMs,
@@ -150,7 +157,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
         /* 容器尚未有尺寸时忽略 */
       }
       scrollToPrompt();
-      if (pagerRef.current || pasteConfirmRef.current) return;
+      if (pagerRef.current || pasteConfirmRef.current || passwordRef.current !== null) return;
       paintPromptLine();
       scrollToPrompt();
     }
@@ -180,7 +187,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
      */
     function paintPromptLine() {
       const term = termRef.current;
-      if (!term || pagerRef.current || pasteConfirmRef.current) return;
+      if (!term || pagerRef.current || pasteConfirmRef.current || passwordRef.current !== null) return;
 
       clampCursor();
       const promptTokens = callbacksRef.current.getPromptTokens();
@@ -394,6 +401,46 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       scrollToPrompt();
     }
 
+    function paintPasswordLine() {
+      const term = termRef.current;
+      if (!term || passwordRef.current === null) return;
+      const masked = "*".repeat(passwordRef.current.length);
+      term.write(`\r\x1b[2K${zhCN.auth.passwordPrompt} ${masked}`);
+    }
+
+    function startPasswordPrompt() {
+      passwordRef.current = "";
+      lastPaintRowsRef.current = 1;
+      lastCursorRowOffRef.current = 0;
+      paintPasswordLine();
+      scrollToPrompt();
+    }
+
+    function cancelPasswordPrompt() {
+      const term = termRef.current;
+      passwordRef.current = null;
+      term?.write("^C\r\n");
+      paintPromptLine();
+      scrollToPrompt();
+    }
+
+    async function submitPassword() {
+      const term = termRef.current;
+      if (passwordRef.current === null) return;
+      const password = passwordRef.current;
+      passwordRef.current = null;
+      term?.write("\r\n");
+      const handler = callbacksRef.current.onPassword;
+      if (!handler) {
+        paintPromptLine();
+        return;
+      }
+      const result = await handler(password);
+      await writeEntries(result.entries, true);
+      paintPromptLine();
+      scrollToPrompt();
+    }
+
     /**
      * 已在新行上：写入历史、跑命令、输出结果。
      * 调用前须已 `\r\n` 离开输入行并清空 buffer。
@@ -426,6 +473,11 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
         return;
       }
 
+      if (result.passwordPrompt) {
+        startPasswordPrompt();
+        return;
+      }
+
       if (pasteQueueRef.current.length === 0) {
         paintPromptLine();
         scrollToPrompt();
@@ -435,7 +487,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
     /** 画出 prompt+命令并提交（供粘贴队列逐行调用）。 */
     async function runCommandLine(command: string) {
       const term = termRef.current;
-      if (!term || pagerRef.current || pasteConfirmRef.current) return;
+      if (!term || pagerRef.current || pasteConfirmRef.current || passwordRef.current !== null) return;
 
       setBuffer(command, command.length);
       paintPromptLine();
@@ -806,6 +858,38 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
           const mod = event.ctrlKey || event.metaKey;
           const key = event.key;
 
+          if (passwordRef.current !== null) {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              void submitPassword();
+              return false;
+            }
+            if (event.key === "Escape") {
+              event.preventDefault();
+              cancelPasswordPrompt();
+              return false;
+            }
+            if (mod && (key === "c" || key === "C") && !event.shiftKey) {
+              event.preventDefault();
+              cancelPasswordPrompt();
+              return false;
+            }
+            if (event.key === "Backspace") {
+              event.preventDefault();
+              passwordRef.current = passwordRef.current.slice(0, -1);
+              paintPasswordLine();
+              return false;
+            }
+            if (event.key.length === 1 && !mod) {
+              event.preventDefault();
+              passwordRef.current += event.key;
+              paintPasswordLine();
+              return false;
+            }
+            event.preventDefault();
+            return false;
+          }
+
           if (pagerRef.current) {
             if (event.key === "Enter" || event.key === " ") {
               event.preventDefault();
@@ -936,6 +1020,19 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
         });
 
         dataDisposable = term.onData((data) => {
+          if (passwordRef.current !== null) {
+            // 可打印字符已由 keydown 收下；这里只兜底 Enter / Ctrl+C。
+            if (data === "\r") {
+              void submitPassword();
+              return;
+            }
+            if (data === "\u0003") {
+              cancelPasswordPrompt();
+              return;
+            }
+            return;
+          }
+
           if (pagerRef.current) {
             if (data === "\r" || data === " ") {
               pagerAdvance();

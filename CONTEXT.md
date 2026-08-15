@@ -29,7 +29,7 @@ A discovery-layer entry (`source` + `localKey` + kind); first shipped kind is `d
 _Avoid_: document (when meaning the discovery payload rather than ArchiveDocument)
 
 **CommandSpec**:
-A registered terminal command: primary `name`, optional `aliases`, optional help `section` + `usage`, and `argComplete` policy (`none | dirs | all | cat | open | music`). The table in `command-registry.ts` is the authority; Tab completion, `help` listing, alias resolve, and known-command highlighting derive from it. Handlers bind by `name` in `commands.ts`. For `music`, candidate tokens live with `parseMusicArgs` in `lib/music/music-command.ts`.
+A registered terminal command: primary `name`, optional `aliases`, optional help `section` + `usage`, `argComplete` policy (`none | dirs | all | cat | open | music`), optional `secret` (omit from help and Tab), optional `requiresOwner` (omit from visitor help/Tab). The table in `command-registry.ts` is the authority; Tab completion, `help` listing, alias resolve, and known-command highlighting derive from it. Handlers bind by `name` in `commands.ts`. For `music`, candidate tokens live with `parseMusicArgs` in `lib/music/music-command.ts`.
 _Avoid_: parallel PRIMARY_COMMANDS / PATH_ARG_COMMANDS / alias maps; help copy duplicated in i18n per command
 
 **ReadingSession**:
@@ -41,9 +41,17 @@ Split of the former `api-read` bag: **discovery** owns Item model, index/filter/
 _Avoid_: mixing NextResponse or fs I/O into discovery; treating HTTP href strings as document identity
 
 **DeploymentPosture**:
-`local-dev` (owner `edit` / Server Actions allowed without Bearer) vs `public-production` (visitors read-only; UI write must be gated off or auth-equivalent to HTTP). Authority: `docs/adr/0007-security-deployment-posture.md`.
+`local-dev` vs `public-production`. local-dev 下 SitePrincipal 为 implicit owner。Authority: `docs/adr/0007-security-deployment-posture.md` + `0010-site-principal.md`.
 _Avoid_: treating ADR 0005 "no Bearer on Actions" as global; adding new unauthenticated write surfaces on the public web
 
+**SitePrincipal**:
+Browser-facing role `visitor` | `owner`, resolved from httpOnly owner session cookie then local-dev implicit owner. Derives `uiWrite` and `musicBff`. Not DocumentRef; not Agent Bearer. Authority: `docs/adr/0010-site-principal.md`.
+_Avoid_: using `NODE_ENV` as identity; mixing Netease `MUSIC_U` with site login; putting write tokens in the page
+
+**OwnerSession**:
+HMAC-signed `archive_owner` cookie (`v1.payload.sig`). Password is scrypt-hashed in `ARCHIVE_OWNER_PASSWORD_HASH`. Terminal `login` uses a masked prompt (never argv).
+_Avoid_: password on the command line / history; JWT libraries for this single-owner cookie
+
 **UiWriteGate**:
-The env-controlled switch (planned: `ARCHIVE_UI_WRITE`) that disables terminal `edit`, command-registry registration, and Server Action mutations in `public-production`. HTTP Bearer write stays enabled when tokens are configured.
+UI write allowed iff SitePrincipal is owner and `ARCHIVE_UI_WRITE` is not `false`. Disables terminal `edit` in help/Tab for visitors and hard-rejects Server Actions. HTTP Bearer write stays enabled when tokens are configured.
 _Avoid_: hiding `edit` from help only while leaving Actions callable; direct `fs` writes outside `content-write.ts`

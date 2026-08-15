@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isMusicBffEnabled } from "@/lib/music/bff-gate";
+import { requireOwnerPrincipal } from "@/lib/music/bff-gate";
 import { cookieHasMusicU, readNeteaseCookie } from "@/lib/music/cookie-store";
 import { createLiveNeteaseClient } from "@/lib/music/netease-client";
 import { syncPlaylistCatalog } from "@/lib/music/playlist-sync";
@@ -13,9 +13,8 @@ function jsonError(status: number, error: string, message: string) {
 
 /** 从网易账号同步自建歌单目录（stub；保留已全量 import 的 tracks）。 */
 export async function POST() {
-  if (!isMusicBffEnabled()) {
-    return jsonError(403, "forbidden", "音乐 BFF 仅 local-dev 可用");
-  }
+  const denied = await requireOwnerPrincipal();
+  if (denied) return denied;
 
   const cookie = await readNeteaseCookie();
   if (!cookieHasMusicU(cookie)) {

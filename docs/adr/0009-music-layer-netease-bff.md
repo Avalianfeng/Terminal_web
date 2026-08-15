@@ -54,7 +54,7 @@
 | `GET /api/music/song/url?id=` | 取 CDN 流（带 Cookie） |
 | `GET /api/music/audio?url=` | 代理音频（CORS + Referer） |
 
-Cookie 存仓根 **`.netease-cookie`**（gitignore；须含 `MUSIC_U`），**不进 Git**、不下发浏览器。`GET /api/music/login/status` 只返回 `loggedIn` / `hasCookie`，不回显 Cookie。生产 `NODE_ENV=production` 时 BFF 返回 403。
+Cookie 存仓根 **`.netease-cookie`**（gitignore；须含 `MUSIC_U`），**不进 Git**、不下发浏览器。`GET /api/music/login/status` 只返回 `loggedIn` / `hasCookie`，不回显 Cookie。BFF 第一闸为 **owner principal**（[0010](0010-site-principal.md)：local-dev implicit 或公网 session）；访客 403。网易 Cookie 仍是第二闸。
 
 ### 5. BGM 播放面（站点级，非阅读三分区）
 
@@ -79,7 +79,7 @@ Cookie 存仓根 **`.netease-cookie`**（gitignore；须含 `MUSIC_U`），**不
 - 122 首 mp3 进 `content/` 或 `public/` 作为默认方案。
 - 网易云 Web iframe 嵌入档案阅读面。
 - 与 GitHub 外源、resources discovery `kind` 扩展混在同一 PR。
-- 公网首期暴露无鉴权 `/api/music/*` 代理。
+- 公网首期暴露无鉴权 `/api/music/*` 代理（BFF 须 owner；[0010](0010-site-principal.md)）。
 - 把站点做成完整网易云替代；终端内百首点选作为主路径。
 - **冷库管理页（原落地序 C）**：与终端 + 盘内 yaml 平行，主人侧低频维护不值得单开 UI。
 
@@ -114,7 +114,7 @@ Cookie 存仓根 **`.netease-cookie`**（gitignore；须含 `MUSIC_U`），**不
 - 目录：`music sync`（启动 + 定时 + 手动）
 - 全量导入：`music import` / BFF import
 - 删歌单：直接删 `content/music/playlists/<id>.yaml`（sync 只 prune 空 stub，已 hydrate 的须手删——可接受）
-- Cookie：写 `.netease-cookie` / login API（local-dev）
+- Cookie：写 `.netease-cookie` / login API（须站点 owner；local-dev 为 implicit owner）
 
 再做管理页会与「终端 + 盘内 yaml」平行，收益低；真要图形化再议，不占路线图。
 
@@ -169,3 +169,7 @@ Cookie 存仓根 **`.netease-cookie`**（gitignore；须含 `MUSIC_U`），**不
 8. **A‴**：切歌单命令
 9. **B**：播放会话引擎（世代 / Abort / 下一首 URL 预取 / TTL 缓存）— 已做
 10. ~~**C**：冷库管理页~~ — **否决**（终端 + yaml 维护足够）
+
+## 修订（2026-08-15 · SitePrincipal）
+
+BFF 第一闸改为 [0010](0010-site-principal.md) owner principal（不再用 `NODE_ENV !== "production"` 当「是主人」）。网易 Cookie 仍为第二闸。公网访客流式仍关，直到日后本地缓存轨（0011）。

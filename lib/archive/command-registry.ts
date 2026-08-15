@@ -4,6 +4,8 @@
  * in `commands.ts` (`runCommand`).
  */
 
+import type { SiteRole } from "./site-principal";
+
 export type ArgComplete =
   | "none"
   | "dirs"
@@ -22,6 +24,10 @@ export type CommandSpec = {
   readonly section?: HelpSection;
   readonly usage: string;
   readonly argComplete: ArgComplete;
+  /** Omit from help and Tab; still executable if typed (`login` / `logout`). */
+  readonly secret?: true;
+  /** Omit from visitor help/Tab; handler must still enforce owner. */
+  readonly requiresOwner?: true;
 };
 
 const HELP_SECTION_ORDER: readonly HelpSection[] = [
@@ -72,7 +78,7 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     name: "whoami",
     section: "explore",
-    usage: "whoami             档案人物名",
+    usage: "whoami             档案人物名与站点角色",
     argComplete: "none",
   },
   {
@@ -147,6 +153,7 @@ export const COMMANDS: readonly CommandSpec[] = [
     section: "session",
     usage: "edit <路径|slug>    编辑/新建文档（全屏 Markdown 原文）",
     argComplete: "open",
+    requiresOwner: true,
   },
     {
       name: "themes",
@@ -159,6 +166,18 @@ export const COMMANDS: readonly CommandSpec[] = [
       section: "session",
       usage: "music <子命令…>     热队列 BGM（Tab 补子命令）",
       argComplete: "music",
+    },
+    {
+      name: "login",
+      usage: "login               主人登录（口令提示）",
+      argComplete: "none",
+      secret: true,
+    },
+    {
+      name: "logout",
+      usage: "logout              退出主人会话",
+      argComplete: "none",
+      secret: true,
     },
   ] as const;
 
@@ -192,10 +211,19 @@ export function primaryCommandNames(): readonly string[] {
   return COMMANDS.map((spec) => spec.name);
 }
 
+function isListedFor(spec: CommandSpec, role: SiteRole): boolean {
+  if (spec.secret) return false;
+  if (spec.requiresOwner && role !== "owner") return false;
+  return true;
+}
+
 /** Primary names + aliases (for Tab command completion). */
-export function completableCommandNames(): readonly string[] {
+export function completableCommandNames(
+  role: SiteRole = "owner",
+): readonly string[] {
   const names: string[] = [];
   for (const spec of COMMANDS) {
+    if (!isListedFor(spec, role)) continue;
     names.push(spec.name);
     if (spec.aliases) names.push(...spec.aliases);
   }
@@ -228,8 +256,11 @@ export function helpSections(): readonly HelpSection[] {
 }
 
 /** Usage lines for one help section (stable order from COMMANDS). */
-export function helpUsagesForSection(section: HelpSection): readonly string[] {
-  return COMMANDS.filter((spec) => spec.section === section).map(
-    (spec) => spec.usage,
-  );
+export function helpUsagesForSection(
+  section: HelpSection,
+  role: SiteRole = "owner",
+): readonly string[] {
+  return COMMANDS.filter(
+    (spec) => spec.section === section && isListedFor(spec, role),
+  ).map((spec) => spec.usage);
 }

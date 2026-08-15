@@ -24,6 +24,11 @@ import {
   helpUsagesForSection,
   resolveAlias,
 } from "./command-registry";
+import {
+  IMPLICIT_OWNER,
+  capabilitiesFrom,
+  type SitePrincipal,
+} from "./site-principal";
 import { RAIL_MAX } from "./reading-state";
 import { formatInputTokens } from "./shell-style";
 import { SLUG_PATTERN, type ContentGroup } from "./content-format";
@@ -62,6 +67,8 @@ type CommandResult = {
   edit?: DocumentEditTarget | null;
   /** 音乐层副作用（播放 / 导入）；由终端 UI 异步执行。 */
   music?: MusicAction | null;
+  /** 站点身份副作用（口令提示 / 清 cookie）。 */
+  auth?: { kind: "login" } | { kind: "logout" };
 };
 
 type LinuxHandlerResult = {
@@ -511,14 +518,14 @@ function orderForBatchMainFirst(surfaces: ReadingSurface[]) {
   return [...surfaces.slice(1), surfaces[0]!];
 }
 
-function echoCommand(command: string, cwd: string): TerminalEntry {
+function echoCommand(command: string, cwd: string, role: SitePrincipal["role"] = "owner"): TerminalEntry {
   return {
     id: id("command"),
     kind: "command",
     lines: [
       {
         tokens: [
-          ...formatShellPromptTokens(cwd),
+          ...formatShellPromptTokens(cwd, role),
           token(" ", "muted"),
           ...formatInputTokens(command),
         ],
@@ -563,6 +570,7 @@ function handleLinuxCommand(
   command: string,
   args: string[],
   session: TerminalSession,
+  principal: SitePrincipal,
 ): LinuxHandlerResult {
   const root = createVfs(snapshot);
   const cwdNode = resolveVfsPath(root, session.cwd, ".");
@@ -748,8 +756,31 @@ function handleLinuxCommand(
   }
 
   if (command === "whoami") {
+    const viaLabel =
+      principal.via === "implicit-local-dev"
+        ? zhCN.auth.viaImplicit
+        : principal.via === "session"
+          ? zhCN.auth.viaCookie
+          : zhCN.auth.viaNone;
     return {
-      entries: [lineEntry(lines([token(snapshot.person.name, "success")]))],
+      entries: [
+        lineEntry(
+          lines(
+            [
+              token(`${zhCN.auth.person}: `, "muted"),
+              token(snapshot.person.name, "success"),
+            ],
+            [
+              token(`${zhCN.auth.role}: `, "muted"),
+              token(principal.role, "success"),
+            ],
+            [
+              token(`${zhCN.auth.session}: `, "muted"),
+              token(viaLabel, "muted"),
+            ],
+          ),
+        ),
+      ],
       session,
       handled: true,
     };
@@ -805,8 +836,10 @@ function handleMusicCommand(
   args: string[],
   session: TerminalSession,
   playlists: MusicPlaylistIndex[],
+  principal: SitePrincipal,
 ): CommandResult {
   const intent = parseMusicArgs(args);
+  const owner = capabilitiesFrom(principal).musicBff;
 
   if (intent.kind === "help") {
     return {
@@ -822,8 +855,9 @@ function handleMusicCommand(
             zhCN.music.usageShow,
             zhCN.music.usageHide,
             zhCN.music.usagePlaylist,
-            zhCN.music.usageImport,
-            zhCN.music.usageSync,
+            ...(owner
+              ? [zhCN.music.usageImport, zhCN.music.usageSync]
+              : []),
             zhCN.music.usagePause,
             zhCN.music.usagePrev,
             zhCN.music.usageNext,
@@ -949,6 +983,12 @@ function handleMusicCommand(
   }
 
   if (intent.kind === "import") {
+    if (!owner) {
+      return {
+        entries: [commandEcho, systemError(zhCN.auth.needOwner)],
+        session,
+      };
+    }
     const url = resolveImportUrl(intent.url);
     if (!url) {
       return {
@@ -967,6 +1007,12 @@ function handleMusicCommand(
   }
 
   if (intent.kind === "sync") {
+    if (!owner) {
+      return {
+        entries: [commandEcho, systemError(zhCN.auth.needOwner)],
+        session,
+      };
+    }
     return {
       entries: [
         commandEcho,
@@ -1007,21 +1053,30 @@ export function runCommand(
   rawCommand: string,
   session: TerminalSession = createSession(),
   playlists: MusicPlaylistIndex[] = [],
+  principal: SitePrincipal = IMPLICIT_OWNER,
 ): CommandResult {
   const trimmed = rawCommand.trim();
   const [rawCommandName = "", ...args] = trimmed.split(/\s+/);
   const command = resolveAlias(normalize(rawCommandName));
   const rest = args.join(" ");
+  const role = principal.role;
 
   if (!trimmed) {
     return { entries: [], session };
   }
 
+  const loginWithArg = command === "login" && args.length > 0;
   const nextSession: TerminalSession = {
     ...session,
-    commandHistory: [...session.commandHistory, trimmed],
+    commandHistory: loginWithArg
+      ? session.commandHistory
+      : [...session.commandHistory, trimmed],
   };
-  const commandEcho = echoCommand(trimmed, session.cwd);
+  const commandEcho = echoCommand(
+    loginWithArg ? "login" : trimmed,
+    session.cwd,
+    role,
+  );
 
   if (!getCommand(command)) {
     return {
@@ -1036,7 +1091,13 @@ export function runCommand(
     };
   }
 
-  const linuxResult = handleLinuxCommand(snapshot, command, args, nextSession);
+  const linuxResult = handleLinuxCommand(
+    snapshot,
+    command,
+    args,
+    nextSession,
+    principal,
+  );
   if (linuxResult.handled) {
     return {
       entries: [commandEcho, ...linuxResult.entries],
@@ -1056,7 +1117,7 @@ export function runCommand(
         helpRows.push([
           token(zhCN.help[helpSectionTitleKey(section)], "success"),
         ]);
-        helpRows.push(...helpUsagesForSection(section));
+        helpRows.push(...helpUsagesForSection(section, role));
         helpRows.push("");
       }
       helpRows.push(zhCN.help.shortcuts);
@@ -1142,6 +1203,12 @@ export function runCommand(
       };
 
     case "edit": {
+      if (!capabilitiesFrom(principal).uiWrite) {
+        return {
+          entries: [commandEcho, systemError(zhCN.auth.needOwner)],
+          session: nextSession,
+        };
+      }
       const resolved = resolveEditTarget(snapshot, nextSession.cwd, rest);
       if (!resolved.ok) {
         return {
@@ -1359,8 +1426,38 @@ export function runCommand(
         session: nextSession,
       };
 
+    case "login": {
+      if (args.length > 0) {
+        return {
+          entries: [commandEcho, systemError(zhCN.auth.noPasswordArg)],
+          session: nextSession,
+        };
+      }
+      return {
+        entries: [commandEcho],
+        session: nextSession,
+        auth: { kind: "login" },
+      };
+    }
+
+    case "logout":
+      return {
+        entries: [
+          commandEcho,
+          lineEntry(lines([token(zhCN.auth.loggingOut, "hint")])),
+        ],
+        session: nextSession,
+        auth: { kind: "logout" },
+      };
+
     case "music":
-      return handleMusicCommand(commandEcho, args, nextSession, playlists);
+      return handleMusicCommand(
+        commandEcho,
+        args,
+        nextSession,
+        playlists,
+        principal,
+      );
 
     case "clear":
       return {

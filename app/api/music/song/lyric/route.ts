@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isMusicBffEnabled } from "@/lib/music/bff-gate";
+import { requireOwnerPrincipal } from "@/lib/music/bff-gate";
 import { cookieHasMusicU, readNeteaseCookie } from "@/lib/music/cookie-store";
 import { parseLrc } from "@/lib/music/lyric";
 import { createLiveNeteaseClient } from "@/lib/music/netease-client";
@@ -19,9 +19,8 @@ function resolveSongId(raw: string | null): string | null {
 }
 
 export async function GET(request: Request) {
-  if (!isMusicBffEnabled()) {
-    return jsonError(403, "forbidden", "音乐 BFF 仅 local-dev 可用");
-  }
+  const denied = await requireOwnerPrincipal();
+  if (denied) return denied;
 
   const cookie = await readNeteaseCookie();
   if (!cookieHasMusicU(cookie)) {

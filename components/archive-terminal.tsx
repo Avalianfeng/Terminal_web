@@ -56,6 +56,7 @@ import type {
   TerminalEntry,
   TerminalSession,
 } from "@/lib/archive/types";
+import { IMPLICIT_OWNER, type SitePrincipal } from "@/lib/archive/site-principal";
 import type { MusicPlaylistIndex } from "@/lib/music/playlist-types";
 import {
   defaultPlaylist,
@@ -67,17 +68,22 @@ const PLAYLIST_SYNC_INTERVAL_MS = 30 * 60 * 1000;
 type ArchiveTerminalProps = {
   snapshot: ArchiveSnapshot;
   playlists?: MusicPlaylistIndex[];
+  initialPrincipal?: SitePrincipal;
 };
 
 export function ArchiveTerminal({
   snapshot,
   playlists = [],
+  initialPrincipal = IMPLICIT_OWNER,
 }: ArchiveTerminalProps) {
   const router = useRouter();
   const [motionLevel, setMotionLevel] = useState<MotionLevel>(1);
   const bootEntries = useMemo(() => initialEntries(snapshot), [snapshot]);
 
   const [session, setSession] = useState<TerminalSession>(() => createSession());
+  const [principal, setPrincipal] = useState<SitePrincipal>(initialPrincipal);
+  const principalRef = useRef(principal);
+  principalRef.current = principal;
   const [readingSession, setReadingSession] = useState<ReadingSession>(
     emptyReadingSession,
   );
@@ -735,17 +741,103 @@ export function ArchiveTerminal({
                 motionLevel === 0 ? 0 : motionSpec.lineDelayMs
               }
               getPromptTokens={() =>
-                formatShellPromptTokens(sessionRef.current.cwd)
+                formatShellPromptTokens(
+                  sessionRef.current.cwd,
+                  principalRef.current.role,
+                )
               }
               getComplete={(input, cycle) =>
-                completeInput(input, snapshot, sessionRef.current.cwd, cycle)
+                completeInput(
+                  input,
+                  snapshot,
+                  sessionRef.current.cwd,
+                  cycle,
+                  principalRef.current.role,
+                )
               }
+              onPassword={async (password) => {
+                try {
+                  const res = await fetch("/api/auth/login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ password }),
+                  });
+                  const body = (await res.json()) as {
+                    ok?: boolean;
+                    role?: SitePrincipal["role"];
+                    via?: SitePrincipal["via"];
+                    message?: string;
+                  };
+                  if (!body.ok || !body.role) {
+                    return {
+                      entries: [
+                        {
+                          id: `auth-fail-${Date.now()}`,
+                          kind: "system" as const,
+                          lines: [
+                            {
+                              tokens: [
+                                {
+                                  text: body.message ?? zhCN.auth.loginFail,
+                                  tone: "error" as const,
+                                },
+                              ],
+                            },
+                          ],
+                        },
+                      ],
+                    };
+                  }
+                  const next: SitePrincipal = {
+                    role: body.role,
+                    via: body.via === "session" ? "session" : "implicit-local-dev",
+                  };
+                  principalRef.current = next;
+                  setPrincipal(next);
+                  xtermRef.current?.refreshPrompt();
+                  return {
+                    entries: [
+                      {
+                        id: `auth-ok-${Date.now()}`,
+                        kind: "system" as const,
+                        lines: [
+                          {
+                            tokens: [
+                              { text: zhCN.auth.loginOk, tone: "success" as const },
+                            ],
+                          },
+                        ],
+                      },
+                    ],
+                  };
+                } catch {
+                  return {
+                    entries: [
+                      {
+                        id: `auth-err-${Date.now()}`,
+                        kind: "system" as const,
+                        lines: [
+                          {
+                            tokens: [
+                              {
+                                text: zhCN.auth.loginFail,
+                                tone: "error" as const,
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                    ],
+                  };
+                }
+              }}
               onCommand={async (command) => {
                 const result = runCommand(
                   snapshot,
                   command,
                   sessionRef.current,
                   playlistsRef.current,
+                  principalRef.current,
                 );
                 sessionRef.current = result.session;
                 setSession(result.session);
@@ -1207,10 +1299,58 @@ export function ArchiveTerminal({
                   stepBgm(-1);
                 }
 
+                if (result.auth?.kind === "logout") {
+                  try {
+                    const res = await fetch("/api/auth/logout", {
+                      method: "POST",
+                    });
+                    const body = (await res.json()) as {
+                      role?: SitePrincipal["role"];
+                      via?: SitePrincipal["via"];
+                    };
+                    const next: SitePrincipal = {
+                      role: body.role === "owner" ? "owner" : "visitor",
+                      via:
+                        body.via === "implicit-local-dev"
+                          ? "implicit-local-dev"
+                          : body.via === "session"
+                            ? "session"
+                            : "none",
+                    };
+                    principalRef.current = next;
+                    setPrincipal(next);
+                    extra.push({
+                      id: `auth-out-${Date.now()}`,
+                      kind: "system",
+                      lines: [
+                        {
+                          tokens: [
+                            { text: zhCN.auth.loggedOut, tone: "hint" },
+                          ],
+                        },
+                      ],
+                    });
+                    xtermRef.current?.refreshPrompt();
+                  } catch {
+                    extra.push({
+                      id: `auth-out-err-${Date.now()}`,
+                      kind: "system",
+                      lines: [
+                        {
+                          tokens: [
+                            { text: zhCN.auth.loginFail, tone: "error" },
+                          ],
+                        },
+                      ],
+                    });
+                  }
+                }
+
                 return {
                   entries: [...result.entries, ...extra],
                   clear: result.clear,
                   pager: result.pager,
+                  passwordPrompt: result.auth?.kind === "login",
                 };
               }}
               onCandidatesChange={setCompleteCandidates}

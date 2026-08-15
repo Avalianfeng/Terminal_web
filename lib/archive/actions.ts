@@ -8,6 +8,7 @@ import {
   saveDocumentRaw,
 } from "./content-write";
 import { tryDocumentRef } from "./document-ref";
+import { requireUiWrite } from "./site-auth";
 
 export type EditActionResult =
   | { ok: true; raw: string; hash: string }
@@ -15,7 +16,7 @@ export type EditActionResult =
   | { ok: true; deleted: true }
   | {
       ok: false;
-      error: "bad_request" | "not_found" | "conflict" | "unknown";
+    error: "bad_request" | "not_found" | "conflict" | "unknown" | "forbidden";
       message: string;
     };
 
@@ -49,10 +50,22 @@ function requireRef(group: string, slug: string) {
   return ref;
 }
 
+async function denyIfNoUiWrite(): Promise<EditActionResult | null> {
+  const allowed = await requireUiWrite();
+  if (allowed) return null;
+  return {
+    ok: false,
+    error: "forbidden",
+    message: "需要主人身份才能编辑",
+  };
+}
+
 export async function getDocumentRaw(
   group: string,
   slug: string,
 ): Promise<EditActionResult> {
+  const denied = await denyIfNoUiWrite();
+  if (denied) return denied;
   return toResult(async () => {
     const ref = requireRef(group, slug);
     const raw = await readDocumentRaw(ref);
@@ -66,6 +79,8 @@ export async function putDocumentRaw(
   raw: string,
   expectedHash?: string,
 ): Promise<EditActionResult> {
+  const denied = await denyIfNoUiWrite();
+  if (denied) return denied;
   return toResult(async () => {
     const ref = requireRef(group, slug);
     if (typeof raw !== "string" || raw.length > 1_000_000) {
@@ -86,6 +101,8 @@ export async function removeDocument(
   slug: string,
   expectedHash?: string,
 ): Promise<EditActionResult> {
+  const denied = await denyIfNoUiWrite();
+  if (denied) return denied;
   return toResult(async () => {
     const ref = requireRef(group, slug);
     await deleteDocument(ref, { expectedHash });

@@ -4,17 +4,13 @@ import {
   audioProxyHeaders,
   isAllowedAudioProxyUrl,
 } from "@/lib/music/audio-proxy";
-import { isMusicBffEnabled } from "@/lib/music/bff-gate";
+import { requireOwnerPrincipal } from "@/lib/music/bff-gate";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
-  if (!isMusicBffEnabled()) {
-    return NextResponse.json(
-      { ok: false, error: "forbidden", message: "音乐 BFF 仅 local-dev 可用" },
-      { status: 403 },
-    );
-  }
+  const denied = await requireOwnerPrincipal();
+  if (denied) return denied;
 
   const audioUrl = new URL(request.url).searchParams.get("url");
   if (!audioUrl || !isAllowedAudioProxyUrl(audioUrl)) {

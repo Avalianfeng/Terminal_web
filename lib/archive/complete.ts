@@ -1,10 +1,11 @@
+import { musicArgCandidates } from "../music/music-command";
 import type { ArchiveSnapshot } from "./types";
 import {
   completableCommandNames,
   getArgComplete,
   resolveAlias,
 } from "./command-registry";
-import { musicArgCandidates } from "../music/music-command";
+import type { SiteRole } from "./site-principal";
 import { createVfs, listNode, resolveVfsPath, type VfsNode } from "./vfs";
 
 export type CompleteResult = {
@@ -252,11 +253,12 @@ export function completeInput(
   snapshot: ArchiveSnapshot,
   cwd: string,
   cycleIndex: number | null = null,
+  role: SiteRole = "owner",
 ): CompleteResult {
   const parsed = parseInput(rawInput);
   const candidates =
     parsed.mode === "command"
-      ? filterPrefix(completableCommandNames(), parsed.partial)
+      ? filterPrefix(completableCommandNames(role), parsed.partial)
       : argumentCandidates(
           snapshot,
           cwd,

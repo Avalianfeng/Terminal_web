@@ -10,6 +10,16 @@ type ProseBlock =
   | { kind: "ul"; items: string[] }
   | { kind: "ol"; items: string[] };
 
+export function sanitizeProseHref(href: string): string | null {
+  const trimmed = href.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith("#") && !trimmed.startsWith("#/")) return trimmed;
+  if (trimmed.startsWith("/") && !trimmed.startsWith("//")) return trimmed;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (/^mailto:/i.test(trimmed)) return trimmed;
+  return null;
+}
+
 function renderInline(text: string, keyPrefix: string): ReactNode[] {
   const nodes: ReactNode[] = [];
   const pattern =
@@ -46,7 +56,10 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
     } else if (token.startsWith("[")) {
       const linkMatch = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(token);
       if (linkMatch) {
-        const href = linkMatch[2]!;
+        const href = sanitizeProseHref(linkMatch[2]!);
+        if (!href) {
+          nodes.push(linkMatch[1]!);
+        } else {
         const external = /^https?:\/\//i.test(href);
         nodes.push(
           <a
@@ -60,6 +73,7 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
             {linkMatch[1]}
           </a>,
         );
+        }
       } else {
         nodes.push(token);
       }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isMusicBffEnabled } from "@/lib/music/bff-gate";
+import { requireOwnerPrincipal } from "@/lib/music/bff-gate";
 import {
   clearNeteaseCookie,
   cookiePresence,
@@ -8,15 +8,9 @@ import {
 
 export const runtime = "nodejs";
 
-function disabled() {
-  return NextResponse.json(
-    { ok: false, error: "forbidden", message: "音乐 BFF 仅 local-dev 可用" },
-    { status: 403 },
-  );
-}
-
 export async function POST(request: Request) {
-  if (!isMusicBffEnabled()) return disabled();
+  const denied = await requireOwnerPrincipal();
+  if (denied) return denied;
 
   let body: unknown;
   try {
@@ -51,7 +45,8 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE() {
-  if (!isMusicBffEnabled()) return disabled();
+  const denied = await requireOwnerPrincipal();
+  if (denied) return denied;
   await clearNeteaseCookie();
   return NextResponse.json({
     ok: true,

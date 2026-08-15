@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
-import { isMusicBffEnabled } from "@/lib/music/bff-gate";
+import { requireOwnerPrincipal } from "@/lib/music/bff-gate";
 import { cookieHasMusicU, readNeteaseCookie } from "@/lib/music/cookie-store";
 import { createLiveNeteaseClient } from "@/lib/music/netease-client";
 import {
@@ -17,9 +17,8 @@ function jsonError(status: number, error: string, message: string) {
 }
 
 export async function POST(request: Request) {
-  if (!isMusicBffEnabled()) {
-    return jsonError(403, "forbidden", "音乐 BFF 仅 local-dev 可用");
-  }
+  const denied = await requireOwnerPrincipal();
+  if (denied) return denied;
 
   const cookie = await readNeteaseCookie();
   if (!cookieHasMusicU(cookie)) {
