@@ -33,7 +33,7 @@
 2. **成功必须点名对象**。禁止空冒号行（`…：` 后无内容）。瞬时成功可静默（如 `cp`）；凡操作有明确对象，结果行须含其名。
 3. **错误**：`prog: message` + 可选 hint 行。回显用户操作数（引号包裹）。hint = **下一条可执行命令**，不是散文说明。
 4. **缺参** → 该**子命令**的 usage，不是父命令百科。`music` / `music help` = 由表派生的完整命令表（0002）；散落的 `usage*` 不得再进 i18n。
-5. **确认** 仅 tty：`[y/N]` 默认 N；回答与 prompt **同一行**（`[y/N]y`）；Ctrl+C 中止队列。确认 handler 未完成前不得画出 shell prompt。
+5. **确认** 仅 tty：`[y/N]` 默认 N；回答与 prompt **同一行**（`[y/N]: y`）；Ctrl+C 中止队列。确认 handler 未完成前不得画出 shell prompt。
 6. **进度** 是 status 的一种：单行 `\r` 重绘；结束时 `\n` + result。wget/curl 式短条（名 + % + 条），非 GUI。**本 ADR 只定形状，不实现。** 形状例（覆写中的一行）：
 
 ```text
@@ -147,7 +147,7 @@ music: no track matches '爱请'
 #### G. confirm（同一行）
 
 ```text
-下载「爱情 — 莫文蔚」？ [y/N]y
+下载「爱情 — 莫文蔚」？ [y/N]: y
 saved '爱情' (277804.mp3)
 ```
 

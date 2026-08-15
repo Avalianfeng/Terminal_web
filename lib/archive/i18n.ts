@@ -96,7 +96,7 @@ export const zhCN = {
     downloading: "正在下载到本地曲库…",
     downloaded: "已写入本地曲库",
     downloadFailed: "下载失败",
-    downloadConfirm: "下载「{label}」？ [y/N]",
+    downloadConfirm: "下载「{label}」？ [y/N]: ",
     downloadSkipped: "已跳过",
     downloadAborted: "已取消后续下载",
     deleting: "正在从本地曲库删除…",
