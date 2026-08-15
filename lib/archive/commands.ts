@@ -4,6 +4,13 @@ import {
   resolveImportUrl,
   resolvePlayQuery,
 } from "@/lib/music/music-command";
+import {
+  musicError,
+  musicNoPlaylist,
+  musicPlaylistUsage,
+  musicPlaying,
+  musicSwitchedBrowse,
+} from "./cli-emit";
 import type { MusicPlaylistIndex } from "@/lib/music/playlist-types";
 import { playlistTrackCount } from "@/lib/music/playlist-types";
 import { isLocalPlaylist } from "@/lib/music/playlist-project";
@@ -886,6 +893,13 @@ function handleMusicCommand(
     };
   }
 
+  if (intent.kind === "usage") {
+    return {
+      entries: [commandEcho, musicPlaylistUsage()],
+      session,
+    };
+  }
+
   if (intent.kind === "help") {
     return {
       entries: [
@@ -948,10 +962,7 @@ function handleMusicCommand(
   if (intent.kind === "play") {
     if (intent.scope === "song") {
       return {
-        entries: [
-          commandEcho,
-          lineEntry(lines([token(zhCN.music.searchingTrack, "hint")])),
-        ],
+        entries: [commandEcho],
         session,
         music: {
           type: "play-search",
@@ -963,38 +974,31 @@ function handleMusicCommand(
     const resolved = resolvePlayQuery(playlists, intent.query);
     if (resolved.ok) {
       return {
-        entries: [
-          commandEcho,
-          lineEntry(
-            lines([
-              token(zhCN.music.playing, "hint"),
-              token(resolved.playlist.name, "path"),
-              token(
-                `  ${playlistTrackCount(resolved.playlist)}${zhCN.music.trackUnit}`,
-                "muted",
-              ),
-            ]),
-          ),
-        ],
+        entries: [commandEcho, ...musicPlaying(resolved.playlist.name)],
         session,
         music: { type: "play", playlist: resolved.playlist },
       };
     }
     if (intent.scope === "playlist") {
-      const hint =
-        resolved.reason === "ambiguous"
-          ? `${zhCN.music.ambiguous}: ${resolved.matches.map((item) => item.name).join("、")}`
-          : zhCN.music.notFound;
+      if (resolved.reason === "ambiguous") {
+        return {
+          entries: [
+            commandEcho,
+            musicError(
+              `ambiguous playlist matches '${intent.query}'`,
+              resolved.matches.map((item) => item.name).join("、"),
+            ),
+          ],
+          session,
+        };
+      }
       return {
-        entries: [commandEcho, systemError(hint)],
+        entries: [commandEcho, musicNoPlaylist(intent.query)],
         session,
       };
     }
     return {
-      entries: [
-        commandEcho,
-        lineEntry(lines([token(zhCN.music.searchingTrack, "hint")])),
-      ],
+      entries: [commandEcho],
       session,
       music: {
         type: "play-search",
@@ -1024,10 +1028,7 @@ function handleMusicCommand(
 
   if (intent.kind === "playlist-next" || intent.kind === "playlist-prev") {
     return {
-      entries: [
-        commandEcho,
-        lineEntry(lines([token(zhCN.music.switchedPlaylist, "hint")])),
-      ],
+      entries: [commandEcho],
       session,
       music: { type: intent.kind },
     };
@@ -1036,27 +1037,31 @@ function handleMusicCommand(
   if (intent.kind === "playlist-use") {
     const resolved = resolvePlayQuery(playlists, intent.query);
     if (!resolved.ok) {
-      const hint =
-        resolved.reason === "missing"
-          ? zhCN.music.usagePlaylist
-          : resolved.reason === "none"
-            ? zhCN.music.notFound
-            : `${zhCN.music.ambiguous}: ${resolved.matches.map((item) => item.name).join("、")}`;
+      if (resolved.reason === "missing") {
+        return {
+          entries: [commandEcho, musicPlaylistUsage()],
+          session,
+        };
+      }
+      if (resolved.reason === "none") {
+        return {
+          entries: [commandEcho, musicNoPlaylist(intent.query)],
+          session,
+        };
+      }
       return {
-        entries: [commandEcho, systemError(hint)],
+        entries: [
+          commandEcho,
+          musicError(
+            `ambiguous playlist matches '${intent.query}'`,
+            resolved.matches.map((item) => item.name).join("、"),
+          ),
+        ],
         session,
       };
     }
     return {
-      entries: [
-        commandEcho,
-        lineEntry(
-          lines([
-            token(zhCN.music.switchedPlaylist, "hint"),
-            token(resolved.playlist.name, "path"),
-          ]),
-        ),
-      ],
+      entries: [commandEcho, musicSwitchedBrowse(resolved.playlist.name)],
       session,
       music: { type: "playlist-use", playlist: resolved.playlist },
     };
@@ -1112,10 +1117,7 @@ function handleMusicCommand(
     }
     if (intent.queries.length === 0) {
       return {
-        entries: [
-          commandEcho,
-          lineEntry(lines([token(zhCN.music.downloading, "hint")])),
-        ],
+        entries: [commandEcho],
         session,
         music: { type: "download-now" },
       };
@@ -1135,10 +1137,7 @@ function handleMusicCommand(
       };
     }
     return {
-      entries: [
-        commandEcho,
-        lineEntry(lines([token(zhCN.music.deleting, "hint")])),
-      ],
+      entries: [commandEcho],
       session,
       music: { type: "delete", name: intent.name },
     };

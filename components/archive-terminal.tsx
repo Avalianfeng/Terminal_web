@@ -13,6 +13,17 @@ import { completeInput } from "@/lib/archive/complete";
 import { initialEntries, runCommand } from "@/lib/archive/commands";
 import { zhCN } from "@/lib/archive/i18n";
 import {
+  musicDownloadAborted,
+  musicDownloadSkipped,
+  musicError,
+  musicNoPlaylist,
+  musicNoTrack,
+  musicPlaying,
+  musicRemoved,
+  musicSaved,
+  musicSwitchedBrowse,
+} from "@/lib/archive/cli-emit";
+import {
   PlaybackSessionEngine,
   fetchSongProxyUrl,
 } from "@/lib/music/playback-session";
@@ -69,17 +80,6 @@ import {
 
 const PLAYLIST_SYNC_INTERVAL_MS = 30 * 60 * 1000;
 
-function musicSystem(
-  text: string,
-  tone: "error" | "hint" | "success" | "muted" = "hint",
-): TerminalEntry {
-  return {
-    id: `music-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    kind: "system",
-    lines: [{ tokens: [{ text, tone }] }],
-  };
-}
-
 type ArchiveTerminalProps = {
   snapshot: ArchiveSnapshot;
   playlists?: MusicPlaylistIndex[];
@@ -135,7 +135,7 @@ export function ArchiveTerminal({
   const downloadQueueRef = useRef<{
     queries: string[];
     index: number;
-    pending: { id: string; label: string } | null;
+    pending: { id: string; label: string; name: string } | null;
   } | null>(null);
   const playbackEngineRef = useRef<PlaybackSessionEngine | null>(null);
   if (!playbackEngineRef.current) {
@@ -602,19 +602,19 @@ export function ArchiveTerminal({
     });
   }
 
-  function switchPlaylist(delta: number) {
+  function switchPlaylist(delta: number): string | null {
     const current = bgmRef.current;
-    if (!current) return false;
+    if (!current) return null;
     const nextPlaylist = stepPlaylist(
       playlistsRef.current,
       current.playlistId,
       delta,
     );
     if (!nextPlaylist || nextPlaylist.neteasePlaylistId === current.playlistId) {
-      return false;
+      return null;
     }
     applyPlaylistWithHydration(nextPlaylist);
-    return true;
+    return nextPlaylist.name;
   }
 
   function revealPlayer(openQueue: boolean) {
@@ -662,6 +662,7 @@ export function ArchiveTerminal({
   async function postSongCache(
     method: "POST" | "DELETE",
     id: string,
+    title: string,
   ): Promise<TerminalEntry> {
     try {
       const response = await fetch("/api/music/song/download", {
@@ -674,26 +675,19 @@ export function ArchiveTerminal({
         saved?: number;
         removed?: number;
         message?: string;
+        results?: Array<{ ok?: boolean; songId?: string; ext?: string }>;
       };
       if (body.ok === false) {
-        return musicSystem(
-          `${zhCN.music.downloadFailed}：${body.message ?? ""}`,
-          "error",
-        );
+        return musicError(body.message?.trim() || "download failed");
       }
       router.refresh();
       if (method === "DELETE") {
-        return musicSystem(
-          `${zhCN.music.deleted}${body.removed != null ? `（${body.removed}）` : ""}`,
-          "success",
-        );
+        return musicRemoved(title);
       }
-      return musicSystem(
-        `${zhCN.music.downloaded}${body.saved != null ? `（${body.saved}）` : ""}`,
-        "success",
-      );
+      const ext = body.results?.[0]?.ext ?? "mp3";
+      return musicSaved(title, `${id}.${ext}`);
     } catch {
-      return musicSystem(zhCN.music.downloadFailed, "error");
+      return musicError("download failed");
     }
   }
 
@@ -709,15 +703,14 @@ export function ArchiveTerminal({
       const query = queue.queries[queue.index]!;
       const hit = firstTrackHit(ready, query);
       if (!hit) {
-        entries.push(
-          musicSystem(`${zhCN.music.trackNotFound}：${query}`, "error"),
-        );
+        entries.push(musicNoTrack(query));
         queue.index += 1;
         continue;
       }
       queue.pending = {
         id: String(hit.track.id),
         label: formatTrackLabel(hit.track),
+        name: hit.track.name,
       };
       return {
         entries,
@@ -961,55 +954,24 @@ export function ArchiveTerminal({
                     result.music.scope,
                   );
                   if (!target.ok) {
-                    extra.push({
-                      id: `music-play-miss-${Date.now()}`,
-                      kind: "system",
-                      lines: [
-                        {
-                          tokens: [
-                            {
-                              text:
-                                target.reason === "ambiguous"
-                                  ? `${zhCN.music.ambiguous}: ${target.matches.map((item) => item.name).join("、")}`
-                                  : zhCN.music.trackNotFound,
-                              tone: "error",
-                            },
-                          ],
-                        },
-                      ],
-                    });
+                    extra.push(
+                      target.reason === "ambiguous"
+                        ? musicError(
+                            `ambiguous playlist matches '${result.music.query}'`,
+                            target.matches.map((item) => item.name).join("、"),
+                          )
+                        : result.music.scope === "playlist"
+                          ? musicNoPlaylist(result.music.query)
+                          : musicNoTrack(result.music.query),
+                    );
                   } else if (target.kind === "playlist") {
-                    extra.push({
-                      id: `music-play-pl-${Date.now()}`,
-                      kind: "system",
-                      lines: [
-                        {
-                          tokens: [
-                            { text: zhCN.music.playing, tone: "hint" },
-                            { text: target.playlist.name, tone: "path" },
-                          ],
-                        },
-                      ],
-                    });
+                    extra.push(...musicPlaying(target.playlist.name));
                     await startPlaylistAt(target.playlist, 0);
                   } else {
                     const { hit } = target;
-                    extra.push({
-                      id: `music-play-tr-${Date.now()}`,
-                      kind: "system",
-                      lines: [
-                        {
-                          tokens: [
-                            { text: zhCN.music.playingTrack, tone: "hint" },
-                            { text: hit.track.name, tone: "path" },
-                            {
-                              text: ` · ${hit.playlist.name}`,
-                              tone: "muted",
-                            },
-                          ],
-                        },
-                      ],
-                    });
+                    extra.push(
+                      ...musicPlaying(hit.track.name, hit.playlist.name),
+                    );
                     await startPlaylistAt(hit.playlist, hit.index);
                   }
                 }
@@ -1188,39 +1150,15 @@ export function ArchiveTerminal({
                   result.music?.type === "playlist-prev"
                 ) {
                   if (!bgmRef.current && !revealPlayer(true)) {
-                    extra.push({
-                      id: `music-pl-${Date.now()}`,
-                      kind: "system",
-                      lines: [
-                        {
-                          tokens: [
-                            {
-                              text: zhCN.music.needPlaylistSession,
-                              tone: "error",
-                            },
-                          ],
-                        },
-                      ],
-                    });
+                    extra.push(musicError("no playlist session"));
                   } else {
-                    const ok = switchPlaylist(
+                    const name = switchPlaylist(
                       result.music.type === "playlist-next" ? 1 : -1,
                     );
-                    if (!ok && playlistsRef.current.length <= 1) {
-                      extra.push({
-                        id: `music-pl-one-${Date.now()}`,
-                        kind: "system",
-                        lines: [
-                          {
-                            tokens: [
-                              {
-                                text: zhCN.music.needPlaylistSession,
-                                tone: "hint",
-                              },
-                            ],
-                          },
-                        ],
-                      });
+                    if (name) {
+                      extra.push(musicSwitchedBrowse(name));
+                    } else if (playlistsRef.current.length <= 1) {
+                      extra.push(musicError("no playlist session"));
                     }
                   }
                 }
@@ -1317,11 +1255,15 @@ export function ArchiveTerminal({
                   const track =
                     bgmRef.current?.now?.tracks[bgmRef.current.now.index];
                   if (!track) {
-                    extra.push(
-                      musicSystem(zhCN.music.needDownloadTarget, "error"),
-                    );
+                    extra.push(musicError("no current track to download"));
                   } else {
-                    extra.push(await postSongCache("POST", String(track.id)));
+                    extra.push(
+                      await postSongCache(
+                        "POST",
+                        String(track.id),
+                        track.name,
+                      ),
+                    );
                   }
                 }
                 if (result.music?.type === "download-queries") {
@@ -1341,14 +1283,24 @@ export function ArchiveTerminal({
                     result.music.name,
                   );
                   if (hits.length === 0) {
-                    extra.push(musicSystem(zhCN.music.deleteNotLocal, "error"));
+                    extra.push(
+                      musicError(
+                        `no local track named '${result.music.name}'`,
+                      ),
+                    );
                   } else if (hits.length > 1) {
                     extra.push(
-                      musicSystem(zhCN.music.deleteAmbiguous, "error"),
+                      musicError(
+                        `ambiguous local title '${result.music.name}'`,
+                      ),
                     );
                   } else {
                     extra.push(
-                      await postSongCache("DELETE", String(hits[0]!.track.id)),
+                      await postSongCache(
+                        "DELETE",
+                        String(hits[0]!.track.id),
+                        hits[0]!.track.name,
+                      ),
                     );
                   }
                 }
@@ -1496,18 +1448,21 @@ export function ArchiveTerminal({
                 if (decision === "abort") {
                   downloadQueueRef.current = null;
                   return {
-                    entries: [musicSystem(zhCN.music.downloadAborted, "hint")],
+                    entries: [musicDownloadAborted()],
                   };
                 }
                 const entries: TerminalEntry[] = [];
                 if (decision === "yes" && queue.pending) {
-                  entries.push(await postSongCache("POST", queue.pending.id));
+                  entries.push(
+                    await postSongCache(
+                      "POST",
+                      queue.pending.id,
+                      queue.pending.name,
+                    ),
+                  );
                 } else {
                   entries.push(
-                    musicSystem(
-                      `${zhCN.music.downloadSkipped}：${queue.pending?.label ?? ""}`,
-                      "hint",
-                    ),
+                    musicDownloadSkipped(queue.pending?.label ?? ""),
                   );
                 }
                 queue.pending = null;

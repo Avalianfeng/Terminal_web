@@ -5,8 +5,13 @@ import { firstTrackHit, type TrackHit } from "./track-resolve";
 
 export type SearchScope = "default" | "playlist" | "song";
 
+export const MUSIC_USAGE = {
+  playlist: "music playlist next|prev|<name>",
+} as const;
+
 export type MusicIntent =
   | { kind: "help" }
+  | { kind: "usage"; topic: "playlist" }
   | { kind: "list" }
   | { kind: "play"; query: string; scope: SearchScope }
   | { kind: "show" }
@@ -216,7 +221,7 @@ export function parseMusicArgs(args: string[]): MusicIntent {
     }
     const query = flags.rest.join(" ").trim();
     if (!query || query === "use") {
-      return { kind: "help" };
+      return { kind: "usage", topic: "playlist" };
     }
     const useQuery =
       flags.rest[0]?.toLowerCase() === "use"

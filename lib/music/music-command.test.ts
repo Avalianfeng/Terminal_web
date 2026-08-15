@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   defaultPlaylist,
+  MUSIC_USAGE,
   musicArgCandidates,
   parseMusicArgs,
   resolveImportUrl,
@@ -73,6 +74,25 @@ describe("parseMusicArgs", () => {
       kind: "playlist-use",
       query: "如人饮水",
     });
+  });
+
+  it("returns playlist usage when playlist subcommand lacks target", () => {
+    assert.deepEqual(parseMusicArgs(["playlist"]), {
+      kind: "usage",
+      topic: "playlist",
+    });
+    assert.deepEqual(parseMusicArgs(["pl"]), {
+      kind: "usage",
+      topic: "playlist",
+    });
+    assert.deepEqual(parseMusicArgs(["playlist", "use"]), {
+      kind: "usage",
+      topic: "playlist",
+    });
+    assert.equal(
+      MUSIC_USAGE.playlist,
+      "music playlist next|prev|<name>",
+    );
   });
 
   it("parses download / delete and search flags", () => {

@@ -280,6 +280,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
     async function writeEntries(entries: TerminalEntry[], skipCommandEcho: boolean) {
       const term = termRef.current;
       if (!term) return;
+      const activeTerm = term;
 
       const queueId = ++writeQueueRef.current;
       const list = skipCommandEcho
@@ -292,16 +293,52 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       const delay =
         reduced || list.length <= 1 ? 0 : callbacksRef.current.lineDelayMs;
 
+      const uiBlocksStatus = () =>
+        pagerRef.current !== null ||
+        pasteConfirmRef.current !== null ||
+        ynConfirmRef.current !== null ||
+        passwordRef.current !== null;
+
+      let onStatusLine = false;
+
+      function clearStatusLine() {
+        if (!onStatusLine) return;
+        activeTerm.write("\r\x1b[2K");
+        onStatusLine = false;
+      }
+
       for (let i = 0; i < list.length; i += 1) {
-        if (writeQueueRef.current !== queueId) return;
-        const lines = entryToAnsiLines(list[i]!);
-        for (const line of lines) {
-          term.writeln(line);
+        if (writeQueueRef.current !== queueId) {
+          clearStatusLine();
+          return;
+        }
+        const entry = list[i]!;
+
+        if (entry.kind === "status") {
+          if (uiBlocksStatus()) continue;
+          for (const line of entryToAnsiLines(entry)) {
+            activeTerm.write(`\r\x1b[2K${line}`);
+            onStatusLine = true;
+          }
+          scrollToPrompt();
+          if (delay > 0 && i < list.length - 1) {
+            await new Promise((resolve) => window.setTimeout(resolve, delay));
+          }
+          continue;
+        }
+
+        clearStatusLine();
+        for (const line of entryToAnsiLines(entry)) {
+          activeTerm.writeln(line);
         }
         scrollToPrompt();
         if (delay > 0 && i < list.length - 1) {
           await new Promise((resolve) => window.setTimeout(resolve, delay));
         }
+      }
+
+      if (writeQueueRef.current === queueId) {
+        clearStatusLine();
       }
     }
 
@@ -560,7 +597,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       ynConfirmRef.current = { prompt };
       const term = termRef.current;
       if (!term) return;
-      term.write(`\r\x1b[2K${mutedAnsi(prompt)}`);
+      term.write(`\r\x1b[2K${mutedAnsi(prompt)}\r\n`);
       scrollToPrompt();
     }
 

@@ -82,7 +82,7 @@ export type TerminalSession = {
 
 export type TerminalEntry = {
   id: string;
-  kind: "system" | "command" | "lines";
+  kind: "system" | "command" | "lines" | "status";
   lines: TerminalLine[];
 };
 

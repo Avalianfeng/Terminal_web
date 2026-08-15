@@ -33,7 +33,7 @@ A registered terminal command: primary `name`, optional `aliases`, optional help
 _Avoid_: parallel PRIMARY_COMMANDS / PATH_ARG_COMMANDS / alias maps; help copy duplicated in i18n per command
 
 **CliEmit**:
-Terminal **emission** contract (what xterm prints after a command runs): four genres `usage | result | error | status` via planned `lib/archive/cli-emit.ts` — message id + slots → `TerminalEntry[]`; `\r` status/progress must not linger in scrollback. Distinct from CommandSpec (discovery/help/Tab, ADR 0002). Authority: `docs/adr/0012-cli-output-contract.md`.
+Terminal **emission** contract (what xterm prints after a command runs): four genres `usage | result | error | status` via `lib/archive/cli-emit.ts` — message id + slots → `TerminalEntry[]`; `\r` status/progress must not linger in scrollback. Distinct from CommandSpec (discovery/help/Tab, ADR 0002). Authority: `docs/adr/0012-cli-output-contract.md`.
 _Avoid_: treating CommandSpec as the output contract; parallel string concat in `commands.ts` vs `archive-terminal.tsx`; leaving status in scrollback; handlers gluing `：` or leaving empty colon lines; dumping parent help when a subcommand lacks args
 
 **ReadingSession**:

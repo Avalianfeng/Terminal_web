@@ -2,7 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-08-15
-- **Commit**: （文档刀；排放代码未落地）
+- **Commit**: （排放代码随本提交落地；download 字节流进度后置）
 - **Code**（计划）: `lib/archive/cli-emit.ts`；`lib/music/music-command.ts`（music 子命令 usage 表）；`components/archive-xterm.tsx`（`\r` status/progress）；`components/archive-terminal.tsx`（喂入 bytes/事件）
 - **Glossary**: `CONTEXT.md` → CliEmit
 - **Related**: [0002](0002-command-registry.md)（命令名 / help / Tab **发现**）；本 ADR 管 **排放**（命令跑完后 xterm 写什么）

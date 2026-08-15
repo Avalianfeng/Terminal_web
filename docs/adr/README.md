@@ -25,6 +25,6 @@
 | [0009](0009-music-layer-netease-bff.md) | 音乐层（网易云 BFF + 歌单 + BGM） | Accepted | 热队列已收口；冷库管理页否决；BFF 闸见 0010 |
 | [0010](0010-site-principal.md) | 站点主语 SitePrincipal（visitor / owner） | Accepted | 口令 session + UI 写 / 音乐 BFF |
 | [0011](0011-music-local-cache-public.md) | 本地曲库（访客可播已落盘媒体） | Accepted | `data/music/` + local/play/download |
-| [0012](0012-cli-output-contract.md) | 终端 CLI 输出契约（排放） | Accepted | （文档刀；排放代码未落地） |
+| [0012](0012-cli-output-contract.md) | 终端 CLI 输出契约（排放） | Accepted | `cli-emit` + music 首刀 |
 
 编号与 2026-08-11 架构深化候选 #1–#6 对齐，便于对照；#7 为 2026-08-12 安全审计后的部署原则；#8 resources；#9 music 层；#10 网页身份；#11 本地曲库；#12 终端排放（0002 管发现，0012 管 xterm 写什么）；落地顺序不必等于编号顺序。
