@@ -108,8 +108,8 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
     const pagerRef = useRef<PagerState | null>(null);
     /** 多行粘贴确认：待执行行；与 pager 互斥。 */
     const pasteConfirmRef = useRef<{ lines: string[] } | null>(null);
-    /** y/N 确认（如下载队列）；与粘贴确认互斥。 */
-    const ynConfirmRef = useRef<{ prompt: string } | null>(null);
+    /** y/N 确认（如下载队列）；busy=等待 handler（如下载 fetch），期间仍挡住 prompt。 */
+    const ynConfirmRef = useRef<{ prompt: string; busy?: boolean } | null>(null);
     /** 确认后待串行执行的命令队列（pager 会暂停，退出后继续）。 */
     const pasteQueueRef = useRef<string[]>([]);
     const pasteBusyRef = useRef(false);
@@ -597,13 +597,14 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       ynConfirmRef.current = { prompt };
       const term = termRef.current;
       if (!term) return;
-      term.write(`\r\x1b[2K${mutedAnsi(prompt)}\r\n`);
+      term.write(`\r\x1b[2K${mutedAnsi(prompt)}`);
       scrollToPrompt();
     }
 
     async function resolveYnConfirm(decision: "yes" | "no" | "abort") {
-      if (!ynConfirmRef.current) return;
-      ynConfirmRef.current = null;
+      const current = ynConfirmRef.current;
+      if (!current || current.busy) return;
+      ynConfirmRef.current = { ...current, busy: true };
       const term = termRef.current;
       if (term) {
         if (decision === "abort") term.write("^C\r\n");
@@ -613,15 +614,22 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       lastCursorRowOffRef.current = 0;
       const handler = callbacksRef.current.onConfirm;
       if (!handler) {
+        ynConfirmRef.current = null;
         paintPromptLine();
         scrollToPrompt();
         return;
       }
-      const result = await handler(decision);
-      await writeEntries(result.entries, true);
-      if (result.confirmPrompt) {
-        beginYnConfirm(result.confirmPrompt);
-        return;
+      try {
+        const result = await handler(decision);
+        await writeEntries(result.entries, true);
+        if (result.confirmPrompt) {
+          beginYnConfirm(result.confirmPrompt);
+          return;
+        }
+      } finally {
+        if (ynConfirmRef.current?.busy) {
+          ynConfirmRef.current = null;
+        }
       }
       paintPromptLine();
       scrollToPrompt();
