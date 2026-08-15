@@ -6,6 +6,8 @@ import {
 } from "@/lib/music/music-command";
 import type { MusicPlaylistIndex } from "@/lib/music/playlist-types";
 import { playlistTrackCount } from "@/lib/music/playlist-types";
+import { isLocalPlaylist } from "@/lib/music/playlist-project";
+import { formatTrackArtists } from "@/lib/music/track-resolve";
 import type {
   ArchiveDocument,
   ArchiveSnapshot,
@@ -818,17 +820,46 @@ export function initialEntries(snapshot: ArchiveSnapshot): TerminalEntry[] {
   ];
 }
 
-function formatPlaylistList(playlists: MusicPlaylistIndex[]): TerminalLine[] {
+function formatPlaylistList(
+  playlists: MusicPlaylistIndex[],
+  visitor: boolean,
+): TerminalLine[] {
   if (playlists.length === 0) {
-    return [line([token(zhCN.music.empty, "hint")])];
+    return [
+      line([
+        token(visitor ? zhCN.music.emptyVisitor : zhCN.music.empty, "hint"),
+      ]),
+    ];
   }
-  return playlists.map((playlist) =>
-    line([
-      token(playlist.name, "path"),
-      token(`  ${playlistTrackCount(playlist)}${zhCN.music.trackUnit}  `, "muted"),
-      token(playlist.neteasePlaylistId, "muted"),
-    ]),
-  );
+  const rows: TerminalLine[] = [];
+  for (const playlist of playlists) {
+    const local = isLocalPlaylist(playlist);
+    rows.push(
+      line([
+        token(playlist.name, "path"),
+        token(
+          `  ${playlistTrackCount(playlist)}${zhCN.music.trackUnit}  `,
+          "muted",
+        ),
+        token(local ? zhCN.music.localTag : playlist.neteasePlaylistId, "muted"),
+      ]),
+    );
+    if (local) {
+      for (const track of playlist.tracks) {
+        const artists = formatTrackArtists(track);
+        rows.push(
+          line([
+            token("    ", "muted"),
+            token(track.name),
+            ...(artists
+              ? [token(`  ${artists}`, "muted")]
+              : []),
+          ]),
+        );
+      }
+    }
+  }
+  return rows;
 }
 
 function handleMusicCommand(
@@ -840,6 +871,20 @@ function handleMusicCommand(
 ): CommandResult {
   const intent = parseMusicArgs(args);
   const owner = capabilitiesFrom(principal).musicBff;
+
+  if (intent.kind === "flag-conflict") {
+    return {
+      entries: [commandEcho, systemError(zhCN.music.flagConflict)],
+      session,
+    };
+  }
+
+  if (intent.kind === "flag-mismatch") {
+    return {
+      entries: [commandEcho, systemError(zhCN.music[intent.messageKey])],
+      session,
+    };
+  }
 
   if (intent.kind === "help") {
     return {
@@ -856,7 +901,12 @@ function handleMusicCommand(
             zhCN.music.usageHide,
             zhCN.music.usagePlaylist,
             ...(owner
-              ? [zhCN.music.usageImport, zhCN.music.usageSync]
+              ? [
+                  zhCN.music.usageImport,
+                  zhCN.music.usageSync,
+                  zhCN.music.usageDownload,
+                  zhCN.music.usageDelete,
+                ]
               : []),
             zhCN.music.usagePause,
             zhCN.music.usagePrev,
@@ -871,7 +921,10 @@ function handleMusicCommand(
 
   if (intent.kind === "list") {
     return {
-      entries: [commandEcho, lineEntry(formatPlaylistList(playlists))],
+      entries: [
+        commandEcho,
+        lineEntry(formatPlaylistList(playlists, !owner)),
+      ],
       session,
     };
   }
@@ -893,6 +946,20 @@ function handleMusicCommand(
   }
 
   if (intent.kind === "play") {
+    if (intent.scope === "song") {
+      return {
+        entries: [
+          commandEcho,
+          lineEntry(lines([token(zhCN.music.searchingTrack, "hint")])),
+        ],
+        session,
+        music: {
+          type: "play-search",
+          query: intent.query,
+          scope: intent.scope,
+        },
+      };
+    }
     const resolved = resolvePlayQuery(playlists, intent.query);
     if (resolved.ok) {
       return {
@@ -913,14 +980,27 @@ function handleMusicCommand(
         music: { type: "play", playlist: resolved.playlist },
       };
     }
-    // 非唯一歌单：交 UI 扫曲目（可 hydrate stub）
+    if (intent.scope === "playlist") {
+      const hint =
+        resolved.reason === "ambiguous"
+          ? `${zhCN.music.ambiguous}: ${resolved.matches.map((item) => item.name).join("、")}`
+          : zhCN.music.notFound;
+      return {
+        entries: [commandEcho, systemError(hint)],
+        session,
+      };
+    }
     return {
       entries: [
         commandEcho,
         lineEntry(lines([token(zhCN.music.searchingTrack, "hint")])),
       ],
       session,
-      music: { type: "play-search", query: intent.query },
+      music: {
+        type: "play-search",
+        query: intent.query,
+        scope: intent.scope,
+      },
     };
   }
 
@@ -1020,6 +1100,47 @@ function handleMusicCommand(
       ],
       session,
       music: { type: "sync" },
+    };
+  }
+
+  if (intent.kind === "download") {
+    if (!owner) {
+      return {
+        entries: [commandEcho, systemError(zhCN.auth.needOwner)],
+        session,
+      };
+    }
+    if (intent.queries.length === 0) {
+      return {
+        entries: [
+          commandEcho,
+          lineEntry(lines([token(zhCN.music.downloading, "hint")])),
+        ],
+        session,
+        music: { type: "download-now" },
+      };
+    }
+    return {
+      entries: [commandEcho],
+      session,
+      music: { type: "download-queries", queries: intent.queries },
+    };
+  }
+
+  if (intent.kind === "delete") {
+    if (!owner) {
+      return {
+        entries: [commandEcho, systemError(zhCN.auth.needOwner)],
+        session,
+      };
+    }
+    return {
+      entries: [
+        commandEcho,
+        lineEntry(lines([token(zhCN.music.deleting, "hint")])),
+      ],
+      session,
+      music: { type: "delete", name: intent.name },
     };
   }
 

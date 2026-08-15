@@ -182,7 +182,7 @@ export async function fetchSongProxyUrl(
   songId: string,
   signal: AbortSignal,
 ): Promise<ResolveSongUrlResult> {
-  const response = await fetch(`/api/music/song/url?id=${encodeURIComponent(songId)}`, {
+  const response = await fetch(`/api/music/song/play?id=${encodeURIComponent(songId)}`, {
     signal,
   });
   const body = (await response.json()) as {

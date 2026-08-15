@@ -69,3 +69,11 @@ export function parseNeteaseSongId(input: string): string | null {
   const parsed = parseNeteaseUrl(input);
   return parsed?.kind === "song" ? parsed.id : null;
 }
+
+/** 数字 id 或 song URL → songId。 */
+export function resolveSongIdParam(raw: string | null | undefined): string | null {
+  if (!raw?.trim()) return null;
+  const trimmed = raw.trim();
+  if (/^\d+$/.test(trimmed)) return trimmed;
+  return parseNeteaseSongId(trimmed);
+}

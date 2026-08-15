@@ -4,6 +4,7 @@ import {
   parseNeteasePlaylistId,
   parseNeteaseSongId,
   parseNeteaseUrl,
+  resolveSongIdParam,
 } from "./netease-url";
 
 describe("parseNeteaseUrl", () => {
@@ -25,6 +26,9 @@ describe("parseNeteaseUrl", () => {
       raw: url,
     });
     assert.equal(parseNeteaseSongId(url), "357312");
+    assert.equal(resolveSongIdParam("357312"), "357312");
+    assert.equal(resolveSongIdParam(url), "357312");
+    assert.equal(resolveSongIdParam("../x"), null);
   });
 
   it("parses bare hash fragments", () => {

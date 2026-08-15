@@ -29,6 +29,9 @@
     "test:playlist-sync": "tsx --test lib/music/playlist-sync.test.ts",
     "test:playback-session": "tsx --test lib/music/playback-session.test.ts",
     "test:lyric": "tsx --test lib/music/lyric.test.ts",
+    "test:local-audio": "tsx --test lib/music/local-audio-store.test.ts",
+    "test:playlist-project": "tsx --test lib/music/playlist-project.test.ts",
+    "test:track-resolve": "tsx --test lib/music/track-resolve.test.ts",
     "test:write-cors": "tsx --test lib/archive/write-cors.test.ts",
     "test:markdown-prose": "tsx --test lib/archive/markdown-prose.test.ts"
   },

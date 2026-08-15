@@ -11,6 +11,9 @@ out/
 # NetEase music cookie (ADR 0009; local-dev secret)
 .netease-cookie
 
+# Local BGM cache (ADR 0011; sync to deploy, do not commit)
+/data/music/
+
 # debug
 npm-debug.log*
 

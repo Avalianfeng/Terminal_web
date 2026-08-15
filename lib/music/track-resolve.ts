@@ -22,6 +22,19 @@ export function matchesTrack(track: PlaylistTrack, query: string): boolean {
   return track.artists.some((artist) => artist.toLowerCase().includes(needle));
 }
 
+export function matchesTrackExactName(track: PlaylistTrack, name: string): boolean {
+  return track.name === name.trim();
+}
+
+export function formatTrackArtists(track: PlaylistTrack): string {
+  return track.artists.filter(Boolean).join(" / ");
+}
+
+export function formatTrackLabel(track: PlaylistTrack): string {
+  const artists = formatTrackArtists(track);
+  return artists ? `${track.name} — ${artists}` : track.name;
+}
+
 /**
  * 在已载入曲目的歌单里扫描；playlist 顺序即优先级（首个命中优先）。
  * 不含 tracks 的 stub 会被跳过——调用方应先 hydrate。
@@ -49,4 +62,23 @@ export function firstTrackHit(
   query: string,
 ): TrackHit | null {
   return findTracks(playlists, query)[0] ?? null;
+}
+
+/** 完整歌名精确匹配（delete）；按 song id 去重。 */
+export function findExactNamedTracks(
+  playlists: readonly MusicPlaylistIndex[],
+  name: string,
+): TrackHit[] {
+  const target = name.trim();
+  if (!target) return [];
+  const hits: TrackHit[] = [];
+  const seen = new Set<number>();
+  for (const playlist of playlists) {
+    playlist.tracks.forEach((track, index) => {
+      if (!matchesTrackExactName(track, target) || seen.has(track.id)) return;
+      seen.add(track.id);
+      hits.push({ playlist, track, index });
+    });
+  }
+  return hits;
 }

@@ -3,10 +3,12 @@ import type { MusicPlaylistIndex } from "./playlist-types";
 import { findPlaylists } from "./playlist-resolve";
 import { firstTrackHit, type TrackHit } from "./track-resolve";
 
+export type SearchScope = "default" | "playlist" | "song";
+
 export type MusicIntent =
   | { kind: "help" }
   | { kind: "list" }
-  | { kind: "play"; query: string }
+  | { kind: "play"; query: string; scope: SearchScope }
   | { kind: "show" }
   | { kind: "hide" }
   | { kind: "import"; url: string }
@@ -20,11 +22,15 @@ export type MusicIntent =
   | { kind: "playlist-prev" }
   | { kind: "playlist-use"; query: string }
   | { kind: "lyric"; query: string }
-  | { kind: "shuffle"; mode: "toggle" | "on" | "off" };
+  | { kind: "shuffle"; mode: "toggle" | "on" | "off" }
+  | { kind: "download"; queries: string[] }
+  | { kind: "delete"; name: string }
+  | { kind: "flag-conflict" }
+  | { kind: "flag-mismatch"; messageKey: "downloadPlaylistOnly" | "lyricPlaylistOnly" | "deleteNeedsName" | "playlistSongOnly" };
 
 export type MusicAction =
   | { type: "play"; playlist: MusicPlaylistIndex; trackIndex?: number }
-  | { type: "play-search"; query: string }
+  | { type: "play-search"; query: string; scope: SearchScope }
   | { type: "show" }
   | { type: "hide" }
   | { type: "import"; url: string }
@@ -38,7 +44,10 @@ export type MusicAction =
   | { type: "playlist-prev" }
   | { type: "playlist-use"; playlist: MusicPlaylistIndex }
   | { type: "lyric"; query: string }
-  | { type: "shuffle"; mode: "toggle" | "on" | "off" };
+  | { type: "shuffle"; mode: "toggle" | "on" | "off" }
+  | { type: "download-now" }
+  | { type: "download-queries"; queries: string[] }
+  | { type: "delete"; name: string };
 
 /** Tab 第一参候选（与 `parseMusicArgs` 可识别子命令同源；含别名）。 */
 export const MUSIC_SUBCOMMANDS = [
@@ -63,6 +72,8 @@ export const MUSIC_SUBCOMMANDS = [
   "pl",
   "import",
   "sync",
+  "download",
+  "delete",
 ] as const;
 
 export const MUSIC_PLAYLIST_SUBS = [
@@ -73,6 +84,38 @@ export const MUSIC_PLAYLIST_SUBS = [
 ] as const;
 
 export const MUSIC_SHUFFLE_MODES = ["on", "off"] as const;
+
+export const MUSIC_SEARCH_FLAGS = ["--playlist", "--song"] as const;
+
+export function takeSearchScope(args: readonly string[]): {
+  scope: SearchScope;
+  rest: string[];
+  conflict: boolean;
+} {
+  let playlist = false;
+  let song = false;
+  const rest: string[] = [];
+  for (const arg of args) {
+    const lower = arg.toLowerCase();
+    if (lower === "--playlist") playlist = true;
+    else if (lower === "--song") song = true;
+    else rest.push(arg);
+  }
+  if (playlist && song) {
+    return { scope: "default", rest, conflict: true };
+  }
+  if (playlist) return { scope: "playlist", rest, conflict: false };
+  if (song) return { scope: "song", rest, conflict: false };
+  return { scope: "default", rest, conflict: false };
+}
+
+/** 多个歌名用逗号（含中文逗号）分隔；无逗号则整段一首。 */
+export function splitSongQueries(raw: string): string[] {
+  return raw
+    .split(/[,，]/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
 
 function filterMusicPrefix(values: readonly string[], partial: string) {
   const needle = partial.toLowerCase();
@@ -97,6 +140,9 @@ export function musicArgCandidates(
     (sub === "playlist" || sub === "pl") &&
     completedArgs.length === 1
   ) {
+    if (partial.startsWith("-")) {
+      return filterMusicPrefix(["--playlist"], partial);
+    }
     return filterMusicPrefix(MUSIC_PLAYLIST_SUBS, partial);
   }
   if (
@@ -104,6 +150,23 @@ export function musicArgCandidates(
     completedArgs.length === 1
   ) {
     return filterMusicPrefix(MUSIC_SHUFFLE_MODES, partial);
+  }
+  if (
+    (sub === "play" ||
+      sub === "lyric" ||
+      sub === "lyrics" ||
+      sub === "lrc" ||
+      sub === "download") &&
+    completedArgs.length === 1 &&
+    partial.startsWith("-")
+  ) {
+    if (sub === "download") {
+      return filterMusicPrefix(["--song"], partial);
+    }
+    if (sub === "lyric" || sub === "lyrics" || sub === "lrc") {
+      return filterMusicPrefix(["--song"], partial);
+    }
+    return filterMusicPrefix(MUSIC_SEARCH_FLAGS, partial);
   }
 
   return [];
@@ -125,7 +188,12 @@ export function parseMusicArgs(args: string[]): MusicIntent {
   if (sub === "show") return { kind: "show" };
   if (sub === "hide") return { kind: "hide" };
   if (sub === "lyric" || sub === "lyrics" || sub === "lrc") {
-    return { kind: "lyric", query: rest.join(" ").trim() };
+    const flags = takeSearchScope(rest);
+    if (flags.conflict) return { kind: "flag-conflict" };
+    if (flags.scope === "playlist") {
+      return { kind: "flag-mismatch", messageKey: "lyricPlaylistOnly" };
+    }
+    return { kind: "lyric", query: flags.rest.join(" ").trim() };
   }
   if (sub === "shuffle" || sub === "random") {
     const modeRaw = rest[0]?.trim().toLowerCase() ?? "";
@@ -141,22 +209,49 @@ export function parseMusicArgs(args: string[]): MusicIntent {
     const [plSub = "", ...plRest] = rest;
     if (plSub === "next") return { kind: "playlist-next" };
     if (plSub === "prev" || plSub === "previous") return { kind: "playlist-prev" };
-    const query = [plSub, ...plRest].join(" ").trim();
+    const flags = takeSearchScope(rest);
+    if (flags.conflict) return { kind: "flag-conflict" };
+    if (flags.scope === "song") {
+      return { kind: "flag-mismatch", messageKey: "playlistSongOnly" };
+    }
+    const query = flags.rest.join(" ").trim();
     if (!query || query === "use") {
       return { kind: "help" };
     }
-    const useQuery = plSub === "use" ? plRest.join(" ").trim() : query;
+    const useQuery =
+      flags.rest[0]?.toLowerCase() === "use"
+        ? flags.rest.slice(1).join(" ").trim()
+        : query;
     return { kind: "playlist-use", query: useQuery };
   }
   if (sub === "play") {
-    const query = rest.join(" ").trim();
+    const flags = takeSearchScope(rest);
+    if (flags.conflict) return { kind: "flag-conflict" };
+    const query = flags.rest.join(" ").trim();
     if (!query) return { kind: "resume" };
-    return { kind: "play", query };
+    return { kind: "play", query, scope: flags.scope };
   }
   if (sub === "import") {
     return { kind: "import", url: rest.join(" ").trim() };
   }
   if (sub === "sync") return { kind: "sync" };
+  if (sub === "download") {
+    const flags = takeSearchScope(rest);
+    if (flags.conflict) return { kind: "flag-conflict" };
+    if (flags.scope === "playlist") {
+      return { kind: "flag-mismatch", messageKey: "downloadPlaylistOnly" };
+    }
+    return { kind: "download", queries: splitSongQueries(flags.rest.join(" ")) };
+  }
+  if (sub === "delete") {
+    const flags = takeSearchScope(rest);
+    if (flags.conflict) return { kind: "flag-conflict" };
+    const name = flags.rest.join(" ").trim();
+    if (!name) {
+      return { kind: "flag-mismatch", messageKey: "deleteNeedsName" };
+    }
+    return { kind: "delete", name };
+  }
   return { kind: "help" };
 }
 
@@ -191,6 +286,7 @@ export function resolvePlayTarget(
   playlists: MusicPlaylistIndex[],
   query: string,
   tracksReady: MusicPlaylistIndex[] = playlists,
+  scope: SearchScope = "default",
 ):
   | { ok: true; kind: "playlist"; playlist: MusicPlaylistIndex }
   | { ok: true; kind: "track"; hit: TrackHit }
@@ -203,14 +299,17 @@ export function resolvePlayTarget(
     return { ok: false, reason: "missing", matches: [] };
   }
 
-  const playlistMatches = findPlaylists(playlists, query);
-  if (playlistMatches.length === 1) {
+  const playlistMatches =
+    scope === "song" ? [] : findPlaylists(playlists, query);
+  if (scope !== "song" && playlistMatches.length === 1) {
     return { ok: true, kind: "playlist", playlist: playlistMatches[0]! };
   }
 
-  const hit = firstTrackHit(tracksReady, query);
-  if (hit) {
-    return { ok: true, kind: "track", hit };
+  if (scope !== "playlist") {
+    const hit = firstTrackHit(tracksReady, query);
+    if (hit) {
+      return { ok: true, kind: "track", hit };
+    }
   }
 
   if (playlistMatches.length > 1) {

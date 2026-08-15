@@ -22,6 +22,12 @@ export function serializePlaylistIndex(index: MusicPlaylistIndex): string {
     if (track.durationMs !== undefined) {
       lines.push(`    durationMs: ${track.durationMs}`);
     }
+    if (track.localCachedAt) {
+      lines.push(`    localCachedAt: ${quote(track.localCachedAt)}`);
+    }
+    if (track.localExt) {
+      lines.push(`    localExt: ${track.localExt}`);
+    }
   }
 
   return `${lines.join("\n")}\n`;
@@ -70,6 +76,8 @@ export function parsePlaylistIndex(yaml: string): MusicPlaylistIndex {
       if (typeof current.durationMs === "number" && Number.isFinite(current.durationMs)) {
         track.durationMs = current.durationMs;
       }
+      if (current.localCachedAt) track.localCachedAt = current.localCachedAt;
+      if (current.localExt) track.localExt = current.localExt;
       index.tracks.push(track);
     }
     current = null;
@@ -91,6 +99,13 @@ export function parsePlaylistIndex(yaml: string): MusicPlaylistIndex {
       if (key === "name") current.name = unquote(raw);
       if (key === "artists") current.artists = parseArtists(raw);
       if (key === "durationMs") current.durationMs = Number(raw);
+      if (key === "localCachedAt") current.localCachedAt = unquote(raw);
+      if (key === "localExt") {
+        const ext = unquote(raw);
+        if (ext === "mp3" || ext === "m4a" || ext === "ogg" || ext === "flac") {
+          current.localExt = ext;
+        }
+      }
       continue;
     }
 

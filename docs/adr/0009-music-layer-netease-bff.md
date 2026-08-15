@@ -76,7 +76,7 @@ Cookie 存仓根 **`.netease-cookie`**（gitignore；须含 `MUSIC_U`），**不
 
 ## Rejected
 
-- 122 首 mp3 进 `content/` 或 `public/` 作为默认方案。
+- 122 首 mp3 进 `content/` 或 `public/` 作为默认方案（按需缓存见 [0011](0011-music-local-cache-public.md)）。
 - 网易云 Web iframe 嵌入档案阅读面。
 - 与 GitHub 外源、resources discovery `kind` 扩展混在同一 PR。
 - 公网首期暴露无鉴权 `/api/music/*` 代理（BFF 须 owner；[0010](0010-site-principal.md)）。
@@ -172,4 +172,8 @@ Cookie 存仓根 **`.netease-cookie`**（gitignore；须含 `MUSIC_U`），**不
 
 ## 修订（2026-08-15 · SitePrincipal）
 
-BFF 第一闸改为 [0010](0010-site-principal.md) owner principal（不再用 `NODE_ENV !== "production"` 当「是主人」）。网易 Cookie 仍为第二闸。公网访客流式仍关，直到日后本地缓存轨（0011）。
+BFF 第一闸改为 [0010](0010-site-principal.md) owner principal（不再用 `NODE_ENV !== "production"` 当「是主人」）。网易 Cookie 仍为第二闸。
+
+## 修订（2026-08-15 · 本地曲库）
+
+[0011](0011-music-local-cache-public.md)：访客可播 `data/music/audio/<songId>.*`；yaml 仍是目录权威。全量 mp3 进仓仍否决；**按需缓存**允许。公开端点仅 local 取流（及有本地 lrc 时的歌词）。

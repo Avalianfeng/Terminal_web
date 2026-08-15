@@ -74,6 +74,7 @@ resource-reading.tsx    — 三区壳 + 通用 iframe（不 per-platform 分支�
 - **§2.2 外源（github）**：不同数据模型与失败模型；可复用 URL 规范化 / embed 组件，不合并 ContentGroup。
 - **§2.3 kind（image/music/video）**：自托管或非 markdown 条目时再开；本 ADR 不枚举 discovery kind。
 - **0007**：写仍只经 `content-write.ts`；`edit` 与 HTTP 写共用闸门。
+- **0011**：全站 BGM 的按需缓存在 `data/music/`（按网易 songId），**不是** `public/resources/audio`；resources 仍只服务解读单曲。
 
 ## Consequences
 

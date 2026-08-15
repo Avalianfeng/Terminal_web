@@ -6,6 +6,9 @@ export type PlaylistTrack = {
   name: string;
   artists: string[];
   durationMs?: number;
+  /** 最近一次成功 download 的时间（展示用；存在性以盘上文件为准）。 */
+  localCachedAt?: string;
+  localExt?: "mp3" | "m4a" | "ogg" | "flac";
 };
 
 export type MusicPlaylistIndex = {

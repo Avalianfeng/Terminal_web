@@ -58,6 +58,28 @@ describe("buildPlaylistIndex", () => {
     assert.deepEqual(parsePlaylistIndex(yaml), index);
   });
 
+  it("roundtrips local cache fields", () => {
+    const yaml = serializePlaylistIndex({
+      slug: "1",
+      neteasePlaylistId: "1",
+      name: "测",
+      sourceUrl: "https://music.163.com/#/playlist?id=1",
+      importedAt: "2026-08-15T00:00:00.000Z",
+      tracks: [
+        {
+          id: 10,
+          name: "本地",
+          artists: ["A"],
+          localCachedAt: "2026-08-15T00:00:00.000Z",
+          localExt: "mp3",
+        },
+      ],
+    });
+    const parsed = parsePlaylistIndex(yaml);
+    assert.equal(parsed.tracks[0]?.localExt, "mp3");
+    assert.equal(parsed.tracks[0]?.localCachedAt, "2026-08-15T00:00:00.000Z");
+  });
+
   it("requires cookie", async () => {
     await assert.rejects(
       () => buildPlaylistIndex({ playlistId: "1", cookie: "" }, fakeClient),

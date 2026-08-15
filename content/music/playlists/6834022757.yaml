@@ -13,6 +13,8 @@ tracks:
     name: "阴天"
     artists: ["莫文蔚"]
     durationMs: 242293
+    localCachedAt: "2026-08-15T11:58:34.221Z"
+    localExt: mp3
   - id: 2669244981
     name: "无名的种子"
     artists: ["龙梅子"]
@@ -141,6 +143,8 @@ tracks:
     name: "爱情"
     artists: ["莫文蔚"]
     durationMs: 285906
+    localCachedAt: "2026-08-15T11:59:15.122Z"
+    localExt: mp3
   - id: 1368256662
     name: "破釜沉舟（Don't Let Me Drown）"
     artists: ["Cole先生"]
@@ -1845,6 +1849,8 @@ tracks:
     name: "流川枫与苍井空"
     artists: ["黑撒"]
     durationMs: 303763
+    localCachedAt: "2026-08-15T09:20:29.259Z"
+    localExt: mp3
   - id: 2010835484
     name: "我爱过一个在济南开古着店的老板娘"
     artists: ["张嫮目"]

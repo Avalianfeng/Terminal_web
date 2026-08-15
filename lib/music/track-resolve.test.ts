@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  findExactNamedTracks,
   findTracks,
   firstTrackHit,
   matchesTrack,
@@ -52,5 +53,13 @@ describe("findTracks / firstTrackHit", () => {
   it("skips empty track lists", () => {
     const stub: MusicPlaylistIndex = { ...beta, tracks: [] };
     assert.equal(findTracks([stub, alpha], "一点一滴").length, 1);
+  });
+});
+
+describe("findExactNamedTracks", () => {
+  it("matches full name and dedupes by id", () => {
+    assert.equal(findExactNamedTracks([alpha, beta], "稳稳的幸福").length, 1);
+    assert.equal(findExactNamedTracks([alpha], "一点").length, 0);
+    assert.equal(findExactNamedTracks([alpha], "一点一滴")[0]?.track.id, 10);
   });
 });

@@ -9,3 +9,4 @@ tracks:
     name: "示例曲名"
     artists: ["示例歌手"]
     durationMs: 303000
+    # localCachedAt / localExt 由 music download 写入；存在性以 data/music/audio 为准

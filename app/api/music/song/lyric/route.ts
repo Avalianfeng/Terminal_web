@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
+import { parseLrc } from "@/lib/music/lyric";
+import { readLocalLyric } from "@/lib/music/local-audio-store";
 import { requireOwnerPrincipal } from "@/lib/music/bff-gate";
 import { cookieHasMusicU, readNeteaseCookie } from "@/lib/music/cookie-store";
-import { parseLrc } from "@/lib/music/lyric";
 import { createLiveNeteaseClient } from "@/lib/music/netease-client";
-import { parseNeteaseSongId } from "@/lib/music/netease-url";
+import { resolveSongIdParam } from "@/lib/music/netease-url";
 
 export const runtime = "nodejs";
 
@@ -11,25 +12,38 @@ function jsonError(status: number, error: string, message: string) {
   return NextResponse.json({ ok: false, error, message }, { status });
 }
 
-function resolveSongId(raw: string | null): string | null {
-  if (!raw?.trim()) return null;
-  const trimmed = raw.trim();
-  if (/^\d+$/.test(trimmed)) return trimmed;
-  return parseNeteaseSongId(trimmed);
-}
-
 export async function GET(request: Request) {
+  const id = resolveSongIdParam(new URL(request.url).searchParams.get("id"));
+  if (!id) {
+    return jsonError(400, "bad_request", "需要 id（歌曲数字 id 或 song URL）");
+  }
+
+  const local = await readLocalLyric(id);
+  if (local) {
+    const lines = parseLrc(local);
+    return NextResponse.json({
+      ok: true,
+      id,
+      source: "local",
+      lines,
+      empty: lines.length === 0,
+    });
+  }
+
   const denied = await requireOwnerPrincipal();
-  if (denied) return denied;
+  if (denied) {
+    return NextResponse.json({
+      ok: true,
+      id,
+      source: "none",
+      lines: [],
+      empty: true,
+    });
+  }
 
   const cookie = await readNeteaseCookie();
   if (!cookieHasMusicU(cookie)) {
     return jsonError(401, "unauthorized", "尚未登录：先 POST /api/music/login/cookie");
-  }
-
-  const id = resolveSongId(new URL(request.url).searchParams.get("id"));
-  if (!id) {
-    return jsonError(400, "bad_request", "需要 id（歌曲数字 id 或 song URL）");
   }
 
   try {
@@ -38,6 +52,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       ok: true,
       id,
+      source: "stream",
       lines,
       empty: lines.length === 0,
     });

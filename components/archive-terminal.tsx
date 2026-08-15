@@ -18,7 +18,7 @@ import {
 } from "@/lib/music/playback-session";
 import { nextSongIdForPrefetch, stepTrackIndex } from "@/lib/music/play-order";
 import { resolvePlayTarget } from "@/lib/music/music-command";
-import { firstTrackHit } from "@/lib/music/track-resolve";
+import { firstTrackHit, findExactNamedTracks, formatTrackLabel } from "@/lib/music/track-resolve";
 import type { LyricLine } from "@/lib/music/lyric";
 import {
   motionSpec,
@@ -59,11 +59,26 @@ import type {
 import { IMPLICIT_OWNER, type SitePrincipal } from "@/lib/archive/site-principal";
 import type { MusicPlaylistIndex } from "@/lib/music/playlist-types";
 import {
+  isLocalPlaylist,
+  playlistsForTrackSearch,
+} from "@/lib/music/playlist-project";
+import {
   defaultPlaylist,
   stepPlaylist,
 } from "@/lib/music/music-command";
 
 const PLAYLIST_SYNC_INTERVAL_MS = 30 * 60 * 1000;
+
+function musicSystem(
+  text: string,
+  tone: "error" | "hint" | "success" | "muted" = "hint",
+): TerminalEntry {
+  return {
+    id: `music-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    kind: "system",
+    lines: [{ tokens: [{ text, tone }] }],
+  };
+}
 
 type ArchiveTerminalProps = {
   snapshot: ArchiveSnapshot;
@@ -117,6 +132,11 @@ export function ArchiveTerminal({
   const bgmSrcRef = useRef(bgmSrc);
   bgmSrcRef.current = bgmSrc;
   const hydrateRequestRef = useRef(0);
+  const downloadQueueRef = useRef<{
+    queries: string[];
+    index: number;
+    pending: { id: string; label: string } | null;
+  } | null>(null);
   const playbackEngineRef = useRef<PlaybackSessionEngine | null>(null);
   if (!playbackEngineRef.current) {
     playbackEngineRef.current = new PlaybackSessionEngine({
@@ -484,7 +504,8 @@ export function ArchiveTerminal({
   async function hydratePlaylist(
     playlist: MusicPlaylistIndex,
   ): Promise<MusicPlaylistIndex> {
-    if (playlist.tracks.length > 0) return playlist;
+    if (isLocalPlaylist(playlist) || playlist.tracks.length > 0) return playlist;
+    if (principalRef.current.role !== "owner") return playlist;
     try {
       const res = await fetch(
         `/api/music/playlist/tracks?playlistId=${encodeURIComponent(playlist.neteasePlaylistId)}`,
@@ -636,6 +657,78 @@ export function ArchiveTerminal({
       }),
     );
     return loaded;
+  }
+
+  async function postSongCache(
+    method: "POST" | "DELETE",
+    id: string,
+  ): Promise<TerminalEntry> {
+    try {
+      const response = await fetch("/api/music/song/download", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const body = (await response.json()) as {
+        ok?: boolean;
+        saved?: number;
+        removed?: number;
+        message?: string;
+      };
+      if (body.ok === false) {
+        return musicSystem(
+          `${zhCN.music.downloadFailed}：${body.message ?? ""}`,
+          "error",
+        );
+      }
+      router.refresh();
+      if (method === "DELETE") {
+        return musicSystem(
+          `${zhCN.music.deleted}${body.removed != null ? `（${body.removed}）` : ""}`,
+          "success",
+        );
+      }
+      return musicSystem(
+        `${zhCN.music.downloaded}${body.saved != null ? `（${body.saved}）` : ""}`,
+        "success",
+      );
+    } catch {
+      return musicSystem(zhCN.music.downloadFailed, "error");
+    }
+  }
+
+  async function stepDownloadQueue(): Promise<{
+    entries: TerminalEntry[];
+    confirmPrompt?: string;
+  }> {
+    const queue = downloadQueueRef.current;
+    const entries: TerminalEntry[] = [];
+    if (!queue) return { entries };
+    const ready = playlistsForTrackSearch(await hydrateAllStubs());
+    while (queue.index < queue.queries.length) {
+      const query = queue.queries[queue.index]!;
+      const hit = firstTrackHit(ready, query);
+      if (!hit) {
+        entries.push(
+          musicSystem(`${zhCN.music.trackNotFound}：${query}`, "error"),
+        );
+        queue.index += 1;
+        continue;
+      }
+      queue.pending = {
+        id: String(hit.track.id),
+        label: formatTrackLabel(hit.track),
+      };
+      return {
+        entries,
+        confirmPrompt: zhCN.music.downloadConfirm.replace(
+          "{label}",
+          queue.pending.label,
+        ),
+      };
+    }
+    downloadQueueRef.current = null;
+    return { entries };
   }
 
   async function startPlaylistAt(
@@ -795,6 +888,7 @@ export function ArchiveTerminal({
                   principalRef.current = next;
                   setPrincipal(next);
                   xtermRef.current?.refreshPrompt();
+                  router.refresh();
                   return {
                     entries: [
                       {
@@ -851,6 +945,7 @@ export function ArchiveTerminal({
                 }
 
                 const extra: TerminalEntry[] = [];
+                let confirmPrompt: string | undefined;
                 if (result.music?.type === "play") {
                   await startPlaylistAt(
                     result.music.playlist,
@@ -858,11 +953,12 @@ export function ArchiveTerminal({
                   );
                 }
                 if (result.music?.type === "play-search") {
-                  const ready = await hydrateAllStubs();
+                  const ready = playlistsForTrackSearch(await hydrateAllStubs());
                   const target = resolvePlayTarget(
                     playlistsRef.current,
                     result.music.query,
                     ready,
+                    result.music.scope,
                   );
                   if (!target.ok) {
                     extra.push({
@@ -941,10 +1037,10 @@ export function ArchiveTerminal({
                       songLabel = track.name;
                     }
                   } else {
-                    const ready = await hydrateAllStubs();
+                    const ready = playlistsForTrackSearch(await hydrateAllStubs());
                     const hit =
                       firstTrackHit(ready, query) ??
-                      firstTrackHit(catalogWithHydration(), query);
+                      firstTrackHit(playlistsForTrackSearch(catalogWithHydration()), query);
                     if (!hit) {
                       extra.push({
                         id: `music-lyric-miss-${Date.now()}`,
@@ -1217,6 +1313,45 @@ export function ArchiveTerminal({
                     });
                   }
                 }
+                if (result.music?.type === "download-now") {
+                  const track =
+                    bgmRef.current?.now?.tracks[bgmRef.current.now.index];
+                  if (!track) {
+                    extra.push(
+                      musicSystem(zhCN.music.needDownloadTarget, "error"),
+                    );
+                  } else {
+                    extra.push(await postSongCache("POST", String(track.id)));
+                  }
+                }
+                if (result.music?.type === "download-queries") {
+                  downloadQueueRef.current = {
+                    queries: result.music.queries,
+                    index: 0,
+                    pending: null,
+                  };
+                  const stepped = await stepDownloadQueue();
+                  extra.push(...stepped.entries);
+                  confirmPrompt = stepped.confirmPrompt;
+                }
+                if (result.music?.type === "delete") {
+                  const local = playlistsRef.current.find(isLocalPlaylist);
+                  const hits = findExactNamedTracks(
+                    local ? [local] : [],
+                    result.music.name,
+                  );
+                  if (hits.length === 0) {
+                    extra.push(musicSystem(zhCN.music.deleteNotLocal, "error"));
+                  } else if (hits.length > 1) {
+                    extra.push(
+                      musicSystem(zhCN.music.deleteAmbiguous, "error"),
+                    );
+                  } else {
+                    extra.push(
+                      await postSongCache("DELETE", String(hits[0]!.track.id)),
+                    );
+                  }
+                }
                 if (result.music?.type === "stop") {
                   const gen = playbackEngineRef.current!.beginJump();
                   setPlayGeneration(gen);
@@ -1331,6 +1466,7 @@ export function ArchiveTerminal({
                       ],
                     });
                     xtermRef.current?.refreshPrompt();
+                    router.refresh();
                   } catch {
                     extra.push({
                       id: `auth-out-err-${Date.now()}`,
@@ -1351,6 +1487,35 @@ export function ArchiveTerminal({
                   clear: result.clear,
                   pager: result.pager,
                   passwordPrompt: result.auth?.kind === "login",
+                  confirmPrompt,
+                };
+              }}
+              onConfirm={async (decision) => {
+                const queue = downloadQueueRef.current;
+                if (!queue) return { entries: [] };
+                if (decision === "abort") {
+                  downloadQueueRef.current = null;
+                  return {
+                    entries: [musicSystem(zhCN.music.downloadAborted, "hint")],
+                  };
+                }
+                const entries: TerminalEntry[] = [];
+                if (decision === "yes" && queue.pending) {
+                  entries.push(await postSongCache("POST", queue.pending.id));
+                } else {
+                  entries.push(
+                    musicSystem(
+                      `${zhCN.music.downloadSkipped}：${queue.pending?.label ?? ""}`,
+                      "hint",
+                    ),
+                  );
+                }
+                queue.pending = null;
+                queue.index += 1;
+                const stepped = await stepDownloadQueue();
+                return {
+                  entries: [...entries, ...stepped.entries],
+                  confirmPrompt: stepped.confirmPrompt,
                 };
               }}
               onCandidatesChange={setCompleteCandidates}

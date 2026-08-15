@@ -38,6 +38,7 @@ describe("parseMusicArgs", () => {
     assert.deepEqual(parseMusicArgs(["play", "如人饮水"]), {
       kind: "play",
       query: "如人饮水",
+      scope: "default",
     });
   });
 
@@ -74,6 +75,40 @@ describe("parseMusicArgs", () => {
     });
   });
 
+  it("parses download / delete and search flags", () => {
+    assert.deepEqual(parseMusicArgs(["download"]), {
+      kind: "download",
+      queries: [],
+    });
+    assert.deepEqual(parseMusicArgs(["download", "一点一滴", ",", "稳稳的幸福"]), {
+      kind: "download",
+      queries: ["一点一滴", "稳稳的幸福"],
+    });
+    assert.deepEqual(parseMusicArgs(["download", "甲，乙"]), {
+      kind: "download",
+      queries: ["甲", "乙"],
+    });
+    assert.equal(parseMusicArgs(["download", "--playlist", "x"]).kind, "flag-mismatch");
+    assert.deepEqual(parseMusicArgs(["delete", "一点一滴"]), {
+      kind: "delete",
+      name: "一点一滴",
+    });
+    assert.equal(parseMusicArgs(["delete"]).kind, "flag-mismatch");
+    assert.deepEqual(parseMusicArgs(["play", "--song", "一点一滴"]), {
+      kind: "play",
+      query: "一点一滴",
+      scope: "song",
+    });
+    assert.deepEqual(parseMusicArgs(["play", "--playlist", "如人饮水"]), {
+      kind: "play",
+      query: "如人饮水",
+      scope: "playlist",
+    });
+    assert.equal(parseMusicArgs(["play", "--song", "--playlist", "x"]).kind, "flag-conflict");
+    assert.equal(parseMusicArgs(["lyric", "--playlist"]).kind, "flag-mismatch");
+    assert.equal(parseMusicArgs(["playlist", "--song", "如人饮水"]).kind, "flag-mismatch");
+  });
+
   it("parses bare play as resume; pause is pause-only", () => {
     assert.equal(parseMusicArgs(["play"]).kind, "resume");
     assert.equal(parseMusicArgs(["resume"]).kind, "resume");
@@ -81,6 +116,7 @@ describe("parseMusicArgs", () => {
     assert.deepEqual(parseMusicArgs(["play", "如人饮水"]), {
       kind: "play",
       query: "如人饮水",
+      scope: "default",
     });
   });
 });
@@ -103,6 +139,12 @@ describe("resolvePlayTarget", () => {
     if (asTrack.ok && asTrack.kind === "track") {
       assert.equal(asTrack.hit.track.id, 7);
     }
+
+    const songOnly = resolvePlayTarget([sample, other], "如人饮水", [sample, other], "song");
+    assert.equal(songOnly.ok, false);
+
+    const playlistOnly = resolvePlayTarget([sample, other], "Soft", [sample, other], "playlist");
+    assert.equal(playlistOnly.ok, false);
   });
 });
 
@@ -125,7 +167,11 @@ describe("musicArgCandidates", () => {
     assert.ok(musicArgCandidates([], "pl").includes("play"));
     assert.ok(musicArgCandidates([], "pl").includes("playlist"));
     assert.ok(musicArgCandidates([], "sh").includes("shuffle"));
-    assert.ok(musicArgCandidates([], "ly").includes("lyric"));
+    assert.ok(musicArgCandidates([], "do").includes("download"));
+    assert.ok(musicArgCandidates([], "de").includes("delete"));
+    assert.ok(musicArgCandidates(["play"], "--s").includes("--song"));
+    assert.ok(musicArgCandidates(["download"], "--s").includes("--song"));
+    assert.ok(!musicArgCandidates(["download"], "--p").includes("--playlist"));
   });
 
   it("completes playlist / shuffle second level", () => {

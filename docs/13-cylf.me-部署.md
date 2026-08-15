@@ -14,6 +14,10 @@
 
 `NODE_ENV=production`。不要把主人口令或写 token 明文放进仓库 / 前端。
 
+## 本地曲库（访客可播）
+
+同步仓根 `data/music/`（`audio/` + `lyric/`，gitignore）到部署机。无此目录时访客 `music ls` 为空，只能外链。详见 [`adr/0011`](adr/0011-music-local-cache-public.md)。
+
 ## 网易云 BFF
 
 仓根 `.netease-cookie`（gitignore）须在**部署机**上且含 `MUSIC_U`。站点 `login` 不等于网易登录。无此文件时 owner 流式仍 401。

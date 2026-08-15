@@ -29,23 +29,24 @@ export type ArchiveXtermHandle = {
   relayout: () => void;
 };
 
+type XtermCommandResult = {
+  entries: TerminalEntry[];
+  clear?: boolean;
+  pager?: { logicalLines: string[] } | null;
+  passwordPrompt?: boolean;
+  confirmPrompt?: string;
+};
+
 type ArchiveXtermProps = {
   bootEntries: TerminalEntry[];
   lineDelayMs: number;
   /** 分段着色的 prompt token（不含尾随空格与输入缓冲）。 */
   getPromptTokens: () => TerminalToken[];
   getComplete: (input: string, cycle: number | null) => CompleteResult;
-  onCommand: (command: string) => {
-    entries: TerminalEntry[];
-    clear?: boolean;
-    pager?: { logicalLines: string[] } | null;
-    passwordPrompt?: boolean;
-  } | Promise<{
-    entries: TerminalEntry[];
-    clear?: boolean;
-    pager?: { logicalLines: string[] } | null;
-    passwordPrompt?: boolean;
-  }>;
+  onCommand: (command: string) => XtermCommandResult | Promise<XtermCommandResult>;
+  onConfirm?: (
+    decision: "yes" | "no" | "abort",
+  ) => Promise<XtermCommandResult>;
   onPassword?: (password: string) => Promise<{ entries: TerminalEntry[] }>;
   onCandidatesChange: (candidates: string[]) => void;
   /** Esc：先清候选；若返回 true 表示已处理（如关阅读面板） */
@@ -81,6 +82,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       getPromptTokens,
       getComplete,
       onCommand,
+      onConfirm,
       onPassword,
       onCandidatesChange,
       onEscape,
@@ -106,6 +108,8 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
     const pagerRef = useRef<PagerState | null>(null);
     /** 多行粘贴确认：待执行行；与 pager 互斥。 */
     const pasteConfirmRef = useRef<{ lines: string[] } | null>(null);
+    /** y/N 确认（如下载队列）；与粘贴确认互斥。 */
+    const ynConfirmRef = useRef<{ prompt: string } | null>(null);
     /** 确认后待串行执行的命令队列（pager 会暂停，退出后继续）。 */
     const pasteQueueRef = useRef<string[]>([]);
     const pasteBusyRef = useRef(false);
@@ -119,6 +123,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       getPromptTokens,
       getComplete,
       onCommand,
+      onConfirm,
       onPassword,
       onCandidatesChange,
       onEscape,
@@ -128,6 +133,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       getPromptTokens,
       getComplete,
       onCommand,
+      onConfirm,
       onPassword,
       onCandidatesChange,
       onEscape,
@@ -157,7 +163,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
         /* 容器尚未有尺寸时忽略 */
       }
       scrollToPrompt();
-      if (pagerRef.current || pasteConfirmRef.current || passwordRef.current !== null) return;
+      if (pagerRef.current || pasteConfirmRef.current || ynConfirmRef.current || passwordRef.current !== null) return;
       paintPromptLine();
       scrollToPrompt();
     }
@@ -187,7 +193,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
      */
     function paintPromptLine() {
       const term = termRef.current;
-      if (!term || pagerRef.current || pasteConfirmRef.current || passwordRef.current !== null) return;
+      if (!term || pagerRef.current || pasteConfirmRef.current || ynConfirmRef.current || passwordRef.current !== null) return;
 
       clampCursor();
       const promptTokens = callbacksRef.current.getPromptTokens();
@@ -478,6 +484,11 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
         return;
       }
 
+      if (result.confirmPrompt) {
+        beginYnConfirm(result.confirmPrompt);
+        return;
+      }
+
       if (pasteQueueRef.current.length === 0) {
         paintPromptLine();
         scrollToPrompt();
@@ -487,7 +498,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
     /** 画出 prompt+命令并提交（供粘贴队列逐行调用）。 */
     async function runCommandLine(command: string) {
       const term = termRef.current;
-      if (!term || pagerRef.current || pasteConfirmRef.current || passwordRef.current !== null) return;
+      if (!term || pagerRef.current || pasteConfirmRef.current || ynConfirmRef.current || passwordRef.current !== null) return;
 
       setBuffer(command, command.length);
       paintPromptLine();
@@ -545,6 +556,40 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       term.write(`\r\x1b[2K${mutedAnsi(msg)}`);
     }
 
+    function beginYnConfirm(prompt: string) {
+      ynConfirmRef.current = { prompt };
+      const term = termRef.current;
+      if (!term) return;
+      term.write(`\r\x1b[2K${mutedAnsi(prompt)}`);
+      scrollToPrompt();
+    }
+
+    async function resolveYnConfirm(decision: "yes" | "no" | "abort") {
+      if (!ynConfirmRef.current) return;
+      ynConfirmRef.current = null;
+      const term = termRef.current;
+      if (term) {
+        if (decision === "abort") term.write("^C\r\n");
+        else term.write(`${decision === "yes" ? "y" : "n"}\r\n`);
+      }
+      lastPaintRowsRef.current = 1;
+      lastCursorRowOffRef.current = 0;
+      const handler = callbacksRef.current.onConfirm;
+      if (!handler) {
+        paintPromptLine();
+        scrollToPrompt();
+        return;
+      }
+      const result = await handler(decision);
+      await writeEntries(result.entries, true);
+      if (result.confirmPrompt) {
+        beginYnConfirm(result.confirmPrompt);
+        return;
+      }
+      paintPromptLine();
+      scrollToPrompt();
+    }
+
     function cancelPasteConfirm(writeInterrupt = false) {
       const term = termRef.current;
       if (!pasteConfirmRef.current) return;
@@ -584,6 +629,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       if (
         pagerRef.current ||
         pasteConfirmRef.current ||
+        ynConfirmRef.current ||
         pasteBusyRef.current
       ) {
         return;
@@ -620,6 +666,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
         !term ||
         pagerRef.current ||
         pasteConfirmRef.current ||
+        ynConfirmRef.current ||
         pasteBusyRef.current
       ) {
         return;
@@ -713,7 +760,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
 
     /** 点击输入行时，按显示列落到最近码点边界。 */
     function placeCursorFromClick(clientX: number, clientY: number) {
-      if (pagerRef.current || pasteConfirmRef.current) return;
+      if (pagerRef.current || pasteConfirmRef.current || ynConfirmRef.current) return;
       const term = termRef.current;
       const screen = term?.element?.querySelector(
         ".xterm-screen",
@@ -793,7 +840,8 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
         if (
           readyRef.current &&
           !pagerRef.current &&
-          !pasteConfirmRef.current
+          !pasteConfirmRef.current &&
+          !ynConfirmRef.current
         ) {
           paintPromptLine();
         }
@@ -903,6 +951,31 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
             ) {
               event.preventDefault();
               exitPager();
+              return false;
+            }
+            event.preventDefault();
+            return false;
+          }
+
+          if (ynConfirmRef.current) {
+            if (key === "y" || key === "Y") {
+              event.preventDefault();
+              void resolveYnConfirm("yes");
+              return false;
+            }
+            if (key === "n" || key === "N" || event.key === "Enter") {
+              event.preventDefault();
+              void resolveYnConfirm("no");
+              return false;
+            }
+            if (event.key === "Escape") {
+              event.preventDefault();
+              void resolveYnConfirm("abort");
+              return false;
+            }
+            if (mod && (key === "c" || key === "C") && !event.shiftKey) {
+              event.preventDefault();
+              void resolveYnConfirm("abort");
               return false;
             }
             event.preventDefault();
@@ -1044,6 +1117,22 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
             }
             if (data === "\u0003") {
               exitPager();
+              return;
+            }
+            return;
+          }
+
+          if (ynConfirmRef.current) {
+            if (data === "y" || data === "Y") {
+              void resolveYnConfirm("yes");
+              return;
+            }
+            if (data === "n" || data === "N" || data === "\r") {
+              void resolveYnConfirm("no");
+              return;
+            }
+            if (data === "\u0003") {
+              void resolveYnConfirm("abort");
               return;
             }
             return;

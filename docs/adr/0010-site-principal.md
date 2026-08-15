@@ -49,7 +49,7 @@ Server Actions **仍无 Bearer**（0005），但必须 `requireOwner`（含 `uiW
 
 ### 5. 音乐 BFF
 
-`/api/music/*` 中原先 `isMusicBffEnabled()` 的路由改为 `requireOwnerPrincipal`。yaml 歌单经 SSR 仍可给访客看元数据。公网访客点播网易流仍 403，直到日后本地 mp3 轨（ADR 0011）。
+`/api/music/*` 中原先 `isMusicBffEnabled()` 的路由改为 `requireOwnerPrincipal`。yaml 歌单经 SSR 仍可给访客看元数据。公网访客点播网易流仍 403；已落盘媒体见 [0011](0011-music-local-cache-public.md)。
 
 ## Consequences
 
