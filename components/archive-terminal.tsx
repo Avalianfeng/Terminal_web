@@ -11,6 +11,7 @@ import { ReadingRail } from "@/components/reading-rail";
 import { BgmBar, type BgmPlayback } from "@/components/bgm-bar";
 import { completeInput } from "@/lib/archive/complete";
 import { initialEntries, runCommand } from "@/lib/archive/commands";
+import { mkdirDir, rmdirDir } from "@/lib/archive/actions";
 import { zhCN } from "@/lib/archive/i18n";
 import {
   musicDownloadAborted,
@@ -1384,6 +1385,48 @@ export function ArchiveTerminal({
                 }
                 if (result.music?.type === "prev") {
                   stepBgm(-1);
+                }
+
+                if (result.fs) {
+                  const parts = result.fs.path.split("/").filter(Boolean);
+                  const group = parts[1] ?? "";
+                  const dirPath = parts.slice(2).join("/");
+                  const fsLine = (text: string, tone: "success" | "error" = "success") => ({
+                    id: `fs-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                    kind: "system" as const,
+                    lines: [{ tokens: [{ text, tone }] }],
+                  });
+                  try {
+                    if (result.fs.kind === "mkdir") {
+                      const outcome = await mkdirDir(group, dirPath);
+                      extra.push(
+                        outcome.ok
+                          ? fsLine(
+                              "dirCreated" in outcome && outcome.dirCreated
+                                ? `${zhCN.fs.mkdirCreated}: ${result.fs.path}`
+                                : `${zhCN.fs.mkdirExists}: ${result.fs.path}`,
+                            )
+                          : fsLine(outcome.message, "error"),
+                      );
+                    } else {
+                      const outcome = await rmdirDir(group, dirPath);
+                      extra.push(
+                        outcome.ok
+                          ? fsLine(`${zhCN.fs.rmdirRemoved}: ${result.fs.path}`)
+                          : fsLine(
+                              outcome.error === "not_found"
+                                ? `${zhCN.fs.rmdirMissing}: ${result.fs.path}`
+                                : outcome.message,
+                              "error",
+                            ),
+                      );
+                    }
+                    router.refresh();
+                  } catch {
+                    extra.push(
+                      fsLine(`${result.fs.kind} ${result.fs.path} 执行失败`, "error"),
+                    );
+                  }
                 }
 
                 if (result.auth?.kind === "logout") {

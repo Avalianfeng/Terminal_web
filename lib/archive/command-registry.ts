@@ -70,6 +70,20 @@ export const COMMANDS: readonly CommandSpec[] = [
     argComplete: "all",
   },
   {
+    name: "mkdir",
+    section: "explore",
+    usage: "mkdir <路径>       创建目录（owner；递归）",
+    argComplete: "dirs",
+    requiresOwner: true,
+  },
+  {
+    name: "rmdir",
+    section: "explore",
+    usage: "rmdir <路径>       删除空目录（owner）",
+    argComplete: "dirs",
+    requiresOwner: true,
+  },
+  {
     name: "find",
     section: "explore",
     usage: "find [词]          按路径 / 名称检索（可再 open）",

@@ -16,6 +16,7 @@
     "test:content": "tsx --test lib/archive/content.test.ts",
     "test:vfs": "tsx --test lib/archive/vfs.test.ts",
     "test:commands": "tsx --test lib/archive/commands.test.ts",
+    "test:content-write": "tsx --test lib/archive/content-write.test.ts",
     "test:command-registry": "tsx --test lib/archive/command-registry.test.ts",
     "test:site-principal": "tsx --test lib/archive/site-principal.test.ts",
     "test:owner-session": "tsx --test lib/archive/owner-session.test.ts",

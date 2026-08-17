@@ -230,6 +230,8 @@ export const zhCN = {
     usageOpen: "用法: open <slug|路径|目录>…（如 personal_archive、thoughts、*）",
     usageCat: "用法: cat <路径|slug>（终端逐行查看；完整阅读用 open）",
     usageEdit: "用法: edit <路径|slug>（如 edit thoughts/archive-system、edit vps）",
+    usageMkdir: "用法: mkdir <路径>（如 mkdir projects/my_web；owner，递归创建）",
+    usageRmdir: "用法: rmdir <路径>（如 rmdir projects/my_web/notes；仅空目录；owner）",
     tryProjectsThoughts: "可尝试: projects、thoughts、resources 列出条目，或 timeline 打开时间线。",
     tryOpenHint: "可尝试 open <slug>，例如:",
     isDirectory: "目标是目录。可用 open <目录> 批量打开，或 cd / ls 浏览。",
@@ -242,6 +244,13 @@ export const zhCN = {
     notDirectory: "目标不是目录",
     notFile: "目标不是可读取节点",
     unsupported: "命令暂未支持",
+  },
+  fs: {
+    mkdirCreated: "目录已创建",
+    mkdirExists: "目录已存在（no-op）",
+    rmdirRemoved: "已删除空目录",
+    rmdirNotEmpty: "目录非空，未删除",
+    rmdirMissing: "目录不存在",
   },
   vfs: {
     root: "/",

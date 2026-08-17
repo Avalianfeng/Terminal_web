@@ -40,7 +40,12 @@ import {
 } from "./site-principal";
 import { RAIL_MAX } from "./reading-state";
 import { formatInputTokens } from "./shell-style";
-import { SLUG_PATTERN, type ContentGroup } from "./content-format";
+import {
+  CONTENT_GROUPS,
+  SLUG_PATTERN,
+  slugSegments,
+  type ContentGroup,
+} from "./content-format";
 import {
   documentRef,
   refsEqual,
@@ -56,6 +61,7 @@ import {
   formatShellPromptTokens,
   isDirectory,
   listNode,
+  normalizePath,
   resolveVfsPath,
   suggestVfsPaths,
   treeLines,
@@ -75,6 +81,8 @@ type CommandResult = {
   pager?: { logicalLines: string[] } | null;
   /** 打开全屏编辑面板（原文由编辑面板异步读取）。 */
   edit?: DocumentEditTarget | null;
+  /** 目录副作用（mkdir / rmdir）；由终端 UI 异步执行 server action。 */
+  fs?: { kind: "mkdir"; path: string } | { kind: "rmdir"; path: string } | null;
   /** 音乐层副作用（播放 / 导入）；由终端 UI 异步执行。 */
   music?: MusicAction | null;
   /** 站点身份副作用（口令提示 / 清 cookie）。 */
@@ -373,6 +381,33 @@ function openableInDir(
     if (surface) surfaces.push(surface);
   }
   return surfaces;
+}
+
+/**
+ * 解析 mkdir / rmdir 目标（相对 cwd）：`/projects/my_web/notes` →
+ * group + segments（≥1 段，每段 slug 白名单）。组根/根/非组路径 → 错误。
+ */
+function resolveDirTarget(
+  cwd: string,
+  rawTarget: string,
+): { ok: true; vfsPath: string; group: ContentGroup; segments: string[] } | { ok: false; hint: string } {
+  const target = rawTarget.trim();
+  if (!target) {
+    return { ok: false, hint: zhCN.errors.usageMkdir };
+  }
+  const vfsPath = normalizePath(`${cwd}/${target}`);
+  const parts = vfsPath.split("/").filter(Boolean);
+  if (parts.length < 2) {
+    return { ok: false, hint: `${zhCN.errors.invalidPath}: ${target}` };
+  }
+  const [group, ...segments] = parts;
+  if (!CONTENT_GROUPS.includes(group as ContentGroup)) {
+    return { ok: false, hint: `${zhCN.errors.invalidPath}: ${target}` };
+  }
+  if (slugSegments(segments.join("/")) === null) {
+    return { ok: false, hint: `${zhCN.errors.invalidPath}: ${target}` };
+  }
+  return { ok: true, vfsPath, group: group as ContentGroup, segments };
 }
 
 /**
@@ -1342,6 +1377,48 @@ export function runCommand(
         entries: [commandEcho, archiveStatus(snapshot)],
         session: nextSession,
       };
+
+    case "mkdir": {
+      if (!capabilitiesFrom(principal).uiWrite) {
+        return {
+          entries: [commandEcho, systemError(zhCN.auth.needOwner)],
+          session: nextSession,
+        };
+      }
+      const resolved = resolveDirTarget(nextSession.cwd, rest);
+      if (!resolved.ok) {
+        return {
+          entries: [commandEcho, systemError(resolved.hint)],
+          session: nextSession,
+        };
+      }
+      return {
+        entries: [commandEcho],
+        session: nextSession,
+        fs: { kind: "mkdir", path: resolved.vfsPath },
+      };
+    }
+
+    case "rmdir": {
+      if (!capabilitiesFrom(principal).uiWrite) {
+        return {
+          entries: [commandEcho, systemError(zhCN.auth.needOwner)],
+          session: nextSession,
+        };
+      }
+      const resolved = resolveDirTarget(nextSession.cwd, rest);
+      if (!resolved.ok) {
+        return {
+          entries: [commandEcho, systemError(resolved.hint)],
+          session: nextSession,
+        };
+      }
+      return {
+        entries: [commandEcho],
+        session: nextSession,
+        fs: { kind: "rmdir", path: resolved.vfsPath },
+      };
+    }
 
     case "edit": {
       if (!capabilitiesFrom(principal).uiWrite) {

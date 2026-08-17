@@ -1,9 +1,20 @@
 import { createHash } from "crypto";
-import { readFile, rename, unlink, writeFile } from "fs/promises";
+import {
+  mkdir,
+  readFile,
+  readdir,
+  rename,
+  rmdir,
+  stat,
+  unlink,
+  writeFile,
+} from "fs/promises";
 import path from "path";
 import {
+  CONTENT_GROUPS,
   parseFrontmatter,
   serializeDocument,
+  slugSegments,
   type ContentGroup,
 } from "./content-format";
 import type { FrontmatterField } from "./content-format";
@@ -59,9 +70,12 @@ export class WriteError extends Error {
   }
 }
 
-/** Disk path for a validated DocumentRef (`content/<group>/<slug>.md`). */
+/**
+ * Disk path for a validated DocumentRef（ADR 0013 多段）：
+ * `content/<group>/<seg1>/…/<leaf>.md`；扁平 slug 即单段特例。
+ */
 export function resolveContentPath(ref: DocumentRef): string {
-  return path.join(contentRoot, ref.group, `${ref.slug}.md`);
+  return path.join(contentRoot, ref.group, ...ref.slug.split("/")) + ".md";
 }
 
 async function fileExists(filePath: string): Promise<boolean> {
@@ -111,6 +125,11 @@ async function writeAtomic(filePath: string, content: string) {
   }
 }
 
+/** 写文档前确保父目录存在（多段路径自动建目录，ADR 0013）。 */
+async function ensureParentDir(filePath: string) {
+  await mkdir(path.dirname(filePath), { recursive: true });
+}
+
 function tagsToField(tags?: string[]): FrontmatterField | null {
   if (!tags || tags.length === 0) return null;
   return { key: "tags", value: tags.join(", ") };
@@ -125,7 +144,7 @@ function toFields(input: DocumentWriteFields): FrontmatterField[] {
   ];
 }
 
-/** 创建或覆盖文档（upsert；编辑即保存）。 */
+/** 创建或覆盖文档（upsert；编辑即保存）。多段路径自动建父目录。 */
 export async function saveDocument(
   ref: DocumentRef,
   fields: DocumentWriteFields,
@@ -135,6 +154,7 @@ export async function saveDocument(
   const existed = await fileExists(filePath);
   await assertVersion(filePath, options?.expectedHash);
   const content = serializeDocument(toFields(fields), fields.body ?? "");
+  await ensureParentDir(filePath);
   await writeAtomic(filePath, content);
   return { created: !existed, hash: hashRaw(content) };
 }
@@ -207,6 +227,7 @@ export async function patchDocument(
 
   const body = patch.body === undefined ? parsed.body : (patch.body ?? "");
   const content = serializeDocument(fields, body);
+  await ensureParentDir(filePath);
   await writeAtomic(filePath, content);
   return { created: false, hash: hashRaw(content) };
 }
@@ -234,6 +255,7 @@ export async function saveDocumentRaw(
   const existed = await fileExists(filePath);
   await assertVersion(filePath, options?.expectedHash);
   const content = serializeDocument(parsed.fields, parsed.body);
+  await ensureParentDir(filePath);
   await writeAtomic(filePath, content);
   return { created: !existed, hash: hashRaw(content) };
 }
@@ -248,7 +270,7 @@ export async function readDocumentRaw(ref: DocumentRef): Promise<string> {
   }
 }
 
-/** 删除文档；不存在 → not_found。可选 expectedHash。 */
+/** 删除文档；不存在 → not_found。可选 expectedHash。不级联删父目录（ADR 0013）。 */
 export async function deleteDocument(
   ref: DocumentRef,
   options?: WriteOptions,
@@ -260,4 +282,69 @@ export async function deleteDocument(
   } catch {
     throw new WriteError("not_found", `No document at ${toLocalKey(ref)}`);
   }
+}
+
+/** VFS 目录身份：组 + ≥1 段（每段 slug 白名单）。 */
+export type VfsDirRef = {
+  group: ContentGroup;
+  segments: string[];
+};
+
+export function vfsDirRef(group: ContentGroup, segments: string[]): VfsDirRef {
+  if (!CONTENT_GROUPS.includes(group)) {
+    throw new WriteError("bad_request", `Unknown group: ${group}`);
+  }
+  if (segments.length === 0 || slugSegments(segments.join("/")) === null) {
+    throw new WriteError(
+      "bad_request",
+      `Invalid directory: ${group}/${segments.join("/")}. Each segment must match [a-z0-9_-]+.`,
+    );
+  }
+  return { group, segments };
+}
+
+/** 目录盘路径；`root` 可注入（测试用），默认 contentRoot。 */
+export function resolveContentDir(
+  ref: VfsDirRef,
+  root: string = contentRoot,
+): string {
+  return path.join(root, ref.group, ...ref.segments);
+}
+
+async function isDirectoryPath(p: string): Promise<boolean> {
+  try {
+    return (await stat(p)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/** 创建目录（递归，mkdir -p 语义）；已存在 → created:false（no-op）。 */
+export async function createDirectory(
+  ref: VfsDirRef,
+  root: string = contentRoot,
+): Promise<{ created: boolean }> {
+  const dir = resolveContentDir(ref, root);
+  const existed = await isDirectoryPath(dir);
+  await mkdir(dir, { recursive: true });
+  return { created: !existed };
+}
+
+/** 删除**空**目录；不存在 → not_found；非空 → conflict（ADR 0013）。 */
+export async function removeDirectory(
+  ref: VfsDirRef,
+  root: string = contentRoot,
+): Promise<void> {
+  const dir = resolveContentDir(ref, root);
+  if (!(await isDirectoryPath(dir))) {
+    throw new WriteError("not_found", `No directory at ${dir}`);
+  }
+  const entries = await readdir(dir).catch(() => []);
+  if (entries.length > 0) {
+    throw new WriteError(
+      "conflict",
+      `Directory not empty (${entries.length} entries): ${ref.group}/${ref.segments.join("/")}`,
+    );
+  }
+  await rmdir(dir);
 }

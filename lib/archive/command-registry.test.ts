@@ -82,4 +82,27 @@ describe("command-registry", () => {
     assert.equal(isKnownCommandName("?"), true);
     assert.equal(isKnownCommandName("nope"), false);
   });
+
+  it("registers mkdir/rmdir as owner-only dir commands (ADR 0013)", () => {
+    assert.equal(getCommand("mkdir")?.requiresOwner, true);
+    assert.equal(getCommand("rmdir")?.requiresOwner, true);
+    assert.equal(getArgComplete("mkdir"), "dirs");
+    assert.equal(getArgComplete("rmdir"), "dirs");
+    const ownerNames = completableCommandNames("owner");
+    assert.ok(ownerNames.includes("mkdir"));
+    assert.ok(ownerNames.includes("rmdir"));
+    const visitorNames = completableCommandNames("visitor");
+    assert.ok(!visitorNames.includes("mkdir"));
+    assert.ok(!visitorNames.includes("rmdir"));
+    assert.ok(
+      helpUsagesForSection("explore", "owner").some((line) =>
+        line.startsWith("mkdir "),
+      ),
+    );
+    assert.ok(
+      !helpUsagesForSection("explore", "visitor").some((line) =>
+        line.startsWith("mkdir "),
+      ),
+    );
+  });
 });

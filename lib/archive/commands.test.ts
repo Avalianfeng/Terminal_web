@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { runCommand } from "./commands";
+import type { SitePrincipal } from "./site-principal";
 import type { ArchiveDocument, ArchiveSnapshot } from "./types";
+
+const VISITOR: SitePrincipal = { role: "visitor", via: "none" };
 
 function doc(
   group: "projects" | "thoughts" | "resources",
@@ -119,5 +122,43 @@ describe("commands nested paths (ADR 0013)", () => {
     const lines = plainLines(result);
     assert.ok(lines.some((l) => l.includes("log")), lines.join("|"));
     assert.ok(lines.some((l) => l.includes("notes")), lines.join("|"));
+  });
+});
+
+describe("commands mkdir/rmdir (ADR 0013)", () => {
+  it("mkdir requests fs side-effect with resolved path", () => {
+    const result = runCommand(snap, "mkdir /projects/my_web/new");
+    assert.deepEqual(result.fs, { kind: "mkdir", path: "/projects/my_web/new" });
+  });
+
+  it("mkdir resolves relative to cwd", () => {
+    const cd = runCommand(snap, "cd /projects/my_web");
+    const result = runCommand(snap, "mkdir notes", cd.session);
+    assert.deepEqual(result.fs, { kind: "mkdir", path: "/projects/my_web/notes" });
+  });
+
+  it("mkdir without args shows usage", () => {
+    const result = runCommand(snap, "mkdir");
+    assert.equal(result.fs, undefined);
+    assert.ok(plainLines(result).some((l) => l.includes("用法: mkdir")));
+  });
+
+  it("mkdir rejects non-group and bad segments", () => {
+    assert.equal(runCommand(snap, "mkdir /timeline/x").fs, undefined);
+    assert.equal(runCommand(snap, "mkdir /projects/Bad/x").fs, undefined);
+    assert.equal(runCommand(snap, "mkdir /projects").fs, undefined);
+  });
+
+  it("mkdir/rmdir hard-reject visitors", () => {
+    const mk = runCommand(snap, "mkdir /projects/x", undefined, [], VISITOR);
+    assert.equal(mk.fs, undefined);
+    assert.ok(plainLines(mk).some((l) => l.includes("主人")), plainLines(mk).join("|"));
+    const rm = runCommand(snap, "rmdir /projects/x", undefined, [], VISITOR);
+    assert.equal(rm.fs, undefined);
+  });
+
+  it("rmdir requests fs side-effect", () => {
+    const result = runCommand(snap, "rmdir /projects/my_web/notes");
+    assert.deepEqual(result.fs, { kind: "rmdir", path: "/projects/my_web/notes" });
   });
 });
