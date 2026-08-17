@@ -2,7 +2,7 @@
 
 > **角色**：主人统一验收清单。实现过程中由 Agent 补全条目；**真实验证由主人执行**。  
 > **对应**：[ADR 0013](adr/0013-document-ref-multi-segment.md)（身份/盘布局/双身份节点/mkdir-rmdir 语义）；`docs/16` §3.2 方案 A。  
-> **状态**：实现完成 + 边界收口（2026-08-17 提交 `c304c29`–`066ee18`）；**待主人按本清单验收**。终端「不追求完整 shell 行为」的边界裁决见 [`18`](18-终端真实性评估.md) §6（`cd -` / `~` / watch / 文案 sweep 一律不做）。
+> **状态**：实现完成 + 边界收口（2026-08-17 提交 `c304c29`–`f6e6f95`）；**待主人按本清单验收**。终端「不追求完整 shell 行为」的边界裁决见 [`18`](18-终端真实性评估.md) §6（`cd -` / `~` / watch / 文案 sweep 一律不做）。
 
 ## 前置
 
@@ -40,6 +40,11 @@
 - [ ] `cat /projects/my_web/log` 终端查看嵌套文档正文
 - [ ] Tab 补全：`open projects/my_web/<Tab>`、`cd projects/my_web/<Tab>`、`cat projects/my_web/<Tab>` 正确下钻
 - [ ] `search` 命中嵌套文档（正文/标题/tag/slug/localKey）
+- [ ] **多级目录链**：`mkdir projects/a/b/c` → `tree` 显示 `a/→b/→c/` 嵌套（不是三个兄弟节点）；`cd /projects/a/b/c` 可进入、`ls` 为空
+- [ ] `cd ~` 从任意目录回根；`mkdir ~/projects/foo` 与 `open ~/projects/...` 同效
+- [ ] 带 `.md` 尾缀：`open projects/my_web/log.md`、`cat /projects/my_web/log.md`、`edit projects/my_web/log.md` 与不带尾缀同效
+- [ ] `tree` 根显示 `/`（不是 `//`）
+- [ ] `open` 未保存的嵌套文档（父目录存在、文档未落盘）→ 提示「尚未落盘」
 
 ## 发现层 HTTP
 
