@@ -44,6 +44,7 @@
 - 单测扩展：`test:document-ref`（多段构造/投影/解析/拒绝用例）、`test:discovery`（嵌套文档进索引/详情）、新增 `test:vfs`（分段建树、双身份节点、多段解析）、`test:command-registry`（mkdir/rmdir 注册与 owner 门）、`test:complete`（嵌套补全）。
 - 手测：`docs/17-嵌套DocumentRef手测.md` 补全为统一验收清单。
 - 文档同步：`CONTEXT.md`（DocumentRef / localKey 词条）、`docs/08` §3.3（localKey 定义）、`README.md`（内容结构）、`docs/00` 地图、`docs/09`（勾选落地）。
+- **盘状态反映（2026-08-17 提交 `7e1bb48`）**：快照携带组内真实目录树（`directories`，含空目录；realpath 包含校验 + 深度上限）；VFS 建树目录先行、文档并入（复合节点）；`mkdirDir`/`rmdirDir` 带 `revalidatePath("/")`。终端 `mkdir`/`rmdir` 对盘状态即时可见、空目录可 `cd`。真 PTY 替代被否（见 `docs/18`）。
 
 ## Rejected
 

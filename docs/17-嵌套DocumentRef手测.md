@@ -22,13 +22,14 @@
 
 ## mkdir / rmdir
 
-- [ ] `mkdir projects/my_web` → 建 `content/projects/my_web/`；重复执行 → 提示已存在（no-op）
+- [ ] `mkdir projects/my_web` → 建 `content/projects/my_web/`；**`ls`/`tree` 立即出现 `my_web/`（空目录可见）**；重复执行 → 提示已存在（no-op）
 - [ ] `mkdir projects/a/b/c`（父不存在）→ 递归创建
 - [ ] `mkdir projects/Bad` → 拒绝（段白名单）
-- [ ] `rmdir projects/my_web`（空）→ 删除成功
+- [ ] **组前缀绝对语义**：`cd /projects` 后 `mkdir projects/foo` 建的是 `/projects/foo`（不是 `/projects/projects/foo`）
+- [ ] `rmdir projects/my_web`（空）→ 删除成功，**终端立即消失**
 - [ ] `rmdir projects/my_web`（内有 `log.md`）→ 拒绝，点名非空原因
 - [ ] visitor 看不到 `mkdir`/`rmdir` 的 help 与 Tab；手打也硬拒（need owner）
-- [ ] `cd /projects/my_web` 后 `mkdir notes` 相对路径生效
+- [ ] `cd /projects/my_web` 后 `mkdir notes` 相对路径生效；空目录可 `cd` 进入、`open` 提示空
 
 ## VFS / 终端
 
