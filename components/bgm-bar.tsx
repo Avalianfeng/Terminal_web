@@ -46,7 +46,9 @@ function BgmExpandPanel({
   const expandedRef = useRef(expanded);
   const timerRef = useRef<number | null>(null);
 
-  expandedRef.current = expanded;
+  useEffect(() => {
+    expandedRef.current = expanded;
+  }, [expanded]);
 
   useEffect(() => {
     return () => {
@@ -61,12 +63,15 @@ function BgmExpandPanel({
     }
 
     if (open) {
-      setMounted(true);
       if (expandedRef.current) return;
       if (resolveBgmExpandMs() <= 0) {
-        setExpanded(true);
+        queueMicrotask(() => {
+          setMounted(true);
+          setExpanded(true);
+        });
         return;
       }
+      queueMicrotask(() => setMounted(true));
       const frame = requestAnimationFrame(() => {
         requestAnimationFrame(() => setExpanded(true));
       });
@@ -78,7 +83,7 @@ function BgmExpandPanel({
     setExpanded(false);
     const ms = resolveBgmCollapseMs();
     if (ms <= 0) {
-      setMounted(false);
+      queueMicrotask(() => setMounted(false));
       return;
     }
     timerRef.current = window.setTimeout(() => {
