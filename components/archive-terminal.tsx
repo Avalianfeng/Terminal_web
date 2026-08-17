@@ -10,7 +10,7 @@ import { ReadingPanel } from "@/components/reading-panel";
 import { ReadingRail } from "@/components/reading-rail";
 import { BgmBar, type BgmPlayback } from "@/components/bgm-bar";
 import { completeInput } from "@/lib/archive/complete";
-import { initialEntries, runCommand } from "@/lib/archive/commands";
+import { initialEntries, runCommand, splitVfsDirPath } from "@/lib/archive/commands";
 import { mkdirDir, rmdirDir } from "@/lib/archive/actions";
 import { zhCN } from "@/lib/archive/i18n";
 import {
@@ -1388,9 +1388,9 @@ export function ArchiveTerminal({
                 }
 
                 if (result.fs) {
-                  const parts = result.fs.path.split("/").filter(Boolean);
-                  const group = parts[1] ?? "";
-                  const dirPath = parts.slice(2).join("/");
+                  const parsed = splitVfsDirPath(result.fs.path);
+                  const group = parsed?.group ?? "";
+                  const dirPath = parsed?.segments.join("/") ?? "";
                   const fsLine = (text: string, tone: "success" | "error" = "success") => ({
                     id: `fs-${Date.now()}-${Math.random().toString(16).slice(2)}`,
                     kind: "system" as const,

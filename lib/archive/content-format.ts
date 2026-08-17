@@ -15,13 +15,26 @@ export function contentGroupLocalKeyHint(): string {
 export const SLUG_PATTERN = /^[a-z0-9_-]+$/;
 
 /**
+ * Windows 保留设备名（大小写不敏感）：段名命中会静默丢数据
+ * （`nul.md` 写入 NUL 设备）或 EINVAL。段内无点，整段比对即可。
+ */
+const WINDOWS_RESERVED_SEGMENT = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+
+/**
  * 多段 slug 校验（ADR 0013）：`seg1/seg2`，每段 `[a-z0-9_-]+`，
- * 至少一段，无空段、无首尾斜杠。返回段数组；非法 → null。
+ * 至少一段，无空段、无首尾斜杠、非 Windows 保留设备名。返回段数组；非法 → null。
  */
 export function slugSegments(slug: string): string[] | null {
   if (!slug || slug.startsWith("/") || slug.endsWith("/")) return null;
   const segments = slug.split("/");
-  if (segments.some((segment) => !SLUG_PATTERN.test(segment))) return null;
+  if (
+    segments.some(
+      (segment) =>
+        !SLUG_PATTERN.test(segment) || WINDOWS_RESERVED_SEGMENT.test(segment),
+    )
+  ) {
+    return null;
+  }
   return segments;
 }
 

@@ -38,6 +38,15 @@ describe("documentRef", () => {
     assert.throws(() => documentRef("projects", ""), DocumentRefError);
   });
 
+  it("rejects Windows reserved device names (case-insensitive)", () => {
+    assert.throws(() => documentRef("projects", "con"), DocumentRefError);
+    assert.throws(() => documentRef("projects", "NUL"), DocumentRefError);
+    assert.throws(() => documentRef("thoughts", "a/com1"), DocumentRefError);
+    assert.throws(() => documentRef("resources", "lpt9"), DocumentRefError);
+    assert.equal(tryDocumentRef("projects", "aux"), null);
+    assert.equal(tryDocumentRef("projects", "prn"), null);
+  });
+
   it("tryDocumentRef returns null on invalid", () => {
     assert.equal(tryDocumentRef("nope", "x"), null);
     assert.equal(tryDocumentRef("projects", "Bad"), null);

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { runCommand } from "./commands";
+import { runCommand, splitVfsDirPath } from "./commands";
 import type { SitePrincipal } from "./site-principal";
 import type { ArchiveDocument, ArchiveSnapshot } from "./types";
 
@@ -126,6 +126,30 @@ describe("commands nested paths (ADR 0013)", () => {
 });
 
 describe("commands mkdir/rmdir (ADR 0013)", () => {
+  it("splitVfsDirPath parses absolute dir paths (glue regression)", () => {
+    assert.deepEqual(splitVfsDirPath("/projects/my_web/notes"), {
+      group: "projects",
+      segments: ["my_web", "notes"],
+    });
+    assert.deepEqual(splitVfsDirPath("/thoughts/foo"), {
+      group: "thoughts",
+      segments: ["foo"],
+    });
+    assert.equal(splitVfsDirPath("/projects"), null);
+    assert.equal(splitVfsDirPath("/timeline/x"), null);
+    assert.equal(splitVfsDirPath("/projects/Bad/x"), null);
+    assert.equal(splitVfsDirPath(""), null);
+  });
+
+  it("mkdir fs.path glue parses to group + segments", () => {
+    const result = runCommand(snap, "mkdir /projects/my_web/new");
+    const parsed = splitVfsDirPath(result.fs!.path);
+    assert.deepEqual(parsed, {
+      group: "projects",
+      segments: ["my_web", "new"],
+    });
+  });
+
   it("mkdir requests fs side-effect with resolved path", () => {
     const result = runCommand(snap, "mkdir /projects/my_web/new");
     assert.deepEqual(result.fs, { kind: "mkdir", path: "/projects/my_web/new" });

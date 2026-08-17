@@ -3,6 +3,7 @@ import {
   mkdir,
   readFile,
   readdir,
+  realpath,
   rename,
   rmdir,
   stat,
@@ -115,6 +116,7 @@ async function assertVersion(
 
 /** 临时文件 + rename：避免写一半留下残缺文档。 */
 async function writeAtomic(filePath: string, content: string) {
+  await assertInsideContentRoot(filePath);
   const tmpPath = `${filePath}.${process.pid}.${Date.now().toString(36)}.tmp`;
   await writeFile(tmpPath, content, "utf8");
   try {
@@ -128,6 +130,48 @@ async function writeAtomic(filePath: string, content: string) {
 /** 写文档前确保父目录存在（多段路径自动建目录，ADR 0013）。 */
 async function ensureParentDir(filePath: string) {
   await mkdir(path.dirname(filePath), { recursive: true });
+}
+
+/** target 是否在 root（realpath 后）之内；二者相等也视为在内。 */
+function isUnderRoot(root: string, target: string): boolean {
+  const rel = path.relative(root, target);
+  return (
+    rel === "" ||
+    (rel !== ".." &&
+      !rel.startsWith(`..${path.sep}`) &&
+      !path.isAbsolute(rel))
+  );
+}
+
+/**
+ * realpath 包含校验（安全审查 #2）：目标或其最近存在的祖先必须在 root 内，
+ * 防止 junction/symlink 把读写带出 content/。root 可注入（测试用）。
+ */
+async function assertInsideContentRoot(
+  target: string,
+  root: string = contentRoot,
+): Promise<void> {
+  const rootReal = await realpath(root).catch(() => null);
+  if (rootReal === null) {
+    throw new WriteError("bad_request", "Content root does not exist");
+  }
+  let probe = target;
+  for (let i = 0; i < 64; i += 1) {
+    const real = await realpath(probe).catch(() => null);
+    if (real !== null) {
+      if (!isUnderRoot(rootReal, real)) {
+        throw new WriteError("bad_request", "Path escapes the content root");
+      }
+      return;
+    }
+    const parent = path.dirname(probe);
+    if (parent === probe) break;
+    probe = parent;
+  }
+  throw new WriteError(
+    "bad_request",
+    "Path has no existing ancestor under the content root",
+  );
 }
 
 function tagsToField(tags?: string[]): FrontmatterField | null {
@@ -263,6 +307,7 @@ export async function saveDocumentRaw(
 /** 读取整份原文（含 frontmatter）；不存在 → not_found。 */
 export async function readDocumentRaw(ref: DocumentRef): Promise<string> {
   const filePath = resolveContentPath(ref);
+  await assertInsideContentRoot(filePath);
   try {
     return await readFile(filePath, "utf8");
   } catch {
@@ -276,6 +321,7 @@ export async function deleteDocument(
   options?: WriteOptions,
 ): Promise<void> {
   const filePath = resolveContentPath(ref);
+  await assertInsideContentRoot(filePath);
   await assertVersion(filePath, options?.expectedHash);
   try {
     await unlink(filePath);
@@ -325,6 +371,7 @@ export async function createDirectory(
   root: string = contentRoot,
 ): Promise<{ created: boolean }> {
   const dir = resolveContentDir(ref, root);
+  await assertInsideContentRoot(dir, root);
   const existed = await isDirectoryPath(dir);
   await mkdir(dir, { recursive: true });
   return { created: !existed };
@@ -336,6 +383,7 @@ export async function removeDirectory(
   root: string = contentRoot,
 ): Promise<void> {
   const dir = resolveContentDir(ref, root);
+  await assertInsideContentRoot(dir, root);
   if (!(await isDirectoryPath(dir))) {
     throw new WriteError("not_found", `No directory at ${dir}`);
   }

@@ -32,7 +32,8 @@
 
 5. **发现层无新字段**：`localKey` 由 `toLocalKey` 拼出，多段自动成立；`fromLocalKey` / `fromVfsPath` 接受 ≥2 段。HTTP 写 API 的 scope 前缀语义（`token.ts`：`prefix/*` → `startsWith`）天然覆盖多段（`thoughts/*` 覆盖 `thoughts/foo/bar`）。索引 / 详情 / 过滤不加字段。
 
-6. **安全边界不变**：段白名单防路径穿越；`resolveContentPath` 只接受已验证的 `DocumentRef`；不引入 cwd/磁盘绝对路径进身份模块（0001 纪律）。
+6. **安全边界不变**：段白名单防路径穿越；`resolveContentPath` 只接受已验证的 `DocumentRef`；不引入 cwd/磁盘绝对路径进身份模块（0001 纪律）。  
+   **2026-08-17 加固（security-review 采纳）**：slug 拒绝 Windows 保留设备名（`con`/`prn`/`aux`/`nul`/`com1-9`/`lpt1-9`，防 `nul.md` 静默丢数据）；读路径递归加深度上限 + 目录 realpath 包含检查（junction 逃逸不发布、不成环）；写路径（写/读/删/建目录/删目录）统一 realpath 包含校验（穿过 junction 的目标拒绝）；盘上非法文件名容错跳过，不打挂整站快照。
 
 ## Consequences
 

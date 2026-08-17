@@ -384,6 +384,21 @@ function openableInDir(
 }
 
 /**
+ * 绝对 VFS 目录路径 → `{ group, segments }`；非法（非组路径/段不合法/缺段）→ null。
+ * 终端 handler 与组件 glue（archive-terminal.tsx）共用同一解析，防 off-by-one 回归。
+ */
+export function splitVfsDirPath(
+  vfsPath: string,
+): { group: ContentGroup; segments: string[] } | null {
+  const parts = vfsPath.split("/").filter(Boolean);
+  if (parts.length < 2) return null;
+  const [group, ...segments] = parts;
+  if (!CONTENT_GROUPS.includes(group as ContentGroup)) return null;
+  if (slugSegments(segments.join("/")) === null) return null;
+  return { group: group as ContentGroup, segments };
+}
+
+/**
  * 解析 mkdir / rmdir 目标（相对 cwd）：`/projects/my_web/notes` →
  * group + segments（≥1 段，每段 slug 白名单）。组根/根/非组路径 → 错误。
  */
@@ -399,18 +414,11 @@ function resolveDirTarget(
   const vfsPath = target.startsWith("/")
     ? normalizePath(target)
     : normalizePath(`${cwd}/${target}`);
-  const parts = vfsPath.split("/").filter(Boolean);
-  if (parts.length < 2) {
+  const parsed = splitVfsDirPath(vfsPath);
+  if (!parsed) {
     return { ok: false, hint: `${zhCN.errors.invalidPath}: ${target}` };
   }
-  const [group, ...segments] = parts;
-  if (!CONTENT_GROUPS.includes(group as ContentGroup)) {
-    return { ok: false, hint: `${zhCN.errors.invalidPath}: ${target}` };
-  }
-  if (slugSegments(segments.join("/")) === null) {
-    return { ok: false, hint: `${zhCN.errors.invalidPath}: ${target}` };
-  }
-  return { ok: true, vfsPath, group: group as ContentGroup, segments };
+  return { ok: true, vfsPath, group: parsed.group, segments: parsed.segments };
 }
 
 /**

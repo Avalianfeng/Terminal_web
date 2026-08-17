@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { mkdtemp, readdir, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
+import { promisify } from "node:util";
 import { afterEach, describe, it } from "node:test";
 import { documentRef } from "./document-ref";
 import {
@@ -12,6 +14,8 @@ import {
   resolveContentPath,
   vfsDirRef,
 } from "./content-write";
+
+const execFileAsync = promisify(execFile);
 
 const tmpRoots: string[] = [];
 
@@ -90,5 +94,33 @@ describe("content-write multi-segment (ADR 0013)", () => {
       await readdir(path.join(root, "projects", "b")),
       ["x.md"],
     );
+  });
+
+  it("createDirectory/removeDirectory reject junction escape (Windows)", async (t) => {
+    const root = await tmpRoot();
+    const outside = await tmpRoot();
+    await createDirectory(vfsDirRef("projects", ["base"]), root);
+    const link = path.join(root, "projects", "base", "link");
+    try {
+      await execFileAsync("cmd", ["/c", "mklink", "/J", link, outside]);
+    } catch {
+      t.skip("junction creation not supported on this platform");
+      return;
+    }
+    // 穿过 junction 的创建/删除必须被 realpath 包含校验拒绝
+    await assert.rejects(
+      createDirectory(vfsDirRef("projects", ["base", "link", "sub"]), root),
+      (error: unknown) =>
+        error instanceof WriteError && error.code === "bad_request",
+    );
+    await assert.rejects(
+      removeDirectory(vfsDirRef("projects", ["base", "link"]), root),
+      (error: unknown) =>
+        error instanceof WriteError && error.code === "bad_request",
+    );
+    // junction 本体与目标均未被误动
+    assert.deepEqual(await readdir(path.join(root, "projects", "base")), [
+      "link",
+    ]);
   });
 });
