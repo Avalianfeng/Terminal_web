@@ -1,6 +1,6 @@
-import type { ArchiveSnapshot, TerminalSession, TerminalToken } from "./types";
+import type { ArchiveDocument, ArchiveSnapshot, TerminalSession, TerminalToken } from "./types";
 import { zhCN } from "./i18n";
-import { toVfsPath } from "./document-ref";
+import { type ContentGroup } from "./content-format";
 
 type VfsNodeType = "dir" | "project" | "thought" | "resource" | "timeline" | "person";
 
@@ -8,9 +8,127 @@ export type VfsNode = {
   path: string;
   name: string;
   type: VfsNodeType;
+  /** 存在 = 目录节点（含空目录与复合节点，ADR 0013）。 */
   children?: VfsNode[];
+  /** 文档身份：组内多段 slug（复合节点 = 入口篇）。 */
   refSlug?: string;
 };
+
+/** 目录判断：children 存在即为目录（复合节点既是文档也是目录，ADR 0013）。 */
+export function isDirectory(node: VfsNode): boolean {
+  return node.children !== undefined;
+}
+
+const DOC_NODE_TYPE: Record<ContentGroup, VfsNodeType> = {
+  projects: "project",
+  thoughts: "thought",
+  resources: "resource",
+};
+
+/** 按 slug 段递归插入：中间段建目录；叶子挂文档；同名目录+文档合并为复合节点。 */
+function insertDocument(
+  children: VfsNode[],
+  group: ContentGroup,
+  slug: string,
+  segments: string[],
+  pathPrefix: string,
+): void {
+  const [head, ...rest] = segments;
+  const path = `${pathPrefix}/${head}`;
+
+  if (rest.length === 0) {
+    const existing = children.find((child) => child.name === head);
+    if (existing && isDirectory(existing)) {
+      // 目录已存在（簇文件夹）：挂文档身份 → 复合节点
+      existing.type = DOC_NODE_TYPE[group];
+      existing.refSlug = slug;
+    } else if (!existing) {
+      children.push({
+        path,
+        name: head,
+        type: DOC_NODE_TYPE[group],
+        refSlug: slug,
+      });
+    }
+    return;
+  }
+
+  let dir = children.find((child) => child.name === head);
+  if (!dir) {
+    dir = { path, name: head, type: "dir", children: [] };
+    children.push(dir);
+  } else if (!isDirectory(dir)) {
+    // 文档节点先到、目录后到（入口篇 + 簇文件夹）：补 children → 复合节点
+    dir.children = [];
+  }
+  insertDocument(dir.children!, group, slug, rest, path);
+}
+
+/** 目录优先、按名排序（确定性输出）。递归应用到整棵子树。 */
+function sortChildren(children: VfsNode[]): VfsNode[] {
+  const sorted = [...children].sort((a, b) => {
+    const aDir = isDirectory(a) ? 0 : 1;
+    const bDir = isDirectory(b) ? 0 : 1;
+    if (aDir !== bDir) return aDir - bDir;
+    return a.name.localeCompare(b.name);
+  });
+  for (const child of sorted) {
+    if (isDirectory(child)) {
+      child.children = sortChildren(child.children ?? []);
+    }
+  }
+  return sorted;
+}
+
+function groupChildren(
+  group: ContentGroup,
+  documents: ArchiveDocument[],
+): VfsNode[] {
+  const children: VfsNode[] = [];
+  for (const document of documents) {
+    const segments = document.ref.slug.split("/");
+    insertDocument(children, group, document.ref.slug, segments, `/${group}`);
+  }
+  return sortChildren(children);
+}
+
+export function createVfs(snapshot: ArchiveSnapshot): VfsNode {
+  return {
+    path: "/",
+    name: zhCN.vfs.root,
+    type: "dir",
+    children: [
+      {
+        path: "/projects",
+        name: zhCN.vfs.projects,
+        type: "dir",
+        children: groupChildren("projects", snapshot.projects),
+      },
+      {
+        path: "/thoughts",
+        name: zhCN.vfs.thoughts,
+        type: "dir",
+        children: groupChildren("thoughts", snapshot.thoughts),
+      },
+      {
+        path: "/resources",
+        name: zhCN.vfs.resources,
+        type: "dir",
+        children: groupChildren("resources", snapshot.resources),
+      },
+      {
+        path: "/timeline",
+        name: zhCN.vfs.timeline,
+        type: "timeline",
+      },
+      {
+        path: "/person",
+        name: zhCN.vfs.person,
+        type: "person",
+      },
+    ],
+  };
+}
 
 function joinPath(base: string, next: string) {
   if (next.startsWith("/")) return normalizePath(next);
@@ -63,59 +181,6 @@ export function formatShellPromptTokens(
     { text: pathPart, tone: "path" },
     { text: "$", tone: "normal" },
   ];
-}
-
-export function createVfs(snapshot: ArchiveSnapshot): VfsNode {
-  return {
-    path: "/",
-    name: zhCN.vfs.root,
-    type: "dir",
-    children: [
-      {
-        path: "/projects",
-        name: zhCN.vfs.projects,
-        type: "dir",
-        children: snapshot.projects.map((project) => ({
-          path: toVfsPath(project.ref),
-          name: project.ref.slug,
-          type: "project",
-          refSlug: project.ref.slug,
-        })),
-      },
-      {
-        path: "/thoughts",
-        name: zhCN.vfs.thoughts,
-        type: "dir",
-        children: snapshot.thoughts.map((thought) => ({
-          path: toVfsPath(thought.ref),
-          name: thought.ref.slug,
-          type: "thought",
-          refSlug: thought.ref.slug,
-        })),
-      },
-      {
-        path: "/resources",
-        name: zhCN.vfs.resources,
-        type: "dir",
-        children: snapshot.resources.map((resource) => ({
-          path: toVfsPath(resource.ref),
-          name: resource.ref.slug,
-          type: "resource",
-          refSlug: resource.ref.slug,
-        })),
-      },
-      {
-        path: "/timeline",
-        name: zhCN.vfs.timeline,
-        type: "timeline",
-      },
-      {
-        path: "/person",
-        name: zhCN.vfs.person,
-        type: "person",
-      },
-    ],
-  };
 }
 
 /** 短字符串编辑距离；路径段名通常很短。 */
@@ -237,15 +302,15 @@ export function suggestVfsPaths(
 }
 
 export function listNode(node: VfsNode) {
-  if (node.type !== "dir") return [];
+  if (!isDirectory(node)) return [];
   return node.children ?? [];
 }
 
 export function treeLines(node: VfsNode, depth = 0): string[] {
   const prefix = depth === 0 ? "" : `${"  ".repeat(depth - 1)}|- `;
-  const marker = node.type === "dir" ? "/" : "";
+  const marker = isDirectory(node) ? "/" : "";
   const lines = [`${prefix}${node.name}${marker}`];
-  if (node.type !== "dir") return lines;
+  if (!isDirectory(node)) return lines;
 
   for (const child of node.children ?? []) {
     lines.push(...treeLines(child, depth + 1));

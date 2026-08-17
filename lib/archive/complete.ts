@@ -6,7 +6,13 @@ import {
   resolveAlias,
 } from "./command-registry";
 import type { SiteRole } from "./site-principal";
-import { createVfs, listNode, resolveVfsPath, type VfsNode } from "./vfs";
+import {
+  createVfs,
+  isDirectory,
+  listNode,
+  resolveVfsPath,
+  type VfsNode,
+} from "./vfs";
 
 export type CompleteResult = {
   /** 补全后的整行输入 */
@@ -45,7 +51,7 @@ function joinCompletion(parentPrefix: string, name: string, isDir: boolean) {
 }
 
 function isDirNode(node: VfsNode) {
-  return node.type === "dir";
+  return isDirectory(node);
 }
 
 function matchesFilter(node: VfsNode, filter: PathFilter) {
@@ -79,7 +85,7 @@ function pathCandidates(
         : parentPrefix.replace(/\/$/, "") || "/";
 
   const parent = resolveVfsPath(root, cwd, parentPath);
-  if (!parent || parent.type !== "dir") return [];
+  if (!parent || !isDirectory(parent)) return [];
 
   const needle = namePrefix.toLowerCase();
 

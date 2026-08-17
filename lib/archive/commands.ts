@@ -54,6 +54,7 @@ import {
   createSession,
   createVfs,
   formatShellPromptTokens,
+  isDirectory,
   listNode,
   resolveVfsPath,
   suggestVfsPaths,
@@ -215,9 +216,16 @@ function search(snapshot: ArchiveSnapshot, query: string) {
   );
 }
 
+/** 全部可打开节点：纯目录递归；复合节点 = 自身（入口篇）+ 子节点。 */
 function collectOpenableNodes(node: VfsNode): VfsNode[] {
   if (node.type === "dir") {
     return (node.children ?? []).flatMap((child) => collectOpenableNodes(child));
+  }
+  if (isDirectory(node)) {
+    return [
+      node,
+      ...(node.children ?? []).flatMap((child) => collectOpenableNodes(child)),
+    ];
   }
   return [node];
 }
@@ -341,18 +349,30 @@ function surfaceFromNode(
   return null;
 }
 
-/** 目录下可进阅读面板的节点（不含 person；不含嵌套子目录）。 */
+/**
+ * 目录下可进阅读面板的节点。
+ * - 纯目录：直接子文档（不含更深嵌套）
+ * - 复合节点：入口篇 + 直接子文档（ADR 0013）
+ * - 文档节点：自身
+ */
 function openableInDir(
   snapshot: ArchiveSnapshot,
   dir: VfsNode,
 ): ReadingSurface[] {
-  if (dir.type !== "dir") {
+  if (!isDirectory(dir)) {
     const alone = surfaceFromNode(snapshot, dir);
     return alone ? [alone] : [];
   }
-  return listNode(dir)
-    .map((child) => surfaceFromNode(snapshot, child))
-    .filter((surface): surface is ReadingSurface => surface !== null);
+  const surfaces: ReadingSurface[] = [];
+  if (dir.type !== "dir") {
+    const entry = surfaceFromNode(snapshot, dir);
+    if (entry) surfaces.push(entry);
+  }
+  for (const child of listNode(dir)) {
+    const surface = surfaceFromNode(snapshot, child);
+    if (surface) surfaces.push(surface);
+  }
+  return surfaces;
 }
 
 /**
@@ -483,7 +503,7 @@ function resolveOpenToken(
     if (node.type === "person") {
       return { kind: "person" };
     }
-    if (node.type === "dir" || isGlob) {
+    if (isDirectory(node) || isGlob) {
       const surfaces = openableInDir(snapshot, node);
       if (surfaces.length === 0) {
         return { kind: "empty-dir", path: node.path };
@@ -611,10 +631,11 @@ function handleLinuxCommand(
       };
     }
 
-    if (node.type === "dir") {
+    if (isDirectory(node)) {
       const entries = listNode(node).map((child) => {
+        const childDir = isDirectory(child);
         const nameTone =
-          child.type === "dir"
+          childDir
             ? "path"
             : child.type === "timeline"
               ? "success"
@@ -623,7 +644,7 @@ function handleLinuxCommand(
                 : "command";
         return line([
           token(child.name, nameTone),
-          token(child.type === "dir" ? "/" : "", "muted"),
+          token(childDir ? "/" : "", "muted"),
         ]);
       });
       return {
@@ -650,7 +671,7 @@ function handleLinuxCommand(
         handled: true,
       };
     }
-    if (node.type !== "dir") {
+    if (!isDirectory(node)) {
       return {
         entries: [systemError(zhCN.errors.notDirectory)],
         session,
@@ -699,7 +720,7 @@ function handleLinuxCommand(
         handled: true,
       };
     }
-    if (node.type === "dir") {
+    if (isDirectory(node) && node.type === "dir") {
       return {
         entries: [systemError(zhCN.errors.isDirectory)],
         session,
