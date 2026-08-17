@@ -104,7 +104,8 @@ export function parseDocument(
 
   const fallbackTitle =
 
-    body.match(/^#\s+(.+)$/m)?.[1]?.trim() ?? slug.replaceAll("-", " ");
+    body.match(/^#\s+(.+)$/m)?.[1]?.trim() ??
+    slug.replaceAll("/", " / ").replaceAll("-", " ");
 
 
 

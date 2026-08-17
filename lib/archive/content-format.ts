@@ -11,8 +11,23 @@ export function contentGroupLocalKeyHint(): string {
   return CONTENT_GROUPS.map((group) => `${group}/<slug>`).join(" or ");
 }
 
-/** slug 白名单：与现有内容命名一致，天然防路径穿越。 */
+/** slug 白名单：与现有内容命名一致，天然防路径穿越（单段）。 */
 export const SLUG_PATTERN = /^[a-z0-9_-]+$/;
+
+/**
+ * 多段 slug 校验（ADR 0013）：`seg1/seg2`，每段 `[a-z0-9_-]+`，
+ * 至少一段，无空段、无首尾斜杠。返回段数组；非法 → null。
+ */
+export function slugSegments(slug: string): string[] | null {
+  if (!slug || slug.startsWith("/") || slug.endsWith("/")) return null;
+  const segments = slug.split("/");
+  if (segments.some((segment) => !SLUG_PATTERN.test(segment))) return null;
+  return segments;
+}
+
+export function isValidSlug(slug: string): boolean {
+  return slugSegments(slug) !== null;
+}
 
 /**
  * frontmatter 解析 / 序列化（读写路径共用，保证对称）。

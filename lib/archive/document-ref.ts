@@ -1,13 +1,16 @@
 import {
   CONTENT_GROUPS,
-  SLUG_PATTERN,
   contentGroupLocalKeyHint,
+  slugSegments,
   type ContentGroup,
 } from "./content-format";
 
 /**
  * Canonical identity of a local archive document (`source: local`).
  * Projects to discovery localKey and VFS path only — not filesystem paths.
+ *
+ * ADR 0013: `slug` is the group-relative path, one or more segments joined
+ * by `/` (e.g. `my_web` or `my_web/log`); each segment matches SLUG_PATTERN.
  */
 export type DocumentRef = {
   readonly group: ContentGroup;
@@ -33,9 +36,9 @@ export function documentRef(group: ContentGroup, slug: string): DocumentRef {
   if (!CONTENT_GROUPS.includes(group)) {
     throw new DocumentRefError(`Unknown group: ${group}`);
   }
-  if (!SLUG_PATTERN.test(slug)) {
+  if (slugSegments(slug) === null) {
     throw new DocumentRefError(
-      `Invalid slug: "${slug}". Allowed: [a-z0-9_-]+`,
+      `Invalid slug: "${slug}". Each segment must match [a-z0-9_-]+ (e.g. "my_web" or "my_web/log").`,
     );
   }
   return { group, slug };
@@ -46,7 +49,7 @@ export function tryDocumentRef(
   slug: string,
 ): DocumentRef | null {
   if (!CONTENT_GROUPS.includes(group as ContentGroup)) return null;
-  if (!SLUG_PATTERN.test(slug)) return null;
+  if (slugSegments(slug) === null) return null;
   return { group: group as ContentGroup, slug };
 }
 
@@ -65,19 +68,20 @@ export function refsEqual(a: DocumentRef, b: DocumentRef): boolean {
 }
 
 /**
- * Parse discovery localKey (`projects/foo`, optional leading `/`).
- * Rejects nested slug segments and unknown groups.
+ * Parse discovery localKey (`projects/foo`, `projects/my_web/log`,
+ * optional leading `/`). Requires group + at least one slug segment;
+ * interior empty segments are rejected (ADR 0013).
  */
 export function fromLocalKey(localKey: string): DocumentRef {
   const normalized = localKey.trim().replace(/^\/+/, "").replace(/\/+$/, "");
-  const parts = normalized.split("/").filter(Boolean);
-  if (parts.length !== 2) {
+  const parts = normalized.split("/");
+  if (parts.length < 2) {
     throw new DocumentRefError(
       `Invalid localKey: "${localKey}". Must be ${contentGroupLocalKeyHint()}.`,
     );
   }
-  const [group, slug] = parts;
-  const ref = tryDocumentRef(group!, slug!);
+  const [group, ...rest] = parts;
+  const ref = tryDocumentRef(group!, rest.join("/"));
   if (!ref) {
     throw new DocumentRefError(
       `Invalid localKey: "${localKey}". Must be ${contentGroupLocalKeyHint()}.`,
@@ -95,22 +99,24 @@ export function tryFromLocalKey(localKey: string): DocumentRef | null {
 }
 
 /**
- * Parse a document VFS path (`/projects/foo`).
+ * Parse a document VFS path (`/projects/foo`, `/projects/my_web/log`).
+ * Requires group + at least one slug segment; interior empty segments
+ * are rejected (ADR 0013).
  * Directories and non-document nodes (`/timeline`, `/person`) → error.
  */
 export function fromVfsPath(vfsPath: string): DocumentRef {
-  const normalized = vfsPath.trim().replace(/\/+$/, "") || "/";
-  const parts = normalized.split("/").filter(Boolean);
-  if (parts.length !== 2) {
+  const normalized = vfsPath.trim().replace(/^\/+/, "").replace(/\/+$/, "");
+  const parts = normalized.split("/");
+  if (parts.length < 2) {
     throw new DocumentRefError(
-      `Invalid VFS document path: "${vfsPath}". Expected /projects/<slug>, /thoughts/<slug>, or /resources/<slug>.`,
+      `Invalid VFS document path: "${vfsPath}". Expected /projects/<slug>[/<sub>…], /thoughts/<slug>[/<sub>…], or /resources/<slug>[/<sub>…].`,
     );
   }
-  const [group, slug] = parts;
-  const ref = tryDocumentRef(group!, slug!);
+  const [group, ...rest] = parts;
+  const ref = tryDocumentRef(group!, rest.join("/"));
   if (!ref) {
     throw new DocumentRefError(
-      `Invalid VFS document path: "${vfsPath}". Expected /projects/<slug>, /thoughts/<slug>, or /resources/<slug>.`,
+      `Invalid VFS document path: "${vfsPath}". Expected /projects/<slug>[/<sub>…], /thoughts/<slug>[/<sub>…], or /resources/<slug>[/<sub>…].`,
     );
   }
   return ref;
