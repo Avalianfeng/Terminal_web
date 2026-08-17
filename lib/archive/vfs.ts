@@ -272,7 +272,10 @@ export function resolveVfsPath(
   cwd: string,
   inputPath: string | undefined,
 ) {
-  const targetPath = normalizePath(joinPath(cwd, inputPath?.trim() || "."));
+  // `~` / `~/x` = 根（与提示符显示约定一致；docs/18 §6）
+  const raw = inputPath?.trim() || ".";
+  const pathPart = raw === "~" ? "/" : raw.startsWith("~/") ? raw.slice(1) : raw;
+  const targetPath = normalizePath(joinPath(cwd, pathPart));
   if (targetPath === "/") return root;
 
   const parts = targetPath.split("/").filter(Boolean);
@@ -352,7 +355,8 @@ export function listNode(node: VfsNode) {
 
 export function treeLines(node: VfsNode, depth = 0): string[] {
   const prefix = depth === 0 ? "" : `${"  ".repeat(depth - 1)}|- `;
-  const marker = isDirectory(node) ? "/" : "";
+  // 根节点名已是 "/"，不再追加目录标记（否则显示 "//"）
+  const marker = isDirectory(node) && node.path !== "/" ? "/" : "";
   const lines = [`${prefix}${node.name}${marker}`];
   if (!isDirectory(node)) return lines;
 

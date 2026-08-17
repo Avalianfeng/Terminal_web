@@ -157,6 +157,26 @@ describe("vfs (ADR 0013)", () => {
     assert.deepEqual(listNode(empty), []);
   });
 
+  it("resolveVfsPath maps ~ and ~/ to root (prompt convention)", () => {
+    const root = createVfs(snapshot([doc("projects", "a")]));
+    assert.equal(resolveVfsPath(root, "/", "~"), root);
+    assert.equal(resolveVfsPath(root, "/projects", "~"), root);
+    const projects = resolveVfsPath(root, "/", "~/projects")!;
+    assert.equal(projects.type, "dir");
+    assert.equal(projects.path, "/projects");
+    assert.equal(
+      resolveVfsPath(root, "/projects", "~/projects/a")?.refSlug,
+      "a",
+    );
+  });
+
+  it("treeLines root renders a single slash (not //)", () => {
+    const root = createVfs(snapshot([doc("projects", "my_web/log")]));
+    const lines = treeLines(root);
+    assert.equal(lines[0], "/");
+    assert.ok(!lines.some((l) => l === "//"), lines.join("|"));
+  });
+
   it("merges empty dir with doc into dual node (either order)", () => {
     // 目录先到（盘上先 mkdir），子文档后到：纯目录 + 子文档
     const dirFirst = createVfs(

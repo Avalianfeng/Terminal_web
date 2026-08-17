@@ -240,6 +240,7 @@ export const zhCN = {
     emptySearch: "未找到匹配记录",
     emptyFind: "未找到匹配路径",
     invalidPath: "路径不存在",
+    openNotSaved: "（父目录存在，但文档尚未落盘——编辑面板保存后才会写入磁盘）",
     didYouMean: "你是不是想找:",
     notDirectory: "目标不是目录",
     notFile: "目标不是可读取节点",

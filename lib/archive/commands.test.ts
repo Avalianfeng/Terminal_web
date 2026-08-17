@@ -245,3 +245,61 @@ describe("commands cwdAfterRemoval (rmdir self-consistency)", () => {
     assert.equal(cwdAfterRemoval("/", "/"), "/");
   });
 });
+
+describe("commands path ergonomics (~ / .md / tree root)", () => {
+  it("cd ~ returns to root from a nested cwd", () => {
+    const result = runCommand(snap, "cd ~", { cwd: "/projects", commandHistory: [] });
+    assert.equal(result.session.cwd, "/");
+  });
+
+  it("open accepts trailing .md suffix", () => {
+    const result = runCommand(snap, "open projects/my_web/log.md");
+    assert.ok(result.reading);
+    const surfaces = Array.isArray(result.reading) ? result.reading : [result.reading];
+    assert.equal(surfaces.length, 1);
+    assert.equal(surfaces[0]!.kind, "document");
+    assert.equal(
+      surfaces[0]!.kind === "document" ? surfaces[0]!.document.ref.slug : "",
+      "my_web/log",
+    );
+  });
+
+  it("cat accepts trailing .md suffix", () => {
+    const result = runCommand(snap, "cat projects/my_web/log.md");
+    assert.ok(result.pager, "expected pager");
+    assert.ok(
+      result.pager!.logicalLines.join("\n").includes("body of my_web/log"),
+    );
+  });
+
+  it("edit accepts trailing .md suffix and ~/ prefix", () => {
+    const md = runCommand(snap, "edit projects/my_web/log.md");
+    assert.ok(md.edit);
+    assert.equal(md.edit!.ref.slug, "my_web/log");
+    assert.equal(md.edit!.exists, true);
+    const tilde = runCommand(snap, "edit ~/projects/my_web/log");
+    assert.ok(tilde.edit);
+    assert.equal(tilde.edit!.ref.slug, "my_web/log");
+  });
+
+  it("mkdir ~/... maps to root", () => {
+    const result = runCommand(snap, "mkdir ~/projects/zzz");
+    assert.deepEqual(result.fs, { kind: "mkdir", path: "/projects/zzz" });
+  });
+
+  it("tree root renders a single slash", () => {
+    const result = runCommand(snap, "tree");
+    const textLines = plainLines(result);
+    assert.ok(textLines.includes("/"), textLines.join("|"));
+    assert.ok(!textLines.includes("//"), textLines.join("|"));
+  });
+
+  it("open missing nested doc hints it is not on disk yet", () => {
+    const withDir = snapshot([doc("projects", "my_web"), doc("projects", "flat")]);
+    withDir.directories.projects = ["my_web"];
+    const result = runCommand(withDir, "open projects/my_web/log");
+    const text = plainLines(result).join("|");
+    assert.ok(text.includes("尚未落盘"), text);
+    assert.ok(text.includes("my_web/log"), text);
+  });
+});

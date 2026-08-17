@@ -416,7 +416,11 @@ function resolveDirTarget(
   cwd: string,
   rawTarget: string,
 ): { ok: true; vfsPath: string; group: ContentGroup; segments: string[] } | { ok: false; hint: string } {
-  const target = rawTarget.trim();
+  // `~` / `~/x` = 根（与提示符显示约定一致）；`mkdir ~` 单独 → 空 → usage
+  const target = rawTarget
+    .trim()
+    .replace(/^~\//, "")
+    .replace(/^~$/, "");
   if (!target) {
     return { ok: false, hint: zhCN.errors.usageMkdir };
   }
@@ -446,7 +450,12 @@ function resolveEditTarget(
   cwd: string,
   rawToken: string,
 ): { ok: true; target: DocumentEditTarget } | { ok: false; hint: string } {
-  const token = rawToken.trim().replace(/^\/+/, "");
+  // 容错：`~/` 前缀 = 根；尾缀 `.md` 剥掉（真实 shell 习惯）
+  const token = rawToken
+    .trim()
+    .replace(/^\/+/, "")
+    .replace(/^~\//, "")
+    .replace(/\.md$/, "");
   if (!token) {
     return { ok: false, hint: zhCN.errors.usageEdit };
   }
@@ -529,16 +538,26 @@ type OpenResolve =
   | { kind: "surfaces"; surfaces: ReadingSurface[]; batch: boolean }
   | { kind: "person" }
   | { kind: "empty-dir"; path: string }
-  | { kind: "missing"; token: string }
+  | { kind: "missing"; token: string; parentDir: boolean }
   | { kind: "unreadable"; token: string };
+
+/** 目标的父目录前缀在 VFS 中是否真实存在（文档缺失但目录在 → 提示未落盘）。 */
+function dirPrefixExists(root: VfsNode, cwd: string, token: string): boolean {
+  const parts = token.split("/").filter(Boolean);
+  parts.pop();
+  if (parts.length === 0) return false;
+  const node = resolveVfsPath(root, cwd, parts.join("/"));
+  return Boolean(node && isDirectory(node));
+}
 
 function resolveOpenToken(
   snapshot: ArchiveSnapshot,
   cwd: string,
   rawToken: string,
 ): OpenResolve {
-  const token = rawToken.trim();
-  if (!token) return { kind: "missing", token: rawToken };
+  // 容错：尾缀 `.md` 剥掉（真实 shell 习惯）；`~` 由 resolveVfsPath 处理
+  const token = rawToken.trim().replace(/\.md$/, "");
+  if (!token) return { kind: "missing", token: rawToken, parentDir: false };
 
   const root = createVfs(snapshot);
   const lower = normalize(token);
@@ -586,7 +605,7 @@ function resolveOpenToken(
     };
   }
 
-  return { kind: "missing", token };
+  return { kind: "missing", token, parentDir: dirPrefixExists(root, cwd, token) };
 }
 
 const OPEN_SLOT_MAX = RAIL_MAX + 1;
@@ -763,7 +782,7 @@ function handleLinuxCommand(
   }
 
   if (command === "cat") {
-    const target = args[0];
+    const target = (args[0] ?? "").replace(/\.md$/, "");
     if (!target) {
       return {
         entries: [systemError(zhCN.errors.usageCat)],
@@ -1519,6 +1538,9 @@ export function runCommand(
             ]),
           );
           if (resolved.kind === "missing") {
+            if (resolved.parentDir) {
+              notes.push(line([token(zhCN.errors.openNotSaved, "hint")]));
+            }
             const suggestions = suggestVfsPaths(
               createVfs(snapshot),
               nextSession.cwd,
