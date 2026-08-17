@@ -45,6 +45,10 @@
 - [ ] 带 `.md` 尾缀：`open projects/my_web/log.md`、`cat /projects/my_web/log.md`、`edit projects/my_web/log.md` 与不带尾缀同效
 - [ ] `tree` 根显示 `/`（不是 `//`）
 - [ ] `open` 未保存的嵌套文档（父目录存在、文档未落盘）→ 提示「尚未落盘」
+- [ ] **嵌套 cwd 下组前缀 = 绝对语义**：`cd /projects` 后 `open projects/my_web/log`、`cat projects/my_web/log`、`cd projects/my_web`、`ls projects/my_web` 均指向 `/projects/…`（不拼接 cwd）
+- [ ] `open` 缺失路径报「路径不存在: …」（与 `cd`/`cat` 同口径），不再报「无法打开」
+- [ ] `edit <纯目录>`（无入口篇）→ 打开该目录入口篇的**新建**编辑器；`edit /projects` 仍拒绝
+- [ ] 编辑面板打开**新建**文档后直接关闭（不保存）→ 终端输出「未保存，未写入磁盘: <路径>」
 
 ## 发现层 HTTP
 
