@@ -81,6 +81,8 @@
 | `cd <路径>`           | 切换工作目录   |
 | `tree`              | 显示目录树    |
 | `cat <文件>`          | 读取节点内容   |
+| `mkdir <路径>`        | 创建目录（owner；递归） |
+| `rmdir <路径>`        | 删除空目录（owner） |
 | `whoami`            | 档案人物名与站点角色 |
 | `history`           | 显示会话命令历史 |
 
@@ -93,9 +95,11 @@
 content/
 ├── person.json          # 人物元数据
 ├── timeline.md          # 时间线（## 日期 标题 格式）
-├── projects/            # 项目文档，每篇一个 <slug>.md
+├── projects/            # 项目文档；扁平 <slug>.md 或簇文件夹 <cluster>/<leaf>.md（ADR 0013）
 │   ├── personal_archive.md
-│   ├── my_web.md
+│   ├── my_web.md        # 入口篇（可选；与 my_web/ 文件夹可共存）
+│   ├── my_web/
+│   │   └── log.md       # 延伸篇：localKey = projects/my_web/log
 │   └── …（其余项目按 <slug>.md 平铺）
 └── thoughts/            # 思考文档，每篇一个 <slug>.md
     └── archive-system.md
@@ -133,6 +137,7 @@ Markdown 文件支持 YAML frontmatter（`title`、`summary`、`status`、`tags`
 **已实现：**
 
 - 终端浏览、打开、搜索、阅读公开记录
+- 嵌套文档（方案 A / ADR 0013）：多段 localKey、VFS 真目录、入口篇+簇文件夹共存、mkdir/rmdir
 - 终端内编辑：`edit`（owner；本机 implicit，公网 `login`）打开编辑器面板，可改 frontmatter + 正文、新建、删除（`content-write.ts` 原子写）
 - Markdown/JSON 内容层
 - 命令历史（上下箭头）

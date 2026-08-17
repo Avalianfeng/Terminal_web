@@ -5,7 +5,7 @@ A personal, terminal-first archive: local documents under `content/`, presented 
 ## Language
 
 **DocumentRef**:
-The canonical identity of a local archive document: `{ group, slug }`. Projects to discovery `localKey` and VFS path; does not own filesystem paths.
+The canonical identity of a local archive document: `{ group, slug }`. Projects to discovery `localKey` and VFS path; does not own filesystem paths. Since ADR 0013, `slug` is the group-relative path with one or more segments joined by `/` (e.g. `my_web` or `my_web/log`); each segment matches `[a-z0-9_-]+`; the on-disk layout mirrors it (`content/<group>/<seg1>/…/<leaf>.md`).
 _Avoid_: path-as-identity, localKey-as-authority, VFS path as source of truth, embedding disk/`cwd` in the identity module
 
 **content hash**:
@@ -17,7 +17,7 @@ One of the local document collections on disk (`projects` | `thoughts` | `resour
 _Avoid_: folder, category (when meaning the on-disk group)
 
 **localKey**:
-Discovery-layer key for `source: local`; for local documents it is the projection `${group}/${slug}` (no leading slash).
+Discovery-layer key for `source: local`; for local documents it is the projection `${group}/${slug}` (no leading slash; `slug` may be multi-segment, e.g. `projects/my_web/log`). Token scope `prefix/*` covers nested keys under the prefix.
 _Avoid_: treating localKey as a second authority beside DocumentRef
 
 **ArchiveDocument**:

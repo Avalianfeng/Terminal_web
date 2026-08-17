@@ -2,7 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-08-17
-- **Commit**: （随方案 A 落地提交）
+- **Commit**: `c304c29`–`81137a9`（设计锁定 + 身份层 + 读路径 + VFS + 写路径/mkdir-rmdir）
 - **Code**: `lib/archive/document-ref.ts`、`content-format.ts`、`content.ts`、`content-write.ts`、`vfs.ts`、`commands.ts`、`complete.ts`、`actions.ts`
 - **Glossary**: `CONTEXT.md` → DocumentRef / localKey / ContentGroup
 - **Related**: [0001](0001-document-ref.md)（本 ADR 加宽其 slug 语义；0001 其余决策不变）；[0010](0010-site-principal.md)（mkdir/rmdir 的 owner 闸）
