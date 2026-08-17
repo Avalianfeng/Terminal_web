@@ -148,6 +148,7 @@ Markdown 文件支持 YAML frontmatter（`title`、`summary`、`status`、`tags`
 - 完整权限体系（多人、RBAC、审计；当前为 token + scope 最小闭环）
 - AI 解读
 - 多人档案权限
+- 终端完整 shell 行为（`cd -`、`~` 展开、文件监听等）——**明确不做**，边界与使用策略见 [`docs/18`](docs/18-终端真实性评估.md) §6
 - （已做）终端 fullscreen：放大壳高；`open`/`cat` 仍走阅读面板
 
 

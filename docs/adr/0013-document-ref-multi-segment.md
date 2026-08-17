@@ -45,6 +45,7 @@
 - 手测：`docs/17-嵌套DocumentRef手测.md` 补全为统一验收清单。
 - 文档同步：`CONTEXT.md`（DocumentRef / localKey 词条）、`docs/08` §3.3（localKey 定义）、`README.md`（内容结构）、`docs/00` 地图、`docs/09`（勾选落地）。
 - **盘状态反映（2026-08-17 提交 `7e1bb48`）**：快照携带组内真实目录树（`directories`，含空目录；realpath 包含校验 + 深度上限）；VFS 建树目录先行、文档并入（复合节点）；`mkdirDir`/`rmdirDir` 带 `revalidatePath("/")`。终端 `mkdir`/`rmdir` 对盘状态即时可见、空目录可 `cd`。真 PTY 替代被否（见 `docs/18`）。
+- **终端边界（2026-08-17 收口，`docs/18` §6）**：终端不追求完整 shell 行为（`cd -` / `~` 展开 / 文件监听 / POSIX 文案 sweep 一律不做）；自洽修补：`rmdir` 删除当前所在目录后 cwd 自动回退父级（`066ee18`）。
 
 ## Rejected
 
