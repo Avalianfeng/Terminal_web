@@ -395,7 +395,10 @@ function resolveDirTarget(
   if (!target) {
     return { ok: false, hint: zhCN.errors.usageMkdir };
   }
-  const vfsPath = normalizePath(`${cwd}/${target}`);
+  // 绝对路径不拼接 cwd（否则 cwd 段会混入 segments）
+  const vfsPath = target.startsWith("/")
+    ? normalizePath(target)
+    : normalizePath(`${cwd}/${target}`);
   const parts = vfsPath.split("/").filter(Boolean);
   if (parts.length < 2) {
     return { ok: false, hint: `${zhCN.errors.invalidPath}: ${target}` };

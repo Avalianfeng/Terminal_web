@@ -137,6 +137,12 @@ describe("commands mkdir/rmdir (ADR 0013)", () => {
     assert.deepEqual(result.fs, { kind: "mkdir", path: "/projects/my_web/notes" });
   });
 
+  it("mkdir absolute path ignores nested cwd", () => {
+    const cd = runCommand(snap, "cd /projects/my_web");
+    const result = runCommand(snap, "mkdir /thoughts/foo", cd.session);
+    assert.deepEqual(result.fs, { kind: "mkdir", path: "/thoughts/foo" });
+  });
+
   it("mkdir without args shows usage", () => {
     const result = runCommand(snap, "mkdir");
     assert.equal(result.fs, undefined);
