@@ -499,6 +499,14 @@ function resolveEditTarget(
         },
       };
     }
+    if (node.type === "dir") {
+      // 纯目录（簇文件夹尚无入口篇）：编辑其入口篇 → 新建，保存后成复合节点
+      // （组根 /projects 等无 slug → 仍拒绝）
+      const ref = tryFromVfsPath(node.path);
+      if (ref) {
+        return { ok: true, target: { ref, exists: false } };
+      }
+    }
     return { ok: false, hint: zhCN.errors.notFile };
   }
 
@@ -1530,11 +1538,16 @@ export function runCommand(
           continue;
         }
         if (resolved.kind === "missing" || resolved.kind === "unreadable") {
+          // 缺失路径报「路径不存在」（与 cd/cat 同口径）；不可读节点才报「无法打开」
           notes.push(
             line([
-              token(`${zhCN.errors.cannotOpen}: "`, "error"),
+              token(
+                resolved.kind === "missing"
+                  ? `${zhCN.errors.invalidPath}: `
+                  : `${zhCN.errors.cannotOpen}: `,
+                "error",
+              ),
               token(resolved.token, "path"),
-              token(`".`, "error"),
             ]),
           );
           if (resolved.kind === "missing") {

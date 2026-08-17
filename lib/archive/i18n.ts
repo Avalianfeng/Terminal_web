@@ -141,6 +141,7 @@ export const zhCN = {
     delete: "删除",
     saving: "保存中…",
     saved: "已保存",
+    unsavedNote: "未保存，未写入磁盘",
     deleteConfirm: "确定删除该文档？",
     deleted: "已删除",
     loadFailed: "读取失败",

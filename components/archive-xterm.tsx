@@ -27,6 +27,8 @@ export type ArchiveXtermHandle = {
   refreshPrompt: () => void;
   /** 外区布局变化（阅读面板开关等）后重新 fit 并滚到输入行 */
   relayout: () => void;
+  /** 终端外事件（如编辑器未保存关闭）追加一行输出；无命令回显。 */
+  addEntries: (entries: TerminalEntry[]) => void;
 };
 
 type XtermCommandResult = {
@@ -895,6 +897,16 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
         requestAnimationFrame(() => {
           requestAnimationFrame(() => fitAndScroll());
         });
+      },
+      addEntries: (entries) => {
+        if (
+          readyRef.current &&
+          !pagerRef.current &&
+          !pasteConfirmRef.current &&
+          !ynConfirmRef.current
+        ) {
+          void writeEntries(entries, true);
+        }
       },
     }));
 

@@ -170,6 +170,29 @@ describe("vfs (ADR 0013)", () => {
     );
   });
 
+  it("resolveVfsPath treats group prefix as absolute from nested cwd", () => {
+    const root = createVfs(
+      snapshot([
+        doc("projects", "my_web/log"),
+        doc("thoughts", "a/b"),
+      ]),
+    );
+    // 组前缀 = 根相对（身份语义），不拼接 cwd
+    assert.equal(
+      resolveVfsPath(root, "/projects", "projects/my_web/log")?.refSlug,
+      "my_web/log",
+    );
+    assert.equal(
+      resolveVfsPath(root, "/projects/my_web", "thoughts/a/b")?.refSlug,
+      "a/b",
+    );
+    // 带尾斜杠的组前缀同样绝对
+    assert.equal(
+      resolveVfsPath(root, "/projects", "projects/")?.path,
+      "/projects",
+    );
+  });
+
   it("treeLines root renders a single slash (not //)", () => {
     const root = createVfs(snapshot([doc("projects", "my_web/log")]));
     const lines = treeLines(root);

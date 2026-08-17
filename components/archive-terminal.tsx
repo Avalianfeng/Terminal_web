@@ -336,6 +336,22 @@ export function ArchiveTerminal({
       router.refresh();
     } else if (result.saved || result.deleted) {
       router.refresh();
+    } else if (target && !target.exists) {
+      // 新建文档未保存即关闭：终端注明，避免「意外创建」的错觉（docs/18 §6）
+      xtermRef.current?.addEntries([
+        {
+          id: `editor-unsaved-${Date.now()}`,
+          kind: "system",
+          lines: [
+            {
+              tokens: [
+                { text: `${zhCN.editor.unsavedNote}: `, tone: "hint" },
+                { text: toLocalKey(target.ref), tone: "path" },
+              ],
+            },
+          ],
+        },
+      ]);
     }
     revealTerminal();
   }

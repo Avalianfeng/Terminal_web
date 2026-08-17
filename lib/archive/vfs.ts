@@ -267,15 +267,31 @@ function findChild(node: VfsNode, part: string): VfsNode | null {
   return caseHits.length === 1 ? caseHits[0]! : null;
 }
 
+/**
+ * 输入路径的「绝对化」：`~`/`~/x` = 根（提示符显示约定）；组前缀
+ * `projects/…` = 根相对（localKey 身份语义，ADR 0013；docs/18 §6）。
+ * 其余保持原样（相对 cwd 由 joinPath 处理）。
+ */
+function absoluteForm(input: string): string {
+  if (input === "~") return "/";
+  if (input.startsWith("~/")) return input.slice(1);
+  if (
+    input.startsWith("projects/") ||
+    input.startsWith("thoughts/") ||
+    input.startsWith("resources/")
+  ) {
+    return `/${input}`;
+  }
+  return input;
+}
+
 export function resolveVfsPath(
   root: VfsNode,
   cwd: string,
   inputPath: string | undefined,
 ) {
-  // `~` / `~/x` = 根（与提示符显示约定一致；docs/18 §6）
   const raw = inputPath?.trim() || ".";
-  const pathPart = raw === "~" ? "/" : raw.startsWith("~/") ? raw.slice(1) : raw;
-  const targetPath = normalizePath(joinPath(cwd, pathPart));
+  const targetPath = normalizePath(joinPath(cwd, absoluteForm(raw)));
   if (targetPath === "/") return root;
 
   const parts = targetPath.split("/").filter(Boolean);
@@ -315,7 +331,9 @@ export function suggestVfsPaths(
   inputPath: string,
   limit = 3,
 ) {
-  const needle = normalizePath(joinPath(cwd, inputPath.trim() || "."));
+  const needle = normalizePath(
+    joinPath(cwd, absoluteForm(inputPath.trim() || ".")),
+  );
   const needleLower = needle.toLowerCase();
   const lastSeg = needle.split("/").filter(Boolean).pop()?.toLowerCase() ?? "";
 

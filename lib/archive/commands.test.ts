@@ -302,4 +302,55 @@ describe("commands path ergonomics (~ / .md / tree root)", () => {
     assert.ok(text.includes("尚未落盘"), text);
     assert.ok(text.includes("my_web/log"), text);
   });
+
+  it("open/cat/cd/ls treat group prefix as absolute from nested cwd", () => {
+    const nested = { cwd: "/projects", commandHistory: [] };
+    const opened = runCommand(snap, "open projects/my_web/log", nested);
+    assert.ok(opened.reading);
+    const surfaces = Array.isArray(opened.reading)
+      ? opened.reading
+      : [opened.reading];
+    assert.equal(
+      surfaces[0]!.kind === "document" ? surfaces[0]!.document.ref.slug : "",
+      "my_web/log",
+    );
+    const catted = runCommand(snap, "cat projects/my_web/log", nested);
+    assert.ok(catted.pager, "expected pager for cat");
+    const cded = runCommand(snap, "cd projects/my_web", nested);
+    assert.equal(cded.session.cwd, "/projects/my_web");
+    const listed = runCommand(snap, "ls projects/my_web", nested);
+    assert.ok(
+      plainLines(listed).some((l) => l.includes("log")),
+      plainLines(listed).join("|"),
+    );
+    // .md 尾缀 + 组前缀 + 嵌套 cwd 组合
+    const withMd = runCommand(snap, "open projects/my_web/log.md", nested);
+    assert.ok(withMd.reading, "expected reading for .md suffix from nested cwd");
+  });
+
+  it("open missing path reports 路径不存在 (not 无法打开)", () => {
+    const result = runCommand(snap, "open nope/nothing");
+    const text = plainLines(result).join("|");
+    assert.ok(text.includes("路径不存在"), text);
+    assert.ok(!text.includes("无法打开"), text);
+  });
+
+  it("edit on a pure directory opens its entry document (new)", () => {
+    const withDir = snapshot([doc("projects", "my_web/log")]);
+    withDir.directories.projects = ["my_web"];
+    const result = runCommand(withDir, "edit my_web", {
+      cwd: "/projects",
+      commandHistory: [],
+    });
+    assert.ok(result.edit, "expected edit target");
+    assert.deepEqual(result.edit!.ref, { group: "projects", slug: "my_web" });
+    assert.equal(result.edit!.exists, false);
+  });
+
+  it("edit on group root still refuses", () => {
+    const result = runCommand(snap, "edit /projects");
+    assert.equal(result.edit, undefined);
+    const text = plainLines(result).join("|");
+    assert.ok(text.includes("可读取"), text);
+  });
 });
