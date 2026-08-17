@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { getArchiveSnapshot } from "./content";
+import { mkdtemp, mkdir, rm, writeFile } from "fs/promises";
+import os from "os";
+import path from "path";
+import { getArchiveSnapshot, readGroupTree } from "./content";
 import { slugSegments } from "./content-format";
 
 describe("content read path (ADR 0013)", () => {
@@ -37,6 +40,21 @@ describe("content read path (ADR 0013)", () => {
           `invalid directory path from disk: ${group}/${dir}`,
         );
       }
+    }
+  });
+
+  it("collects multi-level files and dirs relative to group root (regression)", async () => {
+    const tmp = await mkdtemp(path.join(os.tmpdir(), "dsh-content-"));
+    try {
+      await mkdir(path.join(tmp, "a", "b", "c"), { recursive: true });
+      await mkdir(path.join(tmp, "my_web"), { recursive: true });
+      await writeFile(path.join(tmp, "flat.md"), "# flat", "utf8");
+      await writeFile(path.join(tmp, "my_web", "log.md"), "# log", "utf8");
+      const { files, dirs } = await readGroupTree(tmp);
+      assert.deepEqual(files.sort(), ["flat.md", "my_web/log.md"]);
+      assert.deepEqual(dirs.sort(), ["a", "a/b", "a/b/c", "my_web"]);
+    } finally {
+      await rm(tmp, { recursive: true, force: true });
     }
   });
 });

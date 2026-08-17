@@ -30,12 +30,14 @@ function isUnderRoot(root: string, target: string): boolean {
 
 /**
  * 递归收集组内 `.md` 相对路径与真实目录相对路径（跳过隐藏项；不含组根）。
+ * 相对路径一律相对 **groupRoot**（多级路径保持完整，如 `a/b/c`、`my_web/log.md`）。
  * 目录做 realpath 包含检查：junction/symlink 指向组外 → 跳过（防泄露与成环）。
  * 非法段名（不符合 slug 白名单）的文件/目录容错跳过。
  */
 async function collectGroupTree(
-  dir: string,
+  groupRoot: string,
   groupRootReal: string,
+  dir = groupRoot,
   depth = 0,
 ): Promise<{ files: string[]; dirs: string[] }> {
   if (depth > MAX_SCAN_DEPTH) return { files: [], dirs: [] };
@@ -48,18 +50,27 @@ async function collectGroupTree(
     if (entry.isDirectory()) {
       const real = await realpath(full).catch(() => null);
       if (real === null || !isUnderRoot(groupRootReal, real)) continue;
-      const relative = path.relative(dir, full).replace(/\\/g, "/");
+      const relative = path.relative(groupRoot, full).replace(/\\/g, "/");
       if (slugSegments(relative) !== null) {
         dirs.push(relative);
       }
-      const sub = await collectGroupTree(full, groupRootReal, depth + 1);
+      const sub = await collectGroupTree(groupRoot, groupRootReal, full, depth + 1);
       files.push(...sub.files);
       dirs.push(...sub.dirs);
     } else if (entry.isFile() && entry.name.endsWith(".md")) {
-      files.push(path.relative(dir, full));
+      files.push(path.relative(groupRoot, full).replace(/\\/g, "/"));
     }
   }
   return { files, dirs };
+}
+
+/** 任意目录的树收集（组根语义；供测试与复用）。 */
+export async function readGroupTree(
+  groupRoot: string,
+): Promise<{ files: string[]; dirs: string[] }> {
+  const groupRootReal = await realpath(groupRoot).catch(() => null);
+  if (groupRootReal === null) return { files: [], dirs: [] };
+  return collectGroupTree(groupRoot, groupRootReal);
 }
 
 /**
