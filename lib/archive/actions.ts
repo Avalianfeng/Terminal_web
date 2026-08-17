@@ -13,6 +13,7 @@ import {
 } from "./content-write";
 import { CONTENT_GROUPS, slugSegments, type ContentGroup } from "./content-format";
 import { tryDocumentRef } from "./document-ref";
+import { revalidatePath } from "next/cache";
 import { requireUiWrite } from "./site-auth";
 
 export type EditActionResult =
@@ -142,6 +143,7 @@ export async function mkdirDir(
   return toResult(async () => {
     const ref = requireDirRef(group, dirPath);
     const result = await createDirectory(ref);
+    revalidatePath("/");
     return { ok: true, dirCreated: result.created };
   });
 }
@@ -156,6 +158,7 @@ export async function rmdirDir(
   return toResult(async () => {
     const ref = requireDirRef(group, dirPath);
     await removeDirectory(ref);
+    revalidatePath("/");
     return { ok: true, dirRemoved: true };
   });
 }

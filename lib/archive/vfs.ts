@@ -80,11 +80,43 @@ function sortChildren(children: VfsNode[]): VfsNode[] {
   return sorted;
 }
 
+/** 按真实目录路径插入目录节点（叶子为 dir；与文档节点合并为复合节点）。 */
+function insertDirNode(
+  children: VfsNode[],
+  segments: string[],
+  pathPrefix: string,
+): void {
+  const [head, ...rest] = segments;
+  const path = `${pathPrefix}/${head}`;
+  if (rest.length === 0) {
+    const existing = children.find((child) => child.name === head);
+    if (existing) {
+      // 文档节点先到：补 children → 复合节点；纯目录已存在 → no-op
+      if (!isDirectory(existing)) existing.children = [];
+    } else {
+      children.push({ path, name: head, type: "dir", children: [] });
+    }
+    return;
+  }
+  let dir = children.find((child) => child.name === head);
+  if (!dir) {
+    dir = { path, name: head, type: "dir", children: [] };
+    children.push(dir);
+  } else if (!isDirectory(dir)) {
+    dir.children = [];
+  }
+  insertDirNode(dir.children!, rest, path);
+}
+
 function groupChildren(
   group: ContentGroup,
   documents: ArchiveDocument[],
+  dirPaths: string[],
 ): VfsNode[] {
   const children: VfsNode[] = [];
+  for (const dir of dirPaths) {
+    insertDirNode(children, dir.split("/"), `/${group}`);
+  }
   for (const document of documents) {
     const segments = document.ref.slug.split("/");
     insertDocument(children, group, document.ref.slug, segments, `/${group}`);
@@ -102,19 +134,31 @@ export function createVfs(snapshot: ArchiveSnapshot): VfsNode {
         path: "/projects",
         name: zhCN.vfs.projects,
         type: "dir",
-        children: groupChildren("projects", snapshot.projects),
+        children: groupChildren(
+          "projects",
+          snapshot.projects,
+          snapshot.directories.projects,
+        ),
       },
       {
         path: "/thoughts",
         name: zhCN.vfs.thoughts,
         type: "dir",
-        children: groupChildren("thoughts", snapshot.thoughts),
+        children: groupChildren(
+          "thoughts",
+          snapshot.thoughts,
+          snapshot.directories.thoughts,
+        ),
       },
       {
         path: "/resources",
         name: zhCN.vfs.resources,
         type: "dir",
-        children: groupChildren("resources", snapshot.resources),
+        children: groupChildren(
+          "resources",
+          snapshot.resources,
+          snapshot.directories.resources,
+        ),
       },
       {
         path: "/timeline",

@@ -26,6 +26,7 @@ const emptySnapshot = {
   projects: [],
   thoughts: [],
   resources: [],
+  directories: { projects: [], thoughts: [], resources: [] },
   timeline: [],
 } as ArchiveSnapshot;
 
@@ -37,6 +38,10 @@ const nestedSnapshot = {
     doc("projects", "my_web/notes"),
     doc("projects", "flat"),
   ],
+  directories: {
+    ...emptySnapshot.directories,
+    projects: ["my_web"],
+  },
 } as ArchiveSnapshot;
 
 describe("completeInput music", () => {
@@ -79,5 +84,16 @@ describe("completeInput paths (ADR 0013)", () => {
   it("cat drills the single nested dir then lists files", () => {
     const result = completeInput("cat /projects/my_web/", nestedSnapshot, "/");
     assert.deepEqual(result.candidates, ["/projects/my_web/log", "/projects/my_web/notes"]);
+  });
+
+  it("completes empty real dirs from disk state", () => {
+    const snap = {
+      ...emptySnapshot,
+      directories: { projects: ["scratch"], thoughts: [], resources: [] },
+    } as ArchiveSnapshot;
+    const result = completeInput("cd /projects/s", snap, "/");
+    assert.deepEqual(result.candidates, ["/projects/scratch/"]);
+    const mk = completeInput("mkdir /projects/scrat", snap, "/");
+    assert.deepEqual(mk.candidates, ["/projects/scratch/"]);
   });
 });

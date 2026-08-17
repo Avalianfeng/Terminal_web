@@ -31,6 +31,7 @@ function snapshot(docs: ArchiveDocument[]): ArchiveSnapshot {
     projects: docs.filter((d) => d.ref.group === "projects"),
     thoughts: docs.filter((d) => d.ref.group === "thoughts"),
     resources: docs.filter((d) => d.ref.group === "resources"),
+    directories: { projects: [], thoughts: [], resources: [] },
     timeline: [],
     generatedAt: "2026-08-17T00:00:00.000Z",
   };
@@ -165,6 +166,25 @@ describe("commands mkdir/rmdir (ADR 0013)", () => {
     const cd = runCommand(snap, "cd /projects/my_web");
     const result = runCommand(snap, "mkdir /thoughts/foo", cd.session);
     assert.deepEqual(result.fs, { kind: "mkdir", path: "/thoughts/foo" });
+  });
+
+  it("mkdir group-prefix target is absolute even from inside a group (regression)", () => {
+    const cd = runCommand(snap, "cd /projects");
+    const result = runCommand(snap, "mkdir projects/my_web", cd.session);
+    // 不拼 cwd：用户实测曾得到 /projects/projects/my_web
+    assert.deepEqual(result.fs, { kind: "mkdir", path: "/projects/my_web" });
+    const thoughts = runCommand(snap, "mkdir thoughts/x/y", cd.session);
+    assert.deepEqual(thoughts.fs, { kind: "mkdir", path: "/thoughts/x/y" });
+  });
+
+  it("cd into dual node (doc + real dir) works", () => {
+    const dualSnap = snapshot([
+      doc("projects", "my_web"),
+      doc("projects", "my_web/log"),
+    ]);
+    dualSnap.directories = { projects: ["my_web"], thoughts: [], resources: [] };
+    const result = runCommand(dualSnap, "cd /projects/my_web");
+    assert.equal(result.session.cwd, "/projects/my_web");
   });
 
   it("mkdir without args shows usage", () => {

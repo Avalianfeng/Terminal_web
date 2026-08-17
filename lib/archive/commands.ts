@@ -399,8 +399,8 @@ export function splitVfsDirPath(
 }
 
 /**
- * 解析 mkdir / rmdir 目标（相对 cwd）：`/projects/my_web/notes` →
- * group + segments（≥1 段，每段 slug 白名单）。组根/根/非组路径 → 错误。
+ * 解析 mkdir / rmdir 目标：`/projects/my_web/notes`、`projects/my_web/notes`
+ * （组前缀 = 绝对语义）或相对 cwd（如 `notes`）。组根/根/非组路径 → 错误。
  */
 function resolveDirTarget(
   cwd: string,
@@ -410,9 +410,13 @@ function resolveDirTarget(
   if (!target) {
     return { ok: false, hint: zhCN.errors.usageMkdir };
   }
-  // 绝对路径不拼接 cwd（否则 cwd 段会混入 segments）
-  const vfsPath = target.startsWith("/")
-    ? normalizePath(target)
+  // 组前缀与绝对路径都不拼接 cwd（否则 cwd 段会混入 segments）
+  const hasGroupPrefix =
+    target.startsWith("projects/") ||
+    target.startsWith("thoughts/") ||
+    target.startsWith("resources/");
+  const vfsPath = target.startsWith("/") || hasGroupPrefix
+    ? normalizePath(`/${target}`)
     : normalizePath(`${cwd}/${target}`);
   const parsed = splitVfsDirPath(vfsPath);
   if (!parsed) {

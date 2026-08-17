@@ -49,6 +49,15 @@ export type ArchiveSnapshot = {
   projects: ArchiveDocument[];
   thoughts: ArchiveDocument[];
   resources: ArchiveDocument[];
+  /**
+   * 盘上真实目录（组内相对路径，含空目录与无文档目录；ADR 0013 加固）。
+   * VFS 据此反映盘状态——`mkdir` 后无需文档即可见目录。不含组根。
+   */
+  directories: {
+    projects: string[];
+    thoughts: string[];
+    resources: string[];
+  };
   timeline: TimelineEntry[];
   generatedAt: string;
 };

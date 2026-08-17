@@ -25,4 +25,18 @@ describe("content read path (ADR 0013)", () => {
       );
     }
   });
+
+  it("exposes real directories per group (disk state)", async () => {
+    const snapshot = await getArchiveSnapshot();
+    for (const group of ["projects", "thoughts", "resources"] as const) {
+      const dirs = snapshot.directories[group];
+      assert.ok(Array.isArray(dirs), `directories.${group} is an array`);
+      for (const dir of dirs) {
+        assert.ok(
+          slugSegments(dir) !== null,
+          `invalid directory path from disk: ${group}/${dir}`,
+        );
+      }
+    }
+  });
 });

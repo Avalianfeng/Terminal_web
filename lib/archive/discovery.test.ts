@@ -35,6 +35,7 @@ function snapshot(docs: ArchiveDocument[]): ArchiveSnapshot {
     projects: docs.filter((d) => d.ref.group === "projects"),
     thoughts: docs.filter((d) => d.ref.group === "thoughts"),
     resources: docs.filter((d) => d.ref.group === "resources"),
+    directories: { projects: [], thoughts: [], resources: [] },
     timeline: [],
     generatedAt: "2026-08-11T00:00:00.000Z",
   };

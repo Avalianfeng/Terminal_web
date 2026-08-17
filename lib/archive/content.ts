@@ -29,29 +29,37 @@ function isUnderRoot(root: string, target: string): boolean {
 }
 
 /**
- * 递归收集组内全部 `.md` 相对路径（`a/b.md`；跳过隐藏项与非 .md）。
+ * 递归收集组内 `.md` 相对路径与真实目录相对路径（跳过隐藏项；不含组根）。
  * 目录做 realpath 包含检查：junction/symlink 指向组外 → 跳过（防泄露与成环）。
+ * 非法段名（不符合 slug 白名单）的文件/目录容错跳过。
  */
-async function collectMarkdownFiles(
+async function collectGroupTree(
   dir: string,
   groupRootReal: string,
   depth = 0,
-): Promise<string[]> {
-  if (depth > MAX_SCAN_DEPTH) return [];
+): Promise<{ files: string[]; dirs: string[] }> {
+  if (depth > MAX_SCAN_DEPTH) return { files: [], dirs: [] };
   const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
   const files: string[] = [];
+  const dirs: string[] = [];
   for (const entry of entries) {
     if (entry.name.startsWith(".")) continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       const real = await realpath(full).catch(() => null);
       if (real === null || !isUnderRoot(groupRootReal, real)) continue;
-      files.push(...(await collectMarkdownFiles(full, groupRootReal, depth + 1)));
+      const relative = path.relative(dir, full).replace(/\\/g, "/");
+      if (slugSegments(relative) !== null) {
+        dirs.push(relative);
+      }
+      const sub = await collectGroupTree(full, groupRootReal, depth + 1);
+      files.push(...sub.files);
+      dirs.push(...sub.dirs);
     } else if (entry.isFile() && entry.name.endsWith(".md")) {
       files.push(path.relative(dir, full));
     }
   }
-  return files;
+  return { files, dirs };
 }
 
 /**
@@ -64,7 +72,7 @@ async function readMarkdownGroup(group: ContentGroup) {
   const groupRootReal = await realpath(groupRoot).catch(() => null);
   if (groupRootReal === null) return [];
 
-  const files = await collectMarkdownFiles(groupRoot, groupRootReal);
+  const { files } = await collectGroupTree(groupRoot, groupRootReal);
 
   const documents = await Promise.all(
     files.map(async (relative): Promise<ArchiveDocument | null> => {
@@ -89,6 +97,15 @@ async function readMarkdownGroup(group: ContentGroup) {
   );
 }
 
+/** 组内真实目录相对路径（含空目录；ADR 0013——VFS 反映盘状态）。 */
+async function readGroupDirectories(group: ContentGroup): Promise<string[]> {
+  const groupRoot = path.join(contentRoot, group);
+  const groupRootReal = await realpath(groupRoot).catch(() => null);
+  if (groupRootReal === null) return [];
+  const { dirs } = await collectGroupTree(groupRoot, groupRootReal);
+  return dirs;
+}
+
 function parseTimeline(markdown: string): TimelineEntry[] {
   const sections = markdown
     .split(/^##\s+/m)
@@ -111,10 +128,21 @@ export async function getArchiveSnapshot(): Promise<ArchiveSnapshot> {
   const person = JSON.parse(
     await readFile(path.join(contentRoot, "person.json"), "utf8"),
   ) as PersonRecord;
-  const [projects, thoughts, resources, timelineMarkdown] = await Promise.all([
+  const [
+    projects,
+    thoughts,
+    resources,
+    projectDirs,
+    thoughtDirs,
+    resourceDirs,
+    timelineMarkdown,
+  ] = await Promise.all([
     readMarkdownGroup("projects"),
     readMarkdownGroup("thoughts"),
     readMarkdownGroup("resources"),
+    readGroupDirectories("projects"),
+    readGroupDirectories("thoughts"),
+    readGroupDirectories("resources"),
     readFile(path.join(contentRoot, "timeline.md"), "utf8").catch(() => ""),
   ]);
 
@@ -123,6 +151,11 @@ export async function getArchiveSnapshot(): Promise<ArchiveSnapshot> {
     projects,
     thoughts,
     resources,
+    directories: {
+      projects: projectDirs,
+      thoughts: thoughtDirs,
+      resources: resourceDirs,
+    },
     timeline: parseTimeline(timelineMarkdown),
     generatedAt: new Date().toISOString(),
   };
