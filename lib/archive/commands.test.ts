@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { runCommand, splitVfsDirPath } from "./commands";
+import { runCommand, splitVfsDirPath, cwdAfterRemoval } from "./commands";
 import type { SitePrincipal } from "./site-principal";
 import type { ArchiveDocument, ArchiveSnapshot } from "./types";
 
@@ -210,5 +210,38 @@ describe("commands mkdir/rmdir (ADR 0013)", () => {
   it("rmdir requests fs side-effect", () => {
     const result = runCommand(snap, "rmdir /projects/my_web/notes");
     assert.deepEqual(result.fs, { kind: "rmdir", path: "/projects/my_web/notes" });
+  });
+});
+
+describe("commands cwdAfterRemoval (rmdir self-consistency)", () => {
+  it("keeps cwd when not inside the removed dir", () => {
+    assert.equal(cwdAfterRemoval("/projects", "/projects/my_web"), "/projects");
+    assert.equal(
+      cwdAfterRemoval("/projects/my_web2", "/projects/my_web"),
+      "/projects/my_web2",
+    );
+    assert.equal(cwdAfterRemoval("/", "/projects/my_web"), "/");
+  });
+
+  it("rebases to parent when cwd equals the removed dir", () => {
+    assert.equal(
+      cwdAfterRemoval("/projects/my_web", "/projects/my_web"),
+      "/projects",
+    );
+  });
+
+  it("rebases to parent when cwd is nested inside the removed dir", () => {
+    assert.equal(
+      cwdAfterRemoval("/projects/my_web/notes", "/projects/my_web"),
+      "/projects",
+    );
+    assert.equal(
+      cwdAfterRemoval("/projects/my_web/sub/deep", "/projects/my_web"),
+      "/projects",
+    );
+  });
+
+  it("guards degenerate root", () => {
+    assert.equal(cwdAfterRemoval("/", "/"), "/");
   });
 });

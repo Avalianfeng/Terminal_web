@@ -251,6 +251,7 @@ export const zhCN = {
     rmdirRemoved: "已删除空目录",
     rmdirNotEmpty: "目录非空，未删除",
     rmdirMissing: "目录不存在",
+    cwdRebased: "cwd 已回退到",
   },
   vfs: {
     root: "/",

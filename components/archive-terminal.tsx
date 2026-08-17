@@ -10,7 +10,7 @@ import { ReadingPanel } from "@/components/reading-panel";
 import { ReadingRail } from "@/components/reading-rail";
 import { BgmBar, type BgmPlayback } from "@/components/bgm-bar";
 import { completeInput } from "@/lib/archive/complete";
-import { initialEntries, runCommand, splitVfsDirPath } from "@/lib/archive/commands";
+import { initialEntries, runCommand, splitVfsDirPath, cwdAfterRemoval } from "@/lib/archive/commands";
 import { mkdirDir, rmdirDir } from "@/lib/archive/actions";
 import { zhCN } from "@/lib/archive/i18n";
 import {
@@ -1391,7 +1391,7 @@ export function ArchiveTerminal({
                   const parsed = splitVfsDirPath(result.fs.path);
                   const group = parsed?.group ?? "";
                   const dirPath = parsed?.segments.join("/") ?? "";
-                  const fsLine = (text: string, tone: "success" | "error" = "success") => ({
+                  const fsLine = (text: string, tone: "success" | "error" | "hint" = "success") => ({
                     id: `fs-${Date.now()}-${Math.random().toString(16).slice(2)}`,
                     kind: "system" as const,
                     lines: [{ tokens: [{ text, tone }] }],
@@ -1420,6 +1420,23 @@ export function ArchiveTerminal({
                               "error",
                             ),
                       );
+                      if (outcome.ok) {
+                        // 自洽：cwd 在被删目录内 → 回退到父级，避免下一条命令 invalidPath
+                        const rebased = cwdAfterRemoval(
+                          sessionRef.current.cwd,
+                          result.fs.path,
+                        );
+                        if (rebased !== sessionRef.current.cwd) {
+                          sessionRef.current = {
+                            ...sessionRef.current,
+                            cwd: rebased,
+                          };
+                          setSession(sessionRef.current);
+                          extra.push(
+                            fsLine(`${zhCN.fs.cwdRebased}: ${rebased}`, "hint"),
+                          );
+                        }
+                      }
                     }
                     router.refresh();
                   } catch {

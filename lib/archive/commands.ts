@@ -399,6 +399,16 @@ export function splitVfsDirPath(
 }
 
 /**
+ * rmdir 成功后的 cwd 修正：cwd 在被删目录内或等于它 → 回退到被删目录的父级
+ * （rmdir 只删空目录，父级必然存活）；否则不变。防 cwd 悬空（终端自洽边界，docs/18 §6）。
+ */
+export function cwdAfterRemoval(cwd: string, removedPath: string): string {
+  if (cwd !== removedPath && !cwd.startsWith(`${removedPath}/`)) return cwd;
+  const parent = removedPath.slice(0, removedPath.lastIndexOf("/"));
+  return parent || "/";
+}
+
+/**
  * 解析 mkdir / rmdir 目标：`/projects/my_web/notes`、`projects/my_web/notes`
  * （组前缀 = 绝对语义）或相对 cwd（如 `notes`）。组根/根/非组路径 → 错误。
  */
