@@ -80,4 +80,43 @@ describe("discovery", () => {
     assert.equal(findItemByKey(snap, "github", "projects/p1"), null);
     assert.equal(findItemByKey(snap, "local", "projects/missing"), null);
   });
+
+  it("projects multi-segment localKey (ADR 0013)", () => {
+    const nested = doc("projects", "my_web/log");
+    const item = toItemListItem(nested);
+    assert.equal(item.localKey, "projects/my_web/log");
+    assert.equal(item.href, "/api/v1/items?source=local&localKey=projects%2Fmy_web%2Flog");
+  });
+
+  it("index and lookup cover nested documents (ADR 0013)", () => {
+    const snap = snapshot([
+      doc("projects", "my_web"),
+      doc("projects", "my_web/log"),
+      doc("projects", "my_web/notes"),
+      doc("thoughts", "a/b/c"),
+    ]);
+    const { items } = buildItemsIndex(snap);
+    const keys = items.map((item) => item.localKey).sort();
+    assert.deepEqual(keys, [
+      "projects/my_web",
+      "projects/my_web/log",
+      "projects/my_web/notes",
+      "thoughts/a/b/c",
+    ]);
+    assert.ok(findItemByKey(snap, "local", "projects/my_web/log"));
+    assert.ok(findItemByKey(snap, "local", "thoughts/a/b/c"));
+    assert.equal(findItemByKey(snap, "local", "thoughts/a"), null);
+  });
+
+  it("filters apply to nested documents too", () => {
+    const snap = snapshot([
+      doc("projects", "my_web/log", { status: "done", tags: ["cluster:my_web"] }),
+      doc("projects", "other", { status: "draft" }),
+    ]);
+    const { items } = buildItemsIndex(snap, {
+      status: "done",
+      tag: ["cluster:my_web"],
+    });
+    assert.deepEqual(items.map((item) => item.localKey), ["projects/my_web/log"]);
+  });
 });

@@ -14,25 +14,40 @@ export { allSnapshotDocuments } from "./types";
 export const contentRoot = path.join(process.cwd(), "content");
 export { parseDocument } from "./parse-document";
 
-/** 只支持单文件形态 `content/<group>/<slug>.md`。 */
+/** 递归收集组内全部 `.md` 相对路径（`a/b.md`；跳过隐藏项与非 .md）。 */
+async function collectMarkdownFiles(dir: string): Promise<string[]> {
+  const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
+  const files: string[] = [];
+  for (const entry of entries) {
+    if (entry.name.startsWith(".")) continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...(await collectMarkdownFiles(full)));
+    } else if (entry.isFile() && entry.name.endsWith(".md")) {
+      files.push(path.relative(dir, full));
+    }
+  }
+  return files;
+}
+
+/**
+ * 支持单文件与多段形态（ADR 0013）：
+ * `content/<group>/<slug>.md` 或 `content/<group>/<seg1>/<seg2>.md`。
+ */
 async function readMarkdownGroup(group: ContentGroup) {
   const groupRoot = path.join(contentRoot, group);
-  const entries = await readdir(groupRoot, { withFileTypes: true }).catch(
-    () => [],
-  );
+  const files = await collectMarkdownFiles(groupRoot);
 
   const documents = await Promise.all(
-    entries
-      .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
-      .map(async (entry): Promise<ArchiveDocument | null> => {
-        const slug = entry.name.replace(/\.md$/, "");
-        const markdown = await readFile(
-          path.join(groupRoot, entry.name),
-          "utf8",
-        ).catch(() => null);
-        if (!markdown) return null;
-        return parseDocument(group, slug, markdown);
-      }),
+    files.map(async (relative): Promise<ArchiveDocument | null> => {
+      const slug = relative.replace(/\\/g, "/").replace(/\.md$/, "");
+      const markdown = await readFile(
+        path.join(groupRoot, relative),
+        "utf8",
+      ).catch(() => null);
+      if (!markdown) return null;
+      return parseDocument(group, slug, markdown);
+    }),
   );
 
   return documents.filter((document): document is ArchiveDocument =>
