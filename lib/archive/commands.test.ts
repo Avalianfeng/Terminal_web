@@ -168,13 +168,14 @@ describe("commands mkdir/rmdir (ADR 0013)", () => {
     assert.deepEqual(result.fs, { kind: "mkdir", path: "/thoughts/foo" });
   });
 
-  it("mkdir group-prefix target is absolute even from inside a group (regression)", () => {
+  it("mkdir group-prefix target is relative from inside a group (real terminal semantics)", () => {
     const cd = runCommand(snap, "cd /projects");
+    // 组前缀不再特殊路由：`projects/…` 是普通相对路径，拼 cwd
     const result = runCommand(snap, "mkdir projects/my_web", cd.session);
-    // 不拼 cwd：用户实测曾得到 /projects/projects/my_web
-    assert.deepEqual(result.fs, { kind: "mkdir", path: "/projects/my_web" });
-    const thoughts = runCommand(snap, "mkdir thoughts/x/y", cd.session);
-    assert.deepEqual(thoughts.fs, { kind: "mkdir", path: "/thoughts/x/y" });
+    assert.deepEqual(result.fs, { kind: "mkdir", path: "/projects/projects/my_web" });
+    // 绝对语义走 `~/` 或前导 `/`
+    const viaTilde = runCommand(snap, "mkdir ~/projects/other", cd.session);
+    assert.deepEqual(viaTilde.fs, { kind: "mkdir", path: "/projects/other" });
   });
 
   it("cd into dual node (doc + real dir) works", () => {
@@ -303,9 +304,10 @@ describe("commands path ergonomics (~ / .md / tree root)", () => {
     assert.ok(text.includes("my_web/log"), text);
   });
 
-  it("open/cat/cd/ls treat group prefix as absolute from nested cwd", () => {
+  it("open/cat/cd follow real terminal semantics from nested cwd", () => {
     const nested = { cwd: "/projects", commandHistory: [] };
-    const opened = runCommand(snap, "open projects/my_web/log", nested);
+    // 相对路径照常
+    const opened = runCommand(snap, "open my_web/log", nested);
     assert.ok(opened.reading);
     const surfaces = Array.isArray(opened.reading)
       ? opened.reading
@@ -314,18 +316,19 @@ describe("commands path ergonomics (~ / .md / tree root)", () => {
       surfaces[0]!.kind === "document" ? surfaces[0]!.document.ref.slug : "",
       "my_web/log",
     );
-    const catted = runCommand(snap, "cat projects/my_web/log", nested);
+    const catted = runCommand(snap, "cat my_web/log", nested);
     assert.ok(catted.pager, "expected pager for cat");
-    const cded = runCommand(snap, "cd projects/my_web", nested);
+    const cded = runCommand(snap, "cd my_web", nested);
     assert.equal(cded.session.cwd, "/projects/my_web");
-    const listed = runCommand(snap, "ls projects/my_web", nested);
+    // 组前缀不再特殊路由：嵌套 cwd 下 `projects/…` 相对解析 → 不存在
+    const missing = runCommand(snap, "open projects/my_web/log", nested);
     assert.ok(
-      plainLines(listed).some((l) => l.includes("log")),
-      plainLines(listed).join("|"),
+      plainLines(missing).some((l) => l.includes("路径不存在")),
+      plainLines(missing).join("|"),
     );
-    // .md 尾缀 + 组前缀 + 嵌套 cwd 组合
-    const withMd = runCommand(snap, "open projects/my_web/log.md", nested);
-    assert.ok(withMd.reading, "expected reading for .md suffix from nested cwd");
+    // `~/` = 根绝对
+    const viaTilde = runCommand(snap, "open ~/projects/my_web/log", nested);
+    assert.ok(viaTilde.reading, "expected reading for ~/ from nested cwd");
   });
 
   it("open missing path reports 路径不存在 (not 无法打开)", () => {

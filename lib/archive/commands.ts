@@ -51,7 +51,6 @@ import {
   refsEqual,
   toLocalKey,
   toVfsPath,
-  tryFromLocalKey,
   tryFromVfsPath,
   type DocumentEditTarget,
 } from "./document-ref";
@@ -416,21 +415,13 @@ function resolveDirTarget(
   cwd: string,
   rawTarget: string,
 ): { ok: true; vfsPath: string; group: ContentGroup; segments: string[] } | { ok: false; hint: string } {
-  // `~` / `~/x` = 根（与提示符显示约定一致）；`mkdir ~` 单独 → 空 → usage
-  const target = rawTarget
-    .trim()
-    .replace(/^~\//, "")
-    .replace(/^~$/, "");
+  // `~` / `~/x` = 根（绝对）；其余相对 cwd——真实终端语义（docs/18 §6）
+  const target = rawTarget.trim().replace(/^~\//, "/").replace(/^~$/, "/");
   if (!target) {
     return { ok: false, hint: zhCN.errors.usageMkdir };
   }
-  // 组前缀与绝对路径都不拼接 cwd（否则 cwd 段会混入 segments）
-  const hasGroupPrefix =
-    target.startsWith("projects/") ||
-    target.startsWith("thoughts/") ||
-    target.startsWith("resources/");
-  const vfsPath = target.startsWith("/") || hasGroupPrefix
-    ? normalizePath(`/${target}`)
+  const vfsPath = target.startsWith("/")
+    ? normalizePath(target)
     : normalizePath(`${cwd}/${target}`);
   const parsed = splitVfsDirPath(vfsPath);
   if (!parsed) {
@@ -450,39 +441,17 @@ function resolveEditTarget(
   cwd: string,
   rawToken: string,
 ): { ok: true; target: DocumentEditTarget } | { ok: false; hint: string } {
-  // 容错：`~/` 前缀 = 根；尾缀 `.md` 剥掉（真实 shell 习惯）
+  // 容错：`~/` 前缀 = 根（绝对）；尾缀 `.md` 剥掉（真实 shell 习惯）。
+  // 不再剥前导 `/`——绝对路径交给 resolveVfsPath；组前缀也不特殊路由（真实终端语义）
   const token = rawToken
     .trim()
-    .replace(/^\/+/, "")
-    .replace(/^~\//, "")
+    .replace(/^~\//, "/")
     .replace(/\.md$/, "");
   if (!token) {
     return { ok: false, hint: zhCN.errors.usageEdit };
   }
 
   const root = createVfs(snapshot);
-
-  // 显式组前缀：新建或编辑均可（优先于 VFS 解析，支持不存在的路径）
-  // 注意：不可对整段 token 做 SLUG_PATTERN——含 `/` 的路径（help 示例）会被误拒
-  if (
-    token.startsWith("projects/") ||
-    token.startsWith("thoughts/") ||
-    token.startsWith("resources/")
-  ) {
-    const ref = tryFromLocalKey(token);
-    if (!ref) {
-      return { ok: false, hint: `${zhCN.errors.invalidPath}: ${token}` };
-    }
-    return {
-      ok: true,
-      target: {
-        ref,
-        exists: allDocuments(snapshot).some((document) =>
-          refsEqual(document.ref, ref),
-        ),
-      },
-    };
-  }
 
   const node = resolveVfsPath(root, cwd, token);
   if (node) {
@@ -776,8 +745,9 @@ function handleLinuxCommand(
         handled: true,
       };
     }
+    // 成功切换目录不输出（真实终端语义；提示符即反映 cwd）
     return {
-      entries: [lineEntry(lines([token(node.path, "path")]))],
+      entries: [],
       session: { ...session, cwd: node.path },
       handled: true,
     };

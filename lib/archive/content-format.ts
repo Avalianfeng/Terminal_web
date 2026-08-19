@@ -140,5 +140,7 @@ export function emptyResourceTemplate(slug: string): string {
 }
 
 export function documentTemplateForGroup(group: ContentGroup, slug: string): string {
-  return group === "resources" ? emptyResourceTemplate(slug) : emptyDocumentTemplate(slug);
+  // 新建模板标题用叶子文件名（多段路径 `a/b/log` → `log`），而非整段路径
+  const leaf = slug.split("/").pop() ?? slug;
+  return group === "resources" ? emptyResourceTemplate(leaf) : emptyDocumentTemplate(leaf);
 }

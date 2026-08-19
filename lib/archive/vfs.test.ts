@@ -170,26 +170,30 @@ describe("vfs (ADR 0013)", () => {
     );
   });
 
-  it("resolveVfsPath treats group prefix as absolute from nested cwd", () => {
+  it("resolveVfsPath follows real terminal semantics (~ root, others relative)", () => {
     const root = createVfs(
       snapshot([
         doc("projects", "my_web/log"),
         doc("thoughts", "a/b"),
       ]),
     );
-    // 组前缀 = 根相对（身份语义），不拼接 cwd
+    // 相对 cwd 照常
     assert.equal(
-      resolveVfsPath(root, "/projects", "projects/my_web/log")?.refSlug,
+      resolveVfsPath(root, "/projects", "my_web/log")?.refSlug,
       "my_web/log",
     );
+    // 组前缀不再特殊路由：嵌套 cwd 下 `projects/…` 相对解析 → 通常不存在
+    assert.equal(resolveVfsPath(root, "/projects", "projects/my_web/log"), null);
+    assert.equal(resolveVfsPath(root, "/projects/my_web", "thoughts/a/b"), null);
+    // ~ / ~/ = 根（绝对）
+    assert.equal(resolveVfsPath(root, "/", "~"), root);
     assert.equal(
-      resolveVfsPath(root, "/projects/my_web", "thoughts/a/b")?.refSlug,
+      resolveVfsPath(root, "/projects/my_web", "~/thoughts/a/b")?.refSlug,
       "a/b",
     );
-    // 带尾斜杠的组前缀同样绝对
     assert.equal(
-      resolveVfsPath(root, "/projects", "projects/")?.path,
-      "/projects",
+      resolveVfsPath(root, "/projects", "~/projects/my_web/log")?.refSlug,
+      "my_web/log",
     );
   });
 

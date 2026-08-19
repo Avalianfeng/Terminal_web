@@ -268,20 +268,12 @@ function findChild(node: VfsNode, part: string): VfsNode | null {
 }
 
 /**
- * 输入路径的「绝对化」：`~`/`~/x` = 根（提示符显示约定）；组前缀
- * `projects/…` = 根相对（localKey 身份语义，ADR 0013；docs/18 §6）。
- * 其余保持原样（相对 cwd 由 joinPath 处理）。
+ * 输入路径的「绝对化」：`~`/`~/x` = 根（提示符显示约定，docs/18 §6）。
+ * 其余保持原样，由 joinPath 按 cwd 相对解析——真实终端语义（不再特殊路由组前缀）。
  */
 function absoluteForm(input: string): string {
   if (input === "~") return "/";
   if (input.startsWith("~/")) return input.slice(1);
-  if (
-    input.startsWith("projects/") ||
-    input.startsWith("thoughts/") ||
-    input.startsWith("resources/")
-  ) {
-    return `/${input}`;
-  }
   return input;
 }
 
