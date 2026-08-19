@@ -48,7 +48,8 @@
 - [ ] **嵌套 cwd 下组前缀 = 绝对语义**：`cd /projects` 后 `open projects/my_web/log`、`cat projects/my_web/log`、`cd projects/my_web`、`ls projects/my_web` 均指向 `/projects/…`（不拼接 cwd）
 - [ ] `open` 缺失路径报「路径不存在: …」（与 `cd`/`cat` 同口径），不再报「无法打开」
 - [ ] `edit <纯目录>`（无入口篇）→ 打开该目录入口篇的**新建**编辑器；`edit /projects` 仍拒绝
-- [ ] 编辑面板打开**新建**文档后直接关闭（不保存）→ 终端输出「未保存，未写入磁盘: <路径>」
+- [ ] 编辑面板打开**新建**文档后直接关闭（不保存）→ 终端输出「未保存，未写入磁盘: <路径>」（独立行 + 提示符正常重绘，不接在提示符后、不卡光标）
+- [ ] **嵌套 cwd 相对新建**：`cd /projects/my_web_dir` 后 `edit log` → 新建 `projects/my_web_dir/log`（不是退化成 `projects/log`）；`cd /projects` 后 `edit my_web_dir/log` 同效
 
 ## 发现层 HTTP
 
