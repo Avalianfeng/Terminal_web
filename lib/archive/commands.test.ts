@@ -353,4 +353,41 @@ describe("commands path ergonomics (~ / .md / tree root)", () => {
     const text = plainLines(result).join("|");
     assert.ok(text.includes("可读取"), text);
   });
+
+  it("edit bare slug from nested cwd creates doc under cwd (not group root)", () => {
+    const withDir = snapshot([doc("projects", "flat")]);
+    withDir.directories.projects = ["my_web_dir"];
+    const result = runCommand(withDir, "edit log", {
+      cwd: "/projects/my_web_dir",
+      commandHistory: [],
+    });
+    assert.ok(result.edit, "expected edit target");
+    assert.deepEqual(result.edit!.ref, {
+      group: "projects",
+      slug: "my_web_dir/log",
+    });
+    assert.equal(result.edit!.exists, false);
+  });
+
+  it("edit multi-segment relative path from group root creates nested doc", () => {
+    const withDir = snapshot([doc("projects", "flat")]);
+    withDir.directories.projects = ["my_web_dir"];
+    const result = runCommand(withDir, "edit my_web_dir/log", {
+      cwd: "/projects",
+      commandHistory: [],
+    });
+    assert.ok(result.edit, "expected edit target");
+    assert.deepEqual(result.edit!.ref, {
+      group: "projects",
+      slug: "my_web_dir/log",
+    });
+    assert.equal(result.edit!.exists, false);
+  });
+
+  it("edit bare slug from root still defaults to projects group", () => {
+    const result = runCommand(snap, "edit brand_new");
+    assert.ok(result.edit);
+    assert.deepEqual(result.edit!.ref, { group: "projects", slug: "brand_new" });
+    assert.equal(result.edit!.exists, false);
+  });
 });

@@ -524,7 +524,18 @@ function resolveEditTarget(
     };
   }
 
-  // 新建：按 cwd 推断组；仅允许合法 slug（不含 `/`）
+  // 新建：先按 cwd 拼绝对候选（嵌套 cwd 下相对新建保留目录段，如
+  // cwd=/projects/my_web_dir、`edit log` → projects/my_web_dir/log）
+  const candidate = normalizePath(`${cwd}/${token}`);
+  const cwdRef = tryFromVfsPath(candidate);
+  if (cwdRef) {
+    return {
+      ok: true,
+      target: { ref: cwdRef, exists: false },
+    };
+  }
+
+  // 根/组根 cwd 或裸 slug：仅允许单段 slug（不含 `/`）
   if (!SLUG_PATTERN.test(token)) {
     return { ok: false, hint: `${zhCN.errors.invalidPath}: ${token}` };
   }

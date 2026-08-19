@@ -900,13 +900,28 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       },
       addEntries: (entries) => {
         if (
-          readyRef.current &&
-          !pagerRef.current &&
-          !pasteConfirmRef.current &&
-          !ynConfirmRef.current
+          !readyRef.current ||
+          pagerRef.current ||
+          pasteConfirmRef.current ||
+          ynConfirmRef.current ||
+          passwordRef.current !== null
         ) {
-          void writeEntries(entries, true);
+          return;
         }
+        const term = termRef.current;
+        if (!term) return;
+        // 终端外事件（如编辑器未保存关闭）：先离开当前输入行（提示符行保留在上方），
+        // 再写输出行，随后重绘提示符——与命令输出路径同构，避免接在提示符后/光标卡死
+        term.write("\r\n");
+        setBuffer("", 0);
+        lastPaintRowsRef.current = 1;
+        lastCursorRowOffRef.current = 0;
+        resetCompletion();
+        historyIndexRef.current = null;
+        void writeEntries(entries, true).then(() => {
+          paintPromptLine();
+          scrollToPrompt();
+        });
       },
     }));
 
