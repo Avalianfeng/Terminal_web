@@ -25,11 +25,12 @@
 - [ ] `mkdir projects/my_web` → 建 `content/projects/my_web/`；**`ls`/`tree` 立即出现 `my_web/`（空目录可见）**；重复执行 → 提示已存在（no-op）
 - [ ] `mkdir projects/a/b/c`（父不存在）→ 递归创建
 - [ ] `mkdir projects/Bad` → 拒绝（段白名单）
-- [ ] **组前缀绝对语义**：`cd /projects` 后 `mkdir projects/foo` 建的是 `/projects/foo`（不是 `/projects/projects/foo`）
+- [ ] **真实终端语义**（2026-08-19 收口）：`~/`/前导 `/` = 绝对；其余一律相对 cwd——`cd /projects` 后 `mkdir projects/foo` 建的是 `/projects/projects/foo`（`projects/…` 是普通相对路径）；绝对用法写 `mkdir ~/projects/foo`
 - [ ] `rmdir projects/my_web`（空）→ 删除成功，**终端立即消失**
 - [ ] `rmdir projects/my_web`（内有 `log.md`）→ 拒绝，点名非空原因
 - [ ] visitor 看不到 `mkdir`/`rmdir` 的 help 与 Tab；手打也硬拒（need owner）
 - [ ] `cd /projects/my_web` 后 `mkdir notes` 相对路径生效；空目录可 `cd` 进入、`open` 提示空
+- [ ] `cd` 成功**静默**（不输出路径，提示符即反映 cwd）；失败仍报错
 
 ## VFS / 终端
 
@@ -45,7 +46,8 @@
 - [ ] 带 `.md` 尾缀：`open projects/my_web/log.md`、`cat /projects/my_web/log.md`、`edit projects/my_web/log.md` 与不带尾缀同效
 - [ ] `tree` 根显示 `/`（不是 `//`）
 - [ ] `open` 未保存的嵌套文档（父目录存在、文档未落盘）→ 提示「尚未落盘」
-- [ ] **嵌套 cwd 下组前缀 = 绝对语义**：`cd /projects` 后 `open projects/my_web/log`、`cat projects/my_web/log`、`cd projects/my_web`、`ls projects/my_web` 均指向 `/projects/…`（不拼接 cwd）
+- [ ] **嵌套 cwd 下真实终端语义**：`cd /projects` 后 `open projects/my_web/log` 相对解析（通常报「路径不存在」）；`open my_web/log`、`cat my_web/log`、`cd my_web`、`ls my_web` 照常；`open ~/projects/my_web/log` 绝对可达
+- [ ] **新建模板标题 = 叶子文件名**：`edit projects/my_web/log`（新）→ 编辑器 title 默认 `log`（不是 `my_web/log`）
 - [ ] `open` 缺失路径报「路径不存在: …」（与 `cd`/`cat` 同口径），不再报「无法打开」
 - [ ] `edit <纯目录>`（无入口篇）→ 打开该目录入口篇的**新建**编辑器；`edit /projects` 仍拒绝
 - [ ] 编辑面板打开**新建**文档后直接关闭（不保存）→ 终端输出「未保存，未写入磁盘: <路径>」（独立行 + 提示符正常重绘，不接在提示符后、不卡光标）
