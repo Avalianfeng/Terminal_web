@@ -1598,11 +1598,6 @@ export function ArchiveTerminal({
         onSelectPlaylist={(playlist) => {
           void applyPlaylistWithHydration(playlist, true);
         }}
-        onQueueOpenChange={(open) => {
-          const current = bgmRef.current;
-          if (!current) return;
-          setPlayback({ ...current, queueOpen: open });
-        }}
         onSelectIndex={(index) => {
           const current = bgmRef.current;
           if (!current) return;

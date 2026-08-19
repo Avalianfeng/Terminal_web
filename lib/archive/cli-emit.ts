@@ -90,10 +90,6 @@ export function formatProgressLine(
   return `${name}  ${pct}% [${bar}]`;
 }
 
-function entriesPlainText(entries: TerminalEntry[]): string {
-  return entries.map(entryPlainText).join("\n");
-}
-
 export function musicPlaying(track: string, playlist?: string): TerminalEntry[] {
   const events: CliEvent[] = [
     {

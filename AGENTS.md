@@ -15,15 +15,18 @@ Next.js (read snapshot + optional authenticated write API).
 
 Docs map (what to read first): `docs/00-文档入口.md`. Contract authority: `docs/08`. Structural decisions: `docs/adr/` (security / deploy: `0007`; site identity: `0010`; local music cache: `0011`). Backlog / debt tiers: `docs/09`.
 
-Standard commands are defined in `package.json` (`dev`, `build`, `start`, `lint`, `token:generate`, `owner:password`, `smoke:write-api`, `test:document-ref`, `test:command-registry`, `test:reading-session`, `test:discovery`, `test:site-principal`, `test:owner-session`, `test:owner-password`):
+Standard commands are defined in `package.json` (`dev`, `build`, `start`, `lint`, `verify`, `token:generate`, `owner:password`, `smoke:write-api`, `smoke:terminal`, `test:document-ref`, `test:command-registry`, `test:reading-session`, `test:discovery`, `test:site-principal`, `test:owner-session`, `test:owner-password`):
 
 - Dev server: `npm run dev` (Next.js + Turbopack, serves on http://localhost:3000). Cloud environments usually start this via `terminals`.
 - Lint: `npm run lint` (ESLint flat config).
+- **Verify gate: `npm run verify`**（lint + `tsc --noEmit` + `tsx --test lib`——一条命令跑全部套件）。
 - Type-check: `npx tsc --noEmit` (there is no dedicated `typecheck` script; `next build` also runs TS).
 - Build: `npm run build`.
 - Write token: `npm run token:generate [--scope <scope>]` (prints plaintext once; stores SHA-256 in `.env.local`). Prefer Cursor environment Secrets for cloud; never commit tokens.
 - Owner password: `npm run owner:password` (TTY 下掩码输入；scrypt hash → `ARCHIVE_OWNER_PASSWORD_HASH`; also ensures `ARCHIVE_SESSION_SECRET`). Non-TTY: `npm run owner:password -- --password <明文>`. See `docs/adr/0010-site-principal.md`.
 - Write API smoke: `ARCHIVE_WRITE_TOKEN=<token> npm run smoke:write-api` (needs `thoughts/*` scope + restarted dev; see `docs/10-agent-写API验收.md`).
+- Terminal smoke: `npm run smoke:terminal` —— 盘→快照→VFS→命令**全链路 fixture 测试**（`lib/archive/pipeline.test.ts`），覆盖 docs/17 核心语义；主人手动会话只聚焦 UI 渲染层。
+- **内容层测试策略**：内容相关测试一律用**临时 fixture**（tmp 目录，如 `pipeline.test.ts`），不读/不写真实 `content/`；手动实测留在 `content/` 的文件（`my_web/`、`test_dir.md` 之类）**一律删除、不入库**。
 
 ### Cloud verification (when touching API / env / write path)
 

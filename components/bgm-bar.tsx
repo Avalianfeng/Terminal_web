@@ -153,7 +153,6 @@ type BgmBarProps = {
   onNext: () => void;
   onSelectIndex: (index: number) => void;
   onToggleQueue: () => void;
-  onQueueOpenChange: (open: boolean) => void;
   onSelectPlaylist: (playlist: MusicPlaylistIndex) => void;
   /** 切换随机播放 */
   onToggleShuffle: () => void;
@@ -407,7 +406,6 @@ export function BgmBar({
   onNext,
   onSelectIndex,
   onToggleQueue,
-  onQueueOpenChange: _onQueueOpenChange,
   onSelectPlaylist,
   onToggleShuffle,
   onSrcError,

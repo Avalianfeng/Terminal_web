@@ -211,7 +211,7 @@ export function parseMusicArgs(args: string[]): MusicIntent {
     return { kind: "shuffle", mode: "toggle" };
   }
   if (sub === "playlist" || sub === "pl") {
-    const [plSub = "", ...plRest] = rest;
+    const [plSub = ""] = rest;
     if (plSub === "next") return { kind: "playlist-next" };
     if (plSub === "prev" || plSub === "previous") return { kind: "playlist-prev" };
     const flags = takeSearchScope(rest);
