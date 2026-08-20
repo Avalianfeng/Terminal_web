@@ -194,6 +194,12 @@ export function buildDiscovery() {
       },
       search: { method: "GET", href: "/api/v1/search?q=…" },
       find: { method: "GET", href: "/api/v1/find?q=…" },
+      directories: {
+        write: {
+          method: "PUT|DELETE",
+          href: "/api/v1/directories?group=…&path=…",
+        },
+      },
       person: { method: "GET", href: "/api/v1/person" },
       timeline: { method: "GET", href: "/api/v1/timeline" },
     },

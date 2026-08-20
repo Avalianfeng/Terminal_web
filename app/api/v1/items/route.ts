@@ -15,7 +15,11 @@ import {
   toItemPayloadWithHash,
 } from "@/lib/archive/read-adapter";
 import { getArchiveSnapshot } from "@/lib/archive/content";
-import { validateToken } from "@/lib/archive/token";
+import {
+  requireWriteScope,
+  writeAuthFailure,
+  writeErrorResponse,
+} from "@/lib/archive/write-api-auth";
 import {
   deleteDocument,
   patchDocument,
@@ -43,61 +47,6 @@ function requireDocumentRef(localKey: string): DocumentRef {
     }
     throw error;
   }
-}
-
-/** Bearer token 校验；无效 → 401，scope 不足 → 403。 */
-function requireWriteScope(
-  authorization: string | null,
-  target: string,
-):
-  | { authorized: true }
-  | { authorized: false; error: "unauthorized" | "forbidden" } {
-  const token = authorization?.trim().match(/^Bearer\s+(.+)$/i)?.[1];
-  if (!token) return { authorized: false, error: "unauthorized" };
-
-  const result = validateToken(token, target);
-  if (!result.valid) {
-    return {
-      authorized: false,
-      error: result.scope !== undefined ? "forbidden" : "unauthorized",
-    };
-  }
-  return { authorized: true };
-}
-
-function writeErrorResponse(error: WriteError, request: Request) {
-  const status =
-    error.code === "bad_request"
-      ? 400
-      : error.code === "not_found"
-        ? 404
-        : 409;
-  return jsonError(error.code, error.message, status, undefined, {
-    mode: "write",
-    request,
-  });
-}
-
-function writeAuthFailure(
-  error: "unauthorized" | "forbidden",
-  request: Request,
-) {
-  if (error === "unauthorized") {
-    return jsonError(
-      "unauthorized",
-      "Missing or invalid token. Use Authorization: Bearer <token>.",
-      401,
-      undefined,
-      { mode: "write", request },
-    );
-  }
-  return jsonError(
-    "forbidden",
-    "Token does not cover this localKey (scope insufficient).",
-    403,
-    undefined,
-    { mode: "write", request },
-  );
 }
 
 async function readBody(request: Request): Promise<Record<string, unknown>> {

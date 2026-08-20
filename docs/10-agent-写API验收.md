@@ -31,10 +31,11 @@
 | 9 冲突 | `PATCH`/`PUT` 带 `If-Match: <错误hash>` | **409**；按「重读详情 → 合并 → 再写」收敛 |
 | 10 方法 | `POST /api/v1/items` | **405** |
 | 11 删除 | `DELETE … localKey=thoughts/_smoke_write_api` | **200**；再 GET → **404** |
+| 12 目录 | `PUT /api/v1/directories?group=thoughts&path=…` / `DELETE` 同 URL | **201/200** mkdir；**200** 删空目录；scope 见 08 §5.10 |
 
 边界（契约已写死，脚本有断言）：`title` 不可删（null/空串 → 400）；空 body `{}` → 400；白名单外 body 键 → 400；`?status=` 重复 → 400；`?tag=` 重复为 AND。
 
-脚本用专用 slug `_smoke_write_api`，结束会删。
+脚本用专用 slug `_smoke_write_api`，结束会删。目录 smoke：`npm run smoke:directories-api`（`_smoke_dir_api/`）。
 
 ## 一键
 
