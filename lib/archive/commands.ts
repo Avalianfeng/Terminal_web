@@ -66,6 +66,7 @@ import {
   treeLines,
   type VfsNode,
 } from "./vfs";
+import { findNodes, QueryError, searchDocuments } from "./query";
 
 /** 单篇或批量打开；数组时最后一项进 main（见 docs/05）。 */
 type ReadingPayload = ReadingSurface | ReadingSurface[];
@@ -187,25 +188,15 @@ function formatDocumentList(documents: ArchiveDocument[]) {
 }
 
 function search(snapshot: ArchiveSnapshot, query: string) {
-  const target = normalize(query);
-  if (!target) {
-    return lineEntry(lines([token(zhCN.errors.usageSearch, "hint")]));
+  let results: ArchiveDocument[];
+  try {
+    results = searchDocuments(snapshot, query);
+  } catch (error) {
+    if (error instanceof QueryError) {
+      return lineEntry(lines([token(zhCN.errors.usageSearch, "hint")]));
+    }
+    throw error;
   }
-
-  const results = allDocuments(snapshot).filter((document) => {
-    const haystack = normalize(
-      [
-        document.title,
-        document.summary,
-        document.body,
-        document.tags.join(" "),
-        document.ref.slug,
-        toLocalKey(document.ref),
-      ].join(" "),
-    );
-
-    return haystack.includes(target);
-  });
 
   if (results.length === 0) {
     return lineEntry([
@@ -222,41 +213,9 @@ function search(snapshot: ArchiveSnapshot, query: string) {
     ],
   );
 }
-
-/** 全部可打开节点：纯目录递归；复合节点 = 自身（入口篇）+ 子节点。 */
-function collectOpenableNodes(node: VfsNode): VfsNode[] {
-  if (node.type === "dir") {
-    return (node.children ?? []).flatMap((child) => collectOpenableNodes(child));
-  }
-  if (isDirectory(node)) {
-    return [
-      node,
-      ...(node.children ?? []).flatMap((child) => collectOpenableNodes(child)),
-    ];
-  }
-  return [node];
-}
-
-function nodeLabel(node: VfsNode) {
-  if (node.type === "timeline") return zhCN.labels.timeline;
-  if (node.type === "person") return zhCN.vfs.person;
-  return node.refSlug ?? node.name;
-}
-
-/** 路径 / 名称检索；不搜正文（正文用 search）。空查询列出全部可打开节点。 */
 function findPaths(snapshot: ArchiveSnapshot, query: string) {
-  const root = createVfs(snapshot);
-  const nodes = collectOpenableNodes(root);
+  const hits = findNodes(snapshot, query);
   const target = normalize(query);
-
-  const hits = target
-    ? nodes.filter((node) => {
-        const haystack = normalize(
-          [node.path, node.name, node.refSlug ?? "", nodeLabel(node)].join(" "),
-        );
-        return haystack.includes(target);
-      })
-    : nodes;
 
   if (hits.length === 0) {
     return lineEntry([

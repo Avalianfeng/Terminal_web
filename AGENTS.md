@@ -15,7 +15,7 @@ Next.js (read snapshot + optional authenticated write API).
 
 Docs map (what to read first): `docs/00-文档入口.md`. Contract authority: `docs/08`. Structural decisions: `docs/adr/` (security / deploy: `0007`; site identity: `0010`; local music cache: `0011`). Backlog / debt tiers: `docs/09`.
 
-Standard commands are defined in `package.json` (`dev`, `build`, `start`, `lint`, `verify`, `token:generate`, `owner:password`, `smoke:write-api`, `smoke:terminal`, `test:document-ref`, `test:command-registry`, `test:reading-session`, `test:discovery`, `test:site-principal`, `test:owner-session`, `test:owner-password`):
+Standard commands are defined in `package.json` (`dev`, `build`, `start`, `lint`, `verify`, `token:generate`, `owner:password`, `smoke:write-api`, `smoke:terminal`, `test:document-ref`, `test:command-registry`, `test:reading-session`, `test:discovery`, `test:query`, `test:site-principal`, `test:owner-session`, `test:owner-password`):
 
 - Dev server: `npm run dev` (Next.js + Turbopack, serves on http://localhost:3000). Cloud environments usually start this via `terminals`.
 - Lint: `npm run lint` (ESLint flat config).
@@ -31,7 +31,7 @@ Standard commands are defined in `package.json` (`dev`, `build`, `start`, `lint`
 
 ### Cloud verification (when touching API / env / write path)
 
-Preferred order: `npm run lint` → `npx tsc --noEmit` → `npm run test:document-ref` → `npm run test:command-registry` → `npm run test:reading-session` → `npm run test:discovery` → (optional) `npm run smoke:write-api` if a write token Secret is available → load `/` and run terminal `help`.
+Preferred order: `npm run lint` → `npx tsc --noEmit` → `npm run test:document-ref` → `npm run test:command-registry` → `npm run test:reading-session` → `npm run test:discovery` → `npm run test:query` → (optional) `npm run smoke:write-api` if a write token Secret is available → load `/` and run terminal `help`.
 
 Notes / non-obvious caveats:
 

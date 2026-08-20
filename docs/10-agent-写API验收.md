@@ -19,7 +19,8 @@
 
 | 步 | 请求 | 期望 |
 |----|------|------|
-| 1 发现 | `GET /api/v1` | `ok`，含 `capabilities`（写面 + `filters` 声明） |
+| 1 发现 | `GET /api/v1` | `ok`，含 `capabilities`（写面 + `search`/`find` + `filters`） |
+| 1b 检索 | `GET /api/v1/search?q=…` / `GET /api/v1/find?q=…` | 200；items 无 body；find 含 path/localKey（见 08 §5.9） |
 | 2 扫读 | `GET /api/v1/items?status=…&tag=…&fields=…` | `data.items[]`（索引已带 status/tags；过滤参数表见 08 §5.3） |
 | 3 单读 | `GET /api/v1/items?source=local&localKey=thoughts/<已有>` | `{title, summary, status, tags, body, hash}` |
 | 4 无鉴权写 | `PUT` 同 URL，无 `Authorization` | **401** |

@@ -167,6 +167,8 @@ export function buildDiscovery() {
     capabilities: {
       read: true,
       write: true,
+      search: true,
+      find: true,
       auth: "Authorization: Bearer <token>",
       filters: {
         status: "exact-match",
@@ -190,6 +192,8 @@ export function buildDiscovery() {
           href: "/api/v1/items?source=local&localKey=…",
         },
       },
+      search: { method: "GET", href: "/api/v1/search?q=…" },
+      find: { method: "GET", href: "/api/v1/find?q=…" },
       person: { method: "GET", href: "/api/v1/person" },
       timeline: { method: "GET", href: "/api/v1/timeline" },
     },

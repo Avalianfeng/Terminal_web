@@ -31,6 +31,7 @@
     "test:complete": "tsx --test lib/archive/complete.test.ts",
     "test:reading-session": "tsx --test lib/archive/reading-session.test.ts",
     "test:discovery": "tsx --test lib/archive/discovery.test.ts",
+    "test:query": "tsx --test lib/archive/query.test.ts",
     "test:resource-embed": "tsx --test lib/archive/resource-embed.test.ts",
     "test:resource-media": "tsx --test lib/archive/resource-media.test.ts",
     "test:netease-url": "tsx --test lib/music/netease-url.test.ts",

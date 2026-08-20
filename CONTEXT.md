@@ -28,9 +28,17 @@ _Avoid_: item (prefer discovery **Item** when meaning the HTTP/discovery shape);
 A discovery-layer entry (`source` + `localKey` + kind); first shipped kind is `document`. Cross-source identity lives here, not inside DocumentRef. Future kinds (e.g. audio/video) and sources (e.g. github) extend Item; they do not widen DocumentRef.
 _Avoid_: document (when meaning the discovery payload rather than ArchiveDocument)
 
+**ArchiveQuery**:
+Shared read-query kernel in `lib/archive/query.ts`: `searchDocuments` (full-text substring over snapshot documents) and `findNodes` (VFS path/name over openable nodes). Powers terminal `search`/`find` and HTTP `GET /api/v1/search|find` (ADR 0016).
+_Avoid_: duplicating search logic in routes or commands
+
 **CommandSpec**:
 A registered terminal command: primary `name`, optional `aliases`, optional help `section` + `usage`, `argComplete` policy (`none | dirs | all | cat | open | music`), optional `secret` (omit from help and Tab), optional `requiresOwner` (omit from visitor help/Tab). The table in `command-registry.ts` is the authority; Tab completion, `help` listing, alias resolve, and known-command highlighting derive from it. Handlers bind by `name` in `commands.ts`. For `music`, candidate tokens live with `parseMusicArgs` in `lib/music/music-command.ts`.
 _Avoid_: parallel PRIMARY_COMMANDS / PATH_ARG_COMMANDS / alias maps; help copy duplicated in i18n per command
+
+**VfsDirRef**:
+Directory identity for mkdir/rmdir and HTTP directory writes: `{ group, segments[] }` under `content/` (ADR 0013). HTTP scope target uses `group/seg1/seg2` form (see ADR 0015).
+_Avoid_: treating directory paths as DocumentRef
 
 **CliEmit**:
 Terminal **emission** contract (what xterm prints after a command runs): four genres `usage | result | error | status` via `lib/archive/cli-emit.ts` — message id + slots → `TerminalEntry[]`; `\r` status/progress must not linger in scrollback. Distinct from CommandSpec (discovery/help/Tab, ADR 0002). Authority: `docs/adr/0012-cli-output-contract.md`.

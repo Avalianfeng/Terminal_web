@@ -1,6 +1,7 @@
 # cylf.me 部署短 runbook
 
-> 原则：[`adr/0007`](adr/0007-security-deployment-posture.md)、[`adr/0010`](adr/0010-site-principal.md)。契约细节不复制，只列上线要带的 env 与口令。
+> 原则：[`adr/0007`](adr/0007-security-deployment-posture.md)、[`adr/0010`](adr/0010-site-principal.md)。契约细节不复制，只列上线要带的 env 与口令。  
+> **上机前**：按 [`20-部署前自评清单.md`](20-部署前自评清单.md) 逐阶段勾选（本机模拟 production 必做）。
 
 ## 环境变量
 

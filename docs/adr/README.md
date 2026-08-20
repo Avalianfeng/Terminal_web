@@ -28,5 +28,6 @@
 | [0012](0012-cli-output-contract.md) | 终端 CLI 输出契约（排放） | Accepted | `cli-emit` + music 首刀 |
 | [0013](0013-document-ref-multi-segment.md) | DocumentRef 多段路径（方案 A；加宽 0001 slug） | Accepted | （随方案 A 落地） |
 | [0014](0014-playlist-curation-vs-sync.md) | 歌单策展 content / sync 曲目 data 分层 | Accepted | 方案 B |
+| [0016](0016-http-read-query.md) | HTTP 读查询 search / find | Accepted | `query.ts` + `/api/v1/search` `/find` |
 
 编号与 2026-08-11 架构深化候选 #1–#6 对齐，便于对照；#7 为 2026-08-12 安全审计后的部署原则；#8 resources；#9 music 层；#10 网页身份；#11 本地曲库；#12 终端排放（0002 管发现，0012 管 xterm 写什么）；落地顺序不必等于编号顺序。
