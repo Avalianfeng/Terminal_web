@@ -30,5 +30,6 @@
 | [0014](0014-playlist-curation-vs-sync.md) | 歌单策展 content / sync 曲目 data 分层 | Accepted | 方案 B |
 | [0016](0016-http-read-query.md) | HTTP 读查询 search / find | Accepted | `query.ts` + `/api/v1/search` `/find` |
 | [0015](0015-http-directory-write.md) | HTTP 目录写 mkdir / rmdir | Accepted | `/api/v1/directories` + `write-api-auth` |
+| [0017](0017-structured-frontmatter.md) | 结构化 frontmatter（严格 schema） | **Proposed** | 无代码；不做 raw 读 |
 
 编号与 2026-08-11 架构深化候选 #1–#6 对齐，便于对照；#7 为 2026-08-12 安全审计后的部署原则；#8 resources；#9 music 层；#10 网页身份；#11 本地曲库；#12 终端排放（0002 管发现，0012 管 xterm 写什么）；落地顺序不必等于编号顺序。
