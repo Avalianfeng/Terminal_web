@@ -181,10 +181,11 @@ type BgmLyricsProps = {
   trackId: number;
   audioRef: RefObject<HTMLAudioElement | null>;
   src: string | null;
+  paused: boolean;
 };
 
 /** key=`${trackId}-${playGeneration}` 由父级挂载，切歌时整树重置。 */
-function BgmLyrics({ trackId, audioRef, src }: BgmLyricsProps) {
+function BgmLyrics({ trackId, audioRef, src, paused }: BgmLyricsProps) {
   const [lyricLines, setLyricLines] = useState<LyricLine[]>([]);
   const [lyricStatus, setLyricStatus] = useState<"loading" | "ready">("loading");
   const [lyricIdx, setLyricIdx] = useState(-1);
@@ -222,14 +223,17 @@ function BgmLyrics({ trackId, audioRef, src }: BgmLyricsProps) {
 
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || lyricLines.length === 0) return;
+    if (!audio || lyricLines.length === 0 || paused) return;
 
     let raf = 0;
     let lastIdx = -2;
 
     function tick() {
-      const ms =
-        (audioRef.current?.currentTime ?? 0) * 1000 + LYRIC_LOOKAHEAD_MS;
+      const el = audioRef.current;
+      if (!el || el.paused) {
+        return;
+      }
+      const ms = el.currentTime * 1000 + LYRIC_LOOKAHEAD_MS;
       const next = lyricIndexAt(lyricLines, ms);
       if (next !== lastIdx) {
         lastIdx = next;
@@ -240,7 +244,7 @@ function BgmLyrics({ trackId, audioRef, src }: BgmLyricsProps) {
 
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [lyricLines, src, audioRef]);
+  }, [lyricLines, src, audioRef, paused]);
 
   const placeholder =
     lyricStatus === "loading"
@@ -568,6 +572,7 @@ export function BgmBar({
               trackId={trackId}
               audioRef={audioRef}
               src={src}
+              paused={paused}
             />
           ) : (
             <div className="bgm-bar__lyrics is-empty" aria-live="polite">
