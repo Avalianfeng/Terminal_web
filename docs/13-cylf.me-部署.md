@@ -28,6 +28,9 @@
 2. `login` → `edit` 可保存；`logout` 后不可
 3. `ARCHIVE_WRITE_TOKEN=… npm run smoke:write-api`（对生产 URL 时改脚本 host）
 4. 链 [`10`](10-agent-写API验收.md) / [`11`](11-终端edit手测清单.md) / [`12`](12-站点身份手测.md)
+5. **开门验收**（docs/19 §4.9）：陌生浏览器 + 手机真机走完「进站 → `help` → `open thoughts/digital-archive-entry` → 读完 → 听见（若有本地曲库）」
+6. 部署前本地：`node scripts/check-deploy-readiness.mjs`（env 需在部署机 export）
+7. Agent 写回实验：`ARCHIVE_WRITE_TOKEN=… node scripts/agent-write-thought.mjs`（站外 PUT；见 docs/19 §4.8）
 
 ## Token / 口令轮换
 
