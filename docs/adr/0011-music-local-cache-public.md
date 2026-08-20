@@ -13,7 +13,7 @@
 
 ### 1. 曲库 ≠ 第二套歌单
 
-- 目录与曲名仍是 `content/music/playlists/<id>.yaml`（`PlaylistTrack.id` = 网易 song id）。
+- 目录与曲名：`content/music/playlists/<id>.yaml` 存策展；`data/music/playlists/<id>.yaml` 存曲目（0014）。`PlaylistTrack.id` = 网易 song id。
 - 媒体与歌词在 `data/music/`（gitignore；部署 volume / rsync），**不进 Git**、不进 `public/resources/audio`（0008）。
 
 ```text

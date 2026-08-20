@@ -1,4 +1,22 @@
-/** 盘内歌单索引：`content/music/playlists/<slug>.yaml`（ADR 0009）。 */
+/** 盘内歌单索引：策展 content/music/playlists/ + 曲目 data/music/playlists/（ADR 0014）。 */
+
+export type PlaylistCuration = {
+  slug: string;
+  neteasePlaylistId: string;
+  name: string;
+  sourceUrl: string;
+};
+
+/** data 层：曲目与 sync 元数据；无 content 时 sync stub 可带展示字段。 */
+export type PlaylistDataLayer = {
+  importedAt: string;
+  trackCount?: number;
+  tracks: PlaylistTrack[];
+  slug?: string;
+  neteasePlaylistId?: string;
+  name?: string;
+  sourceUrl?: string;
+};
 
 export type PlaylistTrack = {
   /** 网易云 song id */

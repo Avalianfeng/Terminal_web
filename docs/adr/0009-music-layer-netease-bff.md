@@ -29,7 +29,7 @@
 
 ### 3. 歌单索引（盘内 yaml）
 
-路径：`content/music/playlists/<neteasePlaylistId>.yaml`（数字 id，不用拼音 slug）。
+路径：`content/music/playlists/<neteasePlaylistId>.yaml`（策展）；曲目见 [0014](0014-playlist-curation-vs-sync.md) `data/music/playlists/`。
 
 | 字段 | 说明 |
 |------|------|

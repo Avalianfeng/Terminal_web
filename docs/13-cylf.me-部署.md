@@ -16,7 +16,7 @@
 
 ## 本地曲库（访客可播）
 
-同步仓根 `data/music/`（`audio/` + `lyric/`，gitignore）到部署机。无此目录时访客 `music ls` 为空，只能外链。详见 [`adr/0011`](adr/0011-music-local-cache-public.md)。
+同步仓根 `data/music/`（`audio/` + `lyric/` + `playlists/`，gitignore）到部署机。无此目录时访客 `music ls` 为空，只能外链。详见 [`adr/0011`](adr/0011-music-local-cache-public.md) 与 [`adr/0014`](adr/0014-playlist-curation-vs-sync.md)。
 
 ## 网易云 BFF
 

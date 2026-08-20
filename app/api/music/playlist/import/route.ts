@@ -1,14 +1,12 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { NextResponse } from "next/server";
 import { requireOwnerPrincipal } from "@/lib/music/bff-gate";
 import { cookieHasMusicU, readNeteaseCookie } from "@/lib/music/cookie-store";
 import { createLiveNeteaseClient } from "@/lib/music/netease-client";
 import {
-  PlaylistImportError,
   buildPlaylistIndex,
+  PlaylistImportError,
 } from "@/lib/music/playlist-import";
-import { serializePlaylistIndex } from "@/lib/music/playlist-yaml";
+import { writePlaylistIndex } from "@/lib/music/playlist-store";
 
 export const runtime = "nodejs";
 
@@ -45,10 +43,7 @@ export async function POST(request: Request) {
       createLiveNeteaseClient(),
     );
 
-    const dir = path.join(process.cwd(), "content", "music", "playlists");
-    await mkdir(dir, { recursive: true });
-    const filePath = path.join(dir, `${index.slug}.yaml`);
-    await writeFile(filePath, serializePlaylistIndex(index), "utf8");
+    await writePlaylistIndex(index);
 
     return NextResponse.json({
       ok: true,
@@ -57,6 +52,7 @@ export async function POST(request: Request) {
       neteasePlaylistId: index.neteasePlaylistId,
       trackCount: index.tracks.length,
       path: `content/music/playlists/${index.slug}.yaml`,
+      dataPath: `data/music/playlists/${index.slug}.yaml`,
     });
   } catch (error) {
     if (error instanceof PlaylistImportError) {

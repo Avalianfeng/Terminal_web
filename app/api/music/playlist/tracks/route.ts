@@ -1,12 +1,14 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { NextResponse } from "next/server";
 import { requireOwnerPrincipal } from "@/lib/music/bff-gate";
 import { cookieHasMusicU, readNeteaseCookie } from "@/lib/music/cookie-store";
 import { createLiveNeteaseClient } from "@/lib/music/netease-client";
 import { buildPlaylistIndex } from "@/lib/music/playlist-import";
-import { listPlaylistIndexes } from "@/lib/music/playlist-store";
-import { serializePlaylistIndex } from "@/lib/music/playlist-yaml";
+import {
+  listPlaylistIndexes,
+  writePlaylistData,
+  writePlaylistCuration,
+} from "@/lib/music/playlist-store";
+import { indexToCuration, indexToData } from "@/lib/music/playlist-yaml";
 
 export const runtime = "nodejs";
 
@@ -49,11 +51,15 @@ export async function GET(request: Request) {
       { playlistId, cookie },
       createLiveNeteaseClient(),
     );
-    const dir = path.join(process.cwd(), "content", "music", "playlists");
-    const filePath = path.join(dir, `${index.slug}.yaml`);
-    void mkdir(dir, { recursive: true })
-      .then(() => writeFile(filePath, serializePlaylistIndex(index), "utf8"))
-      .catch(() => undefined);
+    const curationExists = playlists.some(
+      (item) => item.neteasePlaylistId === index.neteasePlaylistId,
+    );
+    void Promise.all([
+      curationExists
+        ? Promise.resolve()
+        : writePlaylistCuration(indexToCuration(index)),
+      writePlaylistData(index.neteasePlaylistId, indexToData(index)),
+    ]).catch(() => undefined);
     return NextResponse.json({
       ok: true,
       playlistId: index.neteasePlaylistId,
