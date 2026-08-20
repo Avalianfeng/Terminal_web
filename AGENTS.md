@@ -19,7 +19,7 @@ Standard commands are defined in `package.json` (`dev`, `build`, `start`, `lint`
 
 - Dev server: `npm run dev` (Next.js + Turbopack, serves on http://localhost:3000). Cloud environments usually start this via `terminals`.
 - Lint: `npm run lint` (ESLint flat config).
-- **Verify gate: `npm run verify`**（lint + `tsc --noEmit` + `tsx --test lib`——一条命令跑全部套件）。
+- **Verify gate: `npm run verify`**（lint + `tsc --noEmit` + `tsx --test lib`——一条命令跑全部套件）。PR / push 上由 [`.github/workflows/verify.yml`](.github/workflows/verify.yml) 自动跑同一命令。
 - Type-check: `npx tsc --noEmit` (there is no dedicated `typecheck` script; `next build` also runs TS).
 - Build: `npm run build`.
 - Write token: `npm run token:generate [--scope <scope>]` (prints plaintext once; stores SHA-256 in `.env.local`). Prefer Cursor environment Secrets for cloud; never commit tokens.
