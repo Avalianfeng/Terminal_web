@@ -1,9 +1,11 @@
 import { jsonOk, methodNotAllowed, optionsCors } from "@/lib/archive/api-http";
-import { getArchiveSnapshot } from "@/lib/archive/content";
+import { getArchiveSnapshotFor } from "@/lib/archive/content";
+import { resolveApiGrant } from "@/lib/archive/site-auth";
 
-export async function GET() {
-  const snapshot = await getArchiveSnapshot();
-  return jsonOk(snapshot.timeline, snapshot.generatedAt);
+export async function GET(request: Request) {
+  const grant = resolveApiGrant(request);
+  const snapshot = await getArchiveSnapshotFor(grant);
+  return jsonOk(snapshot.timeline, snapshot.generatedAt, { grant });
 }
 
 export function OPTIONS() {

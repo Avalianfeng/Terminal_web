@@ -83,20 +83,29 @@ describe("command-registry", () => {
     assert.equal(isKnownCommandName("nope"), false);
   });
 
-  it("registers mkdir/rmdir as owner-only dir commands (ADR 0013)", () => {
+  it("registers mkdir/rmdir/rm as owner-only write commands", () => {
     assert.equal(getCommand("mkdir")?.requiresOwner, true);
     assert.equal(getCommand("rmdir")?.requiresOwner, true);
+    assert.equal(getCommand("rm")?.requiresOwner, true);
     assert.equal(getArgComplete("mkdir"), "dirs");
     assert.equal(getArgComplete("rmdir"), "dirs");
+    assert.equal(getArgComplete("rm"), "open");
     const ownerNames = completableCommandNames("owner");
     assert.ok(ownerNames.includes("mkdir"));
     assert.ok(ownerNames.includes("rmdir"));
+    assert.ok(ownerNames.includes("rm"));
     const visitorNames = completableCommandNames("visitor");
     assert.ok(!visitorNames.includes("mkdir"));
     assert.ok(!visitorNames.includes("rmdir"));
+    assert.ok(!visitorNames.includes("rm"));
     assert.ok(
       helpUsagesForSection("explore", "owner").some((line) =>
         line.startsWith("mkdir "),
+      ),
+    );
+    assert.ok(
+      helpUsagesForSection("explore", "owner").some((line) =>
+        line.startsWith("rm "),
       ),
     );
     assert.ok(

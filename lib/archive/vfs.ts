@@ -112,65 +112,146 @@ function groupChildren(
   group: ContentGroup,
   documents: ArchiveDocument[],
   dirPaths: string[],
+  pathPrefix: string,
 ): VfsNode[] {
   const children: VfsNode[] = [];
   for (const dir of dirPaths) {
-    insertDirNode(children, dir.split("/"), `/${group}`);
+    insertDirNode(children, dir.split("/"), pathPrefix);
   }
   for (const document of documents) {
     const segments = document.ref.slug.split("/");
-    insertDocument(children, group, document.ref.slug, segments, `/${group}`);
+    insertDocument(children, group, document.ref.slug, segments, pathPrefix);
   }
   return sortChildren(children);
 }
 
+function docsInZone(
+  documents: ArchiveDocument[],
+  group: ContentGroup,
+  zone: "public" | "private",
+): ArchiveDocument[] {
+  return documents.filter(
+    (document) =>
+      document.ref.group === group &&
+      (document.ref.zone ?? "public") === zone,
+  );
+}
+
 export function createVfs(snapshot: ArchiveSnapshot): VfsNode {
+  const privateDirs = snapshot.directories.private ?? {
+    projects: [] as string[],
+    thoughts: [] as string[],
+    resources: [] as string[],
+  };
+  const privateChildren = sortChildren([
+    {
+      path: "/private/projects",
+      name: zhCN.vfs.projects,
+      type: "dir",
+      children: groupChildren(
+        "projects",
+        docsInZone(snapshot.projects, "projects", "private"),
+        privateDirs.projects,
+        "/private/projects",
+      ),
+    },
+    {
+      path: "/private/thoughts",
+      name: zhCN.vfs.thoughts,
+      type: "dir",
+      children: groupChildren(
+        "thoughts",
+        docsInZone(snapshot.thoughts, "thoughts", "private"),
+        privateDirs.thoughts,
+        "/private/thoughts",
+      ),
+    },
+    {
+      path: "/private/resources",
+      name: zhCN.vfs.resources,
+      type: "dir",
+      children: groupChildren(
+        "resources",
+        docsInZone(snapshot.resources, "resources", "private"),
+        privateDirs.resources,
+        "/private/resources",
+      ),
+    },
+  ]);
+
+  const hasPrivate =
+    snapshot.privateZoneMounted ||
+    privateChildren.some((node) => (node.children?.length ?? 0) > 0) ||
+    privateDirs.projects.length > 0 ||
+    privateDirs.thoughts.length > 0 ||
+    privateDirs.resources.length > 0 ||
+    snapshot.projects.some((d) => (d.ref.zone ?? "public") === "private") ||
+    snapshot.thoughts.some((d) => (d.ref.zone ?? "public") === "private") ||
+    snapshot.resources.some((d) => (d.ref.zone ?? "public") === "private");
+
+  const children: VfsNode[] = [
+    {
+      path: "/projects",
+      name: zhCN.vfs.projects,
+      type: "dir",
+      children: groupChildren(
+        "projects",
+        docsInZone(snapshot.projects, "projects", "public"),
+        snapshot.directories.projects,
+        "/projects",
+      ),
+    },
+    {
+      path: "/thoughts",
+      name: zhCN.vfs.thoughts,
+      type: "dir",
+      children: groupChildren(
+        "thoughts",
+        docsInZone(snapshot.thoughts, "thoughts", "public"),
+        snapshot.directories.thoughts,
+        "/thoughts",
+      ),
+    },
+    {
+      path: "/resources",
+      name: zhCN.vfs.resources,
+      type: "dir",
+      children: groupChildren(
+        "resources",
+        docsInZone(snapshot.resources, "resources", "public"),
+        snapshot.directories.resources,
+        "/resources",
+      ),
+    },
+  ];
+
+  if (hasPrivate) {
+    children.push({
+      path: "/private",
+      name: zhCN.vfs.private,
+      type: "dir",
+      children: privateChildren,
+    });
+  }
+
+  children.push(
+    {
+      path: "/timeline",
+      name: zhCN.vfs.timeline,
+      type: "timeline",
+    },
+    {
+      path: "/person",
+      name: zhCN.vfs.person,
+      type: "person",
+    },
+  );
+
   return {
     path: "/",
     name: zhCN.vfs.root,
     type: "dir",
-    children: [
-      {
-        path: "/projects",
-        name: zhCN.vfs.projects,
-        type: "dir",
-        children: groupChildren(
-          "projects",
-          snapshot.projects,
-          snapshot.directories.projects,
-        ),
-      },
-      {
-        path: "/thoughts",
-        name: zhCN.vfs.thoughts,
-        type: "dir",
-        children: groupChildren(
-          "thoughts",
-          snapshot.thoughts,
-          snapshot.directories.thoughts,
-        ),
-      },
-      {
-        path: "/resources",
-        name: zhCN.vfs.resources,
-        type: "dir",
-        children: groupChildren(
-          "resources",
-          snapshot.resources,
-          snapshot.directories.resources,
-        ),
-      },
-      {
-        path: "/timeline",
-        name: zhCN.vfs.timeline,
-        type: "timeline",
-      },
-      {
-        path: "/person",
-        name: zhCN.vfs.person,
-        type: "person",
-      },
-    ],
+    children,
   };
 }
 

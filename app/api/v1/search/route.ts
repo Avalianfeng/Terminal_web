@@ -1,11 +1,13 @@
 import { jsonError, jsonOk, methodNotAllowed, optionsCors } from "@/lib/archive/api-http";
-import { getArchiveSnapshot } from "@/lib/archive/content";
+import { getArchiveSnapshotFor } from "@/lib/archive/content";
 import { toItemListItem } from "@/lib/archive/discovery";
 import { QueryError, searchDocuments } from "@/lib/archive/query";
+import { resolveApiGrant } from "@/lib/archive/site-auth";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const q = url.searchParams.get("q");
+  const grant = resolveApiGrant(request);
 
   if (q === null || q.trim() === "") {
     return jsonError(
@@ -16,10 +18,10 @@ export async function GET(request: Request) {
   }
 
   try {
-    const snapshot = await getArchiveSnapshot();
+    const snapshot = await getArchiveSnapshotFor(grant);
     const documents = searchDocuments(snapshot, q);
     const items = documents.map((document) => toItemListItem(document));
-    return jsonOk({ items }, snapshot.generatedAt);
+    return jsonOk({ items }, snapshot.generatedAt, { grant });
   } catch (error) {
     if (error instanceof QueryError) {
       return jsonError("bad_request", error.message, 400);

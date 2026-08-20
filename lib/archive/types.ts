@@ -52,12 +52,23 @@ export type ArchiveSnapshot = {
   /**
    * 盘上真实目录（组内相对路径，含空目录与无文档目录；ADR 0013 加固）。
    * VFS 据此反映盘状态——`mkdir` 后无需文档即可见目录。不含组根。
+   * `private`：content/private/<group>/…（ADR 0019）。
    */
   directories: {
     projects: string[];
     thoughts: string[];
     resources: string[];
+    private: {
+      projects: string[];
+      thoughts: string[];
+      resources: string[];
+    };
   };
+  /**
+   * Disk has `content/private/` (even if empty of docs/subdirs).
+   * Owner/member see `/private` in VFS; visitor scope clears this.
+   */
+  privateZoneMounted: boolean;
   timeline: TimelineEntry[];
   generatedAt: string;
 };

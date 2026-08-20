@@ -17,7 +17,7 @@ function doc(slug: string): ReadingSurface {
   return {
     kind: "document",
     document: {
-      ref: { group: "thoughts", slug },
+      ref: { zone: "public", group: "thoughts", slug },
       title: slug,
       summary: "",
       body: "",

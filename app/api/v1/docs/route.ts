@@ -6,12 +6,14 @@ import {
   optionsCors,
 } from "@/lib/archive/api-http";
 import { toItemPayloadWithHash } from "@/lib/archive/read-adapter";
-import { getArchiveSnapshot } from "@/lib/archive/content";
+import { getArchiveSnapshotFor } from "@/lib/archive/content";
 import { WriteError } from "@/lib/archive/content-write";
+import { resolveApiGrant } from "@/lib/archive/site-auth";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const path = url.searchParams.get("path");
+  const grant = resolveApiGrant(request);
 
   if (!path || !path.trim()) {
     return jsonError(
@@ -21,7 +23,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const snapshot = await getArchiveSnapshot();
+  const snapshot = await getArchiveSnapshotFor(grant);
   const document = findDocumentByPath(snapshot, path);
   if (!document) {
     return jsonError("not_found", `No document at path: ${path.trim()}`, 404);
@@ -31,6 +33,7 @@ export async function GET(request: Request) {
     return jsonOk(
       await toItemPayloadWithHash(document),
       snapshot.generatedAt,
+      { grant },
     );
   } catch (error) {
     if (error instanceof WriteError && error.code === "not_found") {

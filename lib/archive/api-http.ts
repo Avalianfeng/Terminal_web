@@ -5,6 +5,7 @@
 
 import { NextResponse } from "next/server";
 import { allowedWriteOrigin } from "./write-cors";
+import type { PrincipalGrant } from "./permission";
 
 export const API_VERSION = 1 as const;
 
@@ -20,7 +21,7 @@ type CorsMode = "read" | "write";
 
 function corsHeaders(
   generatedAt?: string,
-  cors?: { mode?: CorsMode; request?: Request },
+  cors?: { mode?: CorsMode; request?: Request; grant?: PrincipalGrant },
 ): HeadersInit {
   if (cors?.mode === "write") {
     const origin = allowedWriteOrigin({
@@ -39,11 +40,18 @@ function corsHeaders(
     return headers;
   }
 
+  const elevated =
+    cors?.grant !== undefined && cors.grant.level !== "public";
   const headers: Record<string, string> = {
-    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, PUT, PATCH, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization, If-Match",
   };
+  if (elevated) {
+    headers.Vary = "Authorization, Cookie";
+    headers["Cache-Control"] = "private, no-store";
+  } else {
+    headers["Access-Control-Allow-Origin"] = "*";
+  }
   if (generatedAt) {
     headers["X-Archive-Generated-At"] = generatedAt;
   }
@@ -53,7 +61,12 @@ function corsHeaders(
 export function jsonOk<T>(
   data: T,
   generatedAt: string,
-  init?: { status?: number; request?: Request; cors?: CorsMode },
+  init?: {
+    status?: number;
+    request?: Request;
+    cors?: CorsMode;
+    grant?: PrincipalGrant;
+  },
 ) {
   return NextResponse.json(
     {
@@ -67,6 +80,7 @@ export function jsonOk<T>(
       headers: corsHeaders(generatedAt, {
         mode: init?.cors ?? "read",
         request: init?.request,
+        grant: init?.grant,
       }),
     },
   );
@@ -77,7 +91,7 @@ export function jsonError(
   message: string,
   status: number,
   extraHeaders?: HeadersInit,
-  cors?: { mode?: CorsMode; request?: Request },
+  cors?: { mode?: CorsMode; request?: Request; grant?: PrincipalGrant },
 ) {
   return NextResponse.json(
     {

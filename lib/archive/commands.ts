@@ -41,13 +41,6 @@ import {
 import { RAIL_MAX } from "./reading-state";
 import { formatInputTokens } from "./shell-style";
 import {
-  CONTENT_GROUPS,
-  SLUG_PATTERN,
-  slugSegments,
-  type ContentGroup,
-} from "./content-format";
-import {
-  documentRef,
   refsEqual,
   toLocalKey,
   toVfsPath,
@@ -67,6 +60,14 @@ import {
   type VfsNode,
 } from "./vfs";
 import { findNodes, QueryError, searchDocuments } from "./query";
+import {
+  resolveCreatableDirectory,
+  resolveCreatableDocument,
+  resolveExistingDirectory,
+  resolveExistingDocument,
+} from "./target-resolver";
+
+export { splitVfsDirPath } from "./target-resolver";
 
 /** 单篇或批量打开；数组时最后一项进 main（见 docs/05）。 */
 type ReadingPayload = ReadingSurface | ReadingSurface[];
@@ -81,8 +82,12 @@ type CommandResult = {
   pager?: { logicalLines: string[] } | null;
   /** 打开全屏编辑面板（原文由编辑面板异步读取）。 */
   edit?: DocumentEditTarget | null;
-  /** 目录副作用（mkdir / rmdir）；由终端 UI 异步执行 server action。 */
-  fs?: { kind: "mkdir"; path: string } | { kind: "rmdir"; path: string } | null;
+  /** 写副作用（mkdir / rmdir / rm）；由终端 UI 异步执行 server action。 */
+  fs?:
+    | { kind: "mkdir"; path: string }
+    | { kind: "rmdir"; path: string }
+    | { kind: "rm"; path: string }
+    | null;
   /** 音乐层副作用（播放 / 导入）；由终端 UI 异步执行。 */
   music?: MusicAction | null;
   /** 站点身份副作用（口令提示 / 清 cookie）。 */
@@ -133,12 +138,6 @@ function normalize(value: string) {
 
 function allDocuments(snapshot: ArchiveSnapshot) {
   return allSnapshotDocuments(snapshot);
-}
-
-function groupFromCwd(cwd: string): ContentGroup {
-  if (cwd.startsWith("/resources")) return "resources";
-  if (cwd.startsWith("/thoughts")) return "thoughts";
-  return "projects";
 }
 
 function findDocument(snapshot: ArchiveSnapshot, query: string) {
@@ -342,21 +341,6 @@ function openableInDir(
 }
 
 /**
- * 绝对 VFS 目录路径 → `{ group, segments }`；非法（非组路径/段不合法/缺段）→ null。
- * 终端 handler 与组件 glue（archive-terminal.tsx）共用同一解析，防 off-by-one 回归。
- */
-export function splitVfsDirPath(
-  vfsPath: string,
-): { group: ContentGroup; segments: string[] } | null {
-  const parts = vfsPath.split("/").filter(Boolean);
-  if (parts.length < 2) return null;
-  const [group, ...segments] = parts;
-  if (!CONTENT_GROUPS.includes(group as ContentGroup)) return null;
-  if (slugSegments(segments.join("/")) === null) return null;
-  return { group: group as ContentGroup, segments };
-}
-
-/**
  * rmdir 成功后的 cwd 修正：cwd 在被删目录内或等于它 → 回退到被删目录的父级
  * （rmdir 只删空目录，父级必然存活）；否则不变。防 cwd 悬空（终端自洽边界，docs/18 §6）。
  */
@@ -364,114 +348,6 @@ export function cwdAfterRemoval(cwd: string, removedPath: string): string {
   if (cwd !== removedPath && !cwd.startsWith(`${removedPath}/`)) return cwd;
   const parent = removedPath.slice(0, removedPath.lastIndexOf("/"));
   return parent || "/";
-}
-
-/**
- * 解析 mkdir / rmdir 目标：`/projects/my_web/notes`、`projects/my_web/notes`
- * （组前缀 = 绝对语义）或相对 cwd（如 `notes`）。组根/根/非组路径 → 错误。
- */
-function resolveDirTarget(
-  cwd: string,
-  rawTarget: string,
-): { ok: true; vfsPath: string; group: ContentGroup; segments: string[] } | { ok: false; hint: string } {
-  // `~` / `~/x` = 根（绝对）；其余相对 cwd——真实终端语义（docs/18 §6）
-  const target = rawTarget.trim().replace(/^~\//, "/").replace(/^~$/, "/");
-  if (!target) {
-    return { ok: false, hint: zhCN.errors.usageMkdir };
-  }
-  const vfsPath = target.startsWith("/")
-    ? normalizePath(target)
-    : normalizePath(`${cwd}/${target}`);
-  const parsed = splitVfsDirPath(vfsPath);
-  if (!parsed) {
-    return { ok: false, hint: `${zhCN.errors.invalidPath}: ${target}` };
-  }
-  return { ok: true, vfsPath, group: parsed.group, segments: parsed.segments };
-}
-
-/**
- * 解析 edit 目标。
- * - 显式路径：/projects/foo、thoughts/foo（目录 / 未知节点报错）
- * - 裸 slug：精确匹配已有文档取 group；否则按 cwd 所在组，默认 projects
- * - exists=false 表示进入新建
- */
-function resolveEditTarget(
-  snapshot: ArchiveSnapshot,
-  cwd: string,
-  rawToken: string,
-): { ok: true; target: DocumentEditTarget } | { ok: false; hint: string } {
-  // 容错：`~/` 前缀 = 根（绝对）；尾缀 `.md` 剥掉（真实 shell 习惯）。
-  // 不再剥前导 `/`——绝对路径交给 resolveVfsPath；组前缀也不特殊路由（真实终端语义）
-  const token = rawToken
-    .trim()
-    .replace(/^~\//, "/")
-    .replace(/\.md$/, "");
-  if (!token) {
-    return { ok: false, hint: zhCN.errors.usageEdit };
-  }
-
-  const root = createVfs(snapshot);
-
-  const node = resolveVfsPath(root, cwd, token);
-  if (node) {
-    if (node.type === "project" || node.type === "thought" || node.type === "resource") {
-      const ref = tryFromVfsPath(node.path);
-      if (!ref) {
-        return { ok: false, hint: zhCN.errors.notFile };
-      }
-      return {
-        ok: true,
-        target: {
-          ref,
-          exists: true,
-        },
-      };
-    }
-    if (node.type === "dir") {
-      // 纯目录（簇文件夹尚无入口篇）：编辑其入口篇 → 新建，保存后成复合节点
-      // （组根 /projects 等无 slug → 仍拒绝）
-      const ref = tryFromVfsPath(node.path);
-      if (ref) {
-        return { ok: true, target: { ref, exists: false } };
-      }
-    }
-    return { ok: false, hint: zhCN.errors.notFile };
-  }
-
-  // 裸 slug：先精确匹配已有文档
-  const known = allDocuments(snapshot).find(
-    (document) => normalize(document.ref.slug) === normalize(token),
-  );
-  if (known) {
-    return {
-      ok: true,
-      target: {
-        ref: known.ref,
-        exists: true,
-      },
-    };
-  }
-
-  // 新建：先按 cwd 拼绝对候选（嵌套 cwd 下相对新建保留目录段，如
-  // cwd=/projects/my_web_dir、`edit log` → projects/my_web_dir/log）
-  const candidate = normalizePath(`${cwd}/${token}`);
-  const cwdRef = tryFromVfsPath(candidate);
-  if (cwdRef) {
-    return {
-      ok: true,
-      target: { ref: cwdRef, exists: false },
-    };
-  }
-
-  // 根/组根 cwd 或裸 slug：仅允许单段 slug（不含 `/`）
-  if (!SLUG_PATTERN.test(token)) {
-    return { ok: false, hint: `${zhCN.errors.invalidPath}: ${token}` };
-  }
-  const group: ContentGroup = groupFromCwd(cwd);
-  return {
-    ok: true,
-    target: { ref: documentRef(group, token), exists: false },
-  };
 }
 
 /**
@@ -1377,7 +1253,7 @@ export function runCommand(
           session: nextSession,
         };
       }
-      const resolved = resolveDirTarget(nextSession.cwd, rest);
+      const resolved = resolveCreatableDirectory(nextSession.cwd, rest);
       if (!resolved.ok) {
         return {
           entries: [commandEcho, systemError(resolved.hint)],
@@ -1387,7 +1263,7 @@ export function runCommand(
       return {
         entries: [commandEcho],
         session: nextSession,
-        fs: { kind: "mkdir", path: resolved.vfsPath },
+        fs: { kind: "mkdir", path: resolved.value.vfsPath },
       };
     }
 
@@ -1398,7 +1274,11 @@ export function runCommand(
           session: nextSession,
         };
       }
-      const resolved = resolveDirTarget(nextSession.cwd, rest);
+      const resolved = resolveExistingDirectory(
+        nextSession.cwd,
+        rest,
+        snapshot,
+      );
       if (!resolved.ok) {
         return {
           entries: [commandEcho, systemError(resolved.hint)],
@@ -1408,7 +1288,32 @@ export function runCommand(
       return {
         entries: [commandEcho],
         session: nextSession,
-        fs: { kind: "rmdir", path: resolved.vfsPath },
+        fs: { kind: "rmdir", path: resolved.value.vfsPath },
+      };
+    }
+
+    case "rm": {
+      if (!capabilitiesFrom(principal).uiWrite) {
+        return {
+          entries: [commandEcho, systemError(zhCN.auth.needOwner)],
+          session: nextSession,
+        };
+      }
+      const resolved = resolveExistingDocument(
+        nextSession.cwd,
+        rest,
+        snapshot,
+      );
+      if (!resolved.ok) {
+        return {
+          entries: [commandEcho, systemError(resolved.hint)],
+          session: nextSession,
+        };
+      }
+      return {
+        entries: [commandEcho],
+        session: nextSession,
+        fs: { kind: "rm", path: resolved.value.vfsPath },
       };
     }
 
@@ -1419,14 +1324,18 @@ export function runCommand(
           session: nextSession,
         };
       }
-      const resolved = resolveEditTarget(snapshot, nextSession.cwd, rest);
+      const resolved = resolveCreatableDocument(
+        nextSession.cwd,
+        rest,
+        snapshot,
+      );
       if (!resolved.ok) {
         return {
           entries: [commandEcho, systemError(resolved.hint)],
           session: nextSession,
         };
       }
-      const { target } = resolved;
+      const target = resolved.value;
       return {
         entries: [
           commandEcho,

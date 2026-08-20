@@ -19,8 +19,10 @@ import {
   type ContentGroup,
 } from "./content-format";
 import type { FrontmatterField } from "./content-format";
-import { contentRoot } from "./content";
+import { getContentRoot, contentRootForZone } from "./content";
 import { toLocalKey, type DocumentRef } from "./document-ref";
+import type { DocumentZone } from "./document-ref";
+import { PRIVATE_ZONE_PREFIX } from "./document-ref";
 
 export type { ContentGroup };
 
@@ -72,11 +74,14 @@ export class WriteError extends Error {
 }
 
 /**
- * Disk path for a validated DocumentRef（ADR 0013 多段）：
- * `content/<group>/<seg1>/…/<leaf>.md`；扁平 slug 即单段特例。
+ * Disk path for a validated DocumentRef（ADR 0013 多段；ADR 0019 zone）：
+ * `content/<group>/…` or `content/private/<group>/…`.
  */
 export function resolveContentPath(ref: DocumentRef): string {
-  return path.join(contentRoot, ref.group, ...ref.slug.split("/")) + ".md";
+  return (
+    path.join(contentRootForZone(ref.zone), ref.group, ...ref.slug.split("/")) +
+    ".md"
+  );
 }
 
 async function fileExists(filePath: string): Promise<boolean> {
@@ -149,7 +154,7 @@ function isUnderRoot(root: string, target: string): boolean {
  */
 async function assertInsideContentRoot(
   target: string,
-  root: string = contentRoot,
+  root: string = getContentRoot(),
 ): Promise<void> {
   const rootReal = await realpath(root).catch(() => null);
   if (rootReal === null) {
@@ -330,29 +335,40 @@ export async function deleteDocument(
   }
 }
 
-/** VFS 目录身份：组 + ≥1 段（每段 slug 白名单）。 */
+/** VFS 目录身份：zone + 组 + ≥1 段（每段 slug 白名单）。 */
 export type VfsDirRef = {
+  zone: DocumentZone;
   group: ContentGroup;
   segments: string[];
 };
 
-export function vfsDirRef(group: ContentGroup, segments: string[]): VfsDirRef {
+export function vfsDirRef(
+  group: ContentGroup,
+  segments: string[],
+  zone: DocumentZone = "public",
+): VfsDirRef {
   if (!CONTENT_GROUPS.includes(group)) {
     throw new WriteError("bad_request", `Unknown group: ${group}`);
   }
   if (segments.length === 0 || slugSegments(segments.join("/")) === null) {
     throw new WriteError(
       "bad_request",
-      `Invalid directory: ${group}/${segments.join("/")}. Each segment must match [a-z0-9_-]+.`,
+      `Invalid directory: ${zone === "private" ? "private/" : ""}${group}/${segments.join("/")}. Each segment must match [a-z0-9_-]+.`,
     );
   }
-  return { group, segments };
+  if (group === (PRIVATE_ZONE_PREFIX as string)) {
+    throw new WriteError(
+      "bad_request",
+      `"private" is a zone prefix, not a content group`,
+    );
+  }
+  return { zone, group, segments };
 }
 
-/** 目录盘路径；`root` 可注入（测试用），默认 contentRoot。 */
+/** 目录盘路径；`root` 可注入（测试用），默认按 zone 解析。 */
 export function resolveContentDir(
   ref: VfsDirRef,
-  root: string = contentRoot,
+  root: string = contentRootForZone(ref.zone),
 ): string {
   return path.join(root, ref.group, ...ref.segments);
 }
@@ -368,10 +384,11 @@ async function isDirectoryPath(p: string): Promise<boolean> {
 /** 创建目录（递归，mkdir -p 语义）；已存在 → created:false（no-op）。 */
 export async function createDirectory(
   ref: VfsDirRef,
-  root: string = contentRoot,
+  root?: string,
 ): Promise<{ created: boolean }> {
-  const dir = resolveContentDir(ref, root);
-  await assertInsideContentRoot(dir, root);
+  const zoneRoot = root ?? contentRootForZone(ref.zone);
+  const dir = resolveContentDir(ref, zoneRoot);
+  await assertInsideContentRoot(dir, root ?? getContentRoot());
   const existed = await isDirectoryPath(dir);
   await mkdir(dir, { recursive: true });
   return { created: !existed };
@@ -380,10 +397,11 @@ export async function createDirectory(
 /** 删除**空**目录；不存在 → not_found；非空 → conflict（ADR 0013）。 */
 export async function removeDirectory(
   ref: VfsDirRef,
-  root: string = contentRoot,
+  root?: string,
 ): Promise<void> {
-  const dir = resolveContentDir(ref, root);
-  await assertInsideContentRoot(dir, root);
+  const zoneRoot = root ?? contentRootForZone(ref.zone);
+  const dir = resolveContentDir(ref, zoneRoot);
+  await assertInsideContentRoot(dir, root ?? getContentRoot());
   if (!(await isDirectoryPath(dir))) {
     throw new WriteError("not_found", `No directory at ${dir}`);
   }
@@ -391,7 +409,7 @@ export async function removeDirectory(
   if (entries.length > 0) {
     throw new WriteError(
       "conflict",
-      `Directory not empty (${entries.length} entries): ${ref.group}/${ref.segments.join("/")}`,
+      `Directory not empty (${entries.length} entries): ${ref.zone === "private" ? "private/" : ""}${ref.group}/${ref.segments.join("/")}`,
     );
   }
   await rmdir(dir);

@@ -12,7 +12,10 @@ import {
   type VfsDirRef,
 } from "./content-write";
 import { CONTENT_GROUPS, slugSegments, type ContentGroup } from "./content-format";
-import { tryDocumentRef } from "./document-ref";
+import {
+  tryFromLocalKey,
+  type DocumentZone,
+} from "./document-ref";
 import { revalidatePath } from "next/cache";
 import { requireUiWrite } from "./site-auth";
 
@@ -24,7 +27,7 @@ export type EditActionResult =
   | { ok: true; dirRemoved: true }
   | {
       ok: false;
-    error: "bad_request" | "not_found" | "conflict" | "unknown" | "forbidden";
+      error: "bad_request" | "not_found" | "conflict" | "unknown" | "forbidden";
       message: string;
     };
 
@@ -47,30 +50,43 @@ function toResult(
   });
 }
 
-function requireRef(group: string, slug: string) {
-  const ref = tryDocumentRef(group, slug);
+function requireRefFromLocalKey(localKey: string) {
+  const ref = tryFromLocalKey(localKey);
   if (!ref) {
     throw new WriteError(
       "bad_request",
-      `Invalid target: ${group}/${slug}. Allowed groups: projects|thoughts|resources; slug: [a-z0-9_-]+ (multi-segment allowed, e.g. my_web/log).`,
+      `Invalid target: ${localKey}. Allowed: projects|thoughts|resources/<slug> or private/<group>/<slug>.`,
     );
   }
   return ref;
 }
 
-/** 目录目标校验：组 + ≥1 段（每段 slug 白名单，ADR 0013）。 */
-function requireDirRef(group: string, dirPath: string): VfsDirRef {
-  const trimmed = dirPath.trim();
+/** 目录目标：localKey 形如 `projects/a/b` 或 `private/thoughts/notes`。 */
+function requireDirRefFromLocalKey(localKey: string): VfsDirRef {
+  const normalized = localKey.trim().replace(/^\/+/, "").replace(/\/+$/, "");
+  const parts = normalized.split("/").filter(Boolean);
+  let zone: DocumentZone = "public";
+  let group: string;
+  let segments: string[];
+  if (parts[0] === "private") {
+    zone = "private";
+    group = parts[1] ?? "";
+    segments = parts.slice(2);
+  } else {
+    group = parts[0] ?? "";
+    segments = parts.slice(1);
+  }
   if (
     !CONTENT_GROUPS.includes(group as ContentGroup) ||
-    slugSegments(trimmed) === null
+    segments.length === 0 ||
+    slugSegments(segments.join("/")) === null
   ) {
     throw new WriteError(
       "bad_request",
-      `Invalid directory: ${group}/${dirPath}. Each segment must match [a-z0-9_-]+.`,
+      `Invalid directory: ${localKey}. Each segment must match [a-z0-9_-]+.`,
     );
   }
-  return vfsDirRef(group as ContentGroup, trimmed.split("/"));
+  return vfsDirRef(group as ContentGroup, segments, zone);
 }
 
 async function denyIfNoUiWrite(): Promise<EditActionResult | null> {
@@ -84,28 +100,26 @@ async function denyIfNoUiWrite(): Promise<EditActionResult | null> {
 }
 
 export async function getDocumentRaw(
-  group: string,
-  slug: string,
+  localKey: string,
 ): Promise<EditActionResult> {
   const denied = await denyIfNoUiWrite();
   if (denied) return denied;
   return toResult(async () => {
-    const ref = requireRef(group, slug);
+    const ref = requireRefFromLocalKey(localKey);
     const raw = await readDocumentRaw(ref);
     return { ok: true, raw, hash: hashRaw(raw) };
   });
 }
 
 export async function putDocumentRaw(
-  group: string,
-  slug: string,
+  localKey: string,
   raw: string,
   expectedHash?: string,
 ): Promise<EditActionResult> {
   const denied = await denyIfNoUiWrite();
   if (denied) return denied;
   return toResult(async () => {
-    const ref = requireRef(group, slug);
+    const ref = requireRefFromLocalKey(localKey);
     if (typeof raw !== "string" || raw.length > 1_000_000) {
       throw new WriteError("bad_request", "Body too large or invalid");
     }
@@ -120,28 +134,24 @@ export async function putDocumentRaw(
 }
 
 export async function removeDocument(
-  group: string,
-  slug: string,
+  localKey: string,
   expectedHash?: string,
 ): Promise<EditActionResult> {
   const denied = await denyIfNoUiWrite();
   if (denied) return denied;
   return toResult(async () => {
-    const ref = requireRef(group, slug);
+    const ref = requireRefFromLocalKey(localKey);
     await deleteDocument(ref, { expectedHash });
     return { ok: true, deleted: true };
   });
 }
 
 /** 创建目录（递归；已存在 → dirCreated:false no-op）。owner 闸同 edit。 */
-export async function mkdirDir(
-  group: string,
-  dirPath: string,
-): Promise<EditActionResult> {
+export async function mkdirDir(localKey: string): Promise<EditActionResult> {
   const denied = await denyIfNoUiWrite();
   if (denied) return denied;
   return toResult(async () => {
-    const ref = requireDirRef(group, dirPath);
+    const ref = requireDirRefFromLocalKey(localKey);
     const result = await createDirectory(ref);
     revalidatePath("/");
     return { ok: true, dirCreated: result.created };
@@ -149,14 +159,11 @@ export async function mkdirDir(
 }
 
 /** 删除空目录；非空 → conflict。owner 闸同 edit。 */
-export async function rmdirDir(
-  group: string,
-  dirPath: string,
-): Promise<EditActionResult> {
+export async function rmdirDir(localKey: string): Promise<EditActionResult> {
   const denied = await denyIfNoUiWrite();
   if (denied) return denied;
   return toResult(async () => {
-    const ref = requireDirRef(group, dirPath);
+    const ref = requireDirRefFromLocalKey(localKey);
     await removeDirectory(ref);
     revalidatePath("/");
     return { ok: true, dirRemoved: true };

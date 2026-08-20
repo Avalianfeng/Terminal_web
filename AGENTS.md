@@ -5,7 +5,13 @@
 This is a single Next.js 16 (App Router) + React 19 + TypeScript + Tailwind v4 web app
 ("Personal Archive System" — a terminal-emulator style personal site). There is no
 database or external service; content lives under `content/` and is served via
-Next.js (read snapshot + optional authenticated write API).
+Next.js (read snapshot + optional authenticated write API). Archive **body**
+(`.md` / `person.json` / `timeline.md`) is **not** in the public Git remote
+([ADR 0018](docs/adr/0018-content-visibility-and-sync.md)); private zone + read
+gating: [ADR 0019](docs/adr/0019-capability-zone-permission.md)
+(`content/private/…`, `getArchiveSnapshotFor`). Playlist curation
+yaml under `content/music/playlists/` stays tracked. Fresh clones need a local
+`content/` (owner machine or publish); CI uses fixtures.
 
 ### Cloud Agent bootstrap
 
@@ -19,7 +25,7 @@ Standard commands are defined in `package.json` (`dev`, `build`, `start`, `lint`
 
 - Dev server: `npm run dev` (Next.js + Turbopack, serves on http://localhost:3000). Cloud environments usually start this via `terminals`.
 - Lint: `npm run lint` (ESLint flat config).
-- **Verify gate: `npm run verify`**（lint + `tsc --noEmit` + `tsx --test lib`——一条命令跑全部套件）。PR / push 上由 [`.github/workflows/verify.yml`](.github/workflows/verify.yml) 自动跑同一命令。
+- **Verify gate: `npm run verify`**（lint + `tsc --noEmit` + `tsx --test lib`——一条命令跑全部套件）。PR / push 上由 [`.github/workflows/verify.yml`](.github/workflows/verify.yml) 自动跑同一命令。相关单测：`test:permission`、`test:publish-paths`、`test:token`、`test:document-ref`、`test:content`。
 - **UI 冒烟：`npm run smoke:ui`**（Playwright，5 条主路径；CI 暂不强制）。
 - Type-check: `npx tsc --noEmit` (there is no dedicated `typecheck` script; `next build` also runs TS).
 - Build: `npm run build`.

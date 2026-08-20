@@ -84,6 +84,13 @@ export const COMMANDS: readonly CommandSpec[] = [
     requiresOwner: true,
   },
   {
+    name: "rm",
+    section: "explore",
+    usage: "rm <文档路径>      删除文档（owner；目录请用 rmdir）",
+    argComplete: "open",
+    requiresOwner: true,
+  },
+  {
     name: "find",
     section: "explore",
     usage: "find [词]          按路径 / 名称检索（可再 open）",

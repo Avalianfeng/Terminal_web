@@ -11,7 +11,7 @@ function doc(
   slug: string,
 ): ArchiveDocument {
   return {
-    ref: { group, slug },
+    ref: { zone: "public", group, slug },
     title: slug,
     summary: "",
     body: `body of ${slug}`,
@@ -31,7 +31,13 @@ function snapshot(docs: ArchiveDocument[]): ArchiveSnapshot {
     projects: docs.filter((d) => d.ref.group === "projects"),
     thoughts: docs.filter((d) => d.ref.group === "thoughts"),
     resources: docs.filter((d) => d.ref.group === "resources"),
-    directories: { projects: [], thoughts: [], resources: [] },
+    directories: {
+      projects: [],
+      thoughts: [],
+      resources: [],
+      private: { projects: [], thoughts: [], resources: [] },
+    },
+    privateZoneMounted: false,
     timeline: [],
     generatedAt: "2026-08-17T00:00:00.000Z",
   };
@@ -129,14 +135,22 @@ describe("commands nested paths (ADR 0013)", () => {
 describe("commands mkdir/rmdir (ADR 0013)", () => {
   it("splitVfsDirPath parses absolute dir paths (glue regression)", () => {
     assert.deepEqual(splitVfsDirPath("/projects/my_web/notes"), {
+      zone: "public",
       group: "projects",
       segments: ["my_web", "notes"],
     });
     assert.deepEqual(splitVfsDirPath("/thoughts/foo"), {
+      zone: "public",
       group: "thoughts",
       segments: ["foo"],
     });
+    assert.deepEqual(splitVfsDirPath("/private/thoughts/secret"), {
+      zone: "private",
+      group: "thoughts",
+      segments: ["secret"],
+    });
     assert.equal(splitVfsDirPath("/projects"), null);
+    assert.equal(splitVfsDirPath("/private/projects"), null);
     assert.equal(splitVfsDirPath("/timeline/x"), null);
     assert.equal(splitVfsDirPath("/projects/Bad/x"), null);
     assert.equal(splitVfsDirPath(""), null);
@@ -146,6 +160,7 @@ describe("commands mkdir/rmdir (ADR 0013)", () => {
     const result = runCommand(snap, "mkdir /projects/my_web/new");
     const parsed = splitVfsDirPath(result.fs!.path);
     assert.deepEqual(parsed, {
+      zone: "public",
       group: "projects",
       segments: ["my_web", "new"],
     });
@@ -183,7 +198,12 @@ describe("commands mkdir/rmdir (ADR 0013)", () => {
       doc("projects", "my_web"),
       doc("projects", "my_web/log"),
     ]);
-    dualSnap.directories = { projects: ["my_web"], thoughts: [], resources: [] };
+    dualSnap.directories = {
+      projects: ["my_web"],
+      thoughts: [],
+      resources: [],
+      private: { projects: [], thoughts: [], resources: [] },
+    };
     const result = runCommand(dualSnap, "cd /projects/my_web");
     assert.equal(result.session.cwd, "/projects/my_web");
   });
@@ -194,10 +214,49 @@ describe("commands mkdir/rmdir (ADR 0013)", () => {
     assert.ok(plainLines(result).some((l) => l.includes("用法: mkdir")));
   });
 
-  it("mkdir rejects non-group and bad segments", () => {
-    assert.equal(runCommand(snap, "mkdir /timeline/x").fs, undefined);
+  it("mkdir rejects non-group and bad segments with write policy hints", () => {
+    const timeline = runCommand(snap, "mkdir /timeline/x");
+    assert.equal(timeline.fs, undefined);
+    assert.ok(
+      plainLines(timeline).some((l) => /不允许|写目标/.test(l)),
+      plainLines(timeline).join("|"),
+    );
     assert.equal(runCommand(snap, "mkdir /projects/Bad/x").fs, undefined);
-    assert.equal(runCommand(snap, "mkdir /projects").fs, undefined);
+    const groupRoot = runCommand(snap, "mkdir /projects");
+    assert.equal(groupRoot.fs, undefined);
+    assert.ok(
+      plainLines(groupRoot).some((l) => /组根|不允许/.test(l)),
+      plainLines(groupRoot).join("|"),
+    );
+  });
+
+  it("edit from /resources does not nest under resources for ~/private/…", () => {
+    const cd = runCommand(snap, "cd /resources");
+    // resources group empty in snap — still need cwd
+    const nested = { ...cd.session, cwd: "/resources" };
+    const result = runCommand(
+      snap,
+      "edit ~/private/thoughts/agent-note",
+      nested,
+    );
+    assert.ok(result.edit);
+    assert.equal(result.edit!.ref.zone, "private");
+    assert.equal(result.edit!.ref.group, "thoughts");
+    assert.equal(result.edit!.ref.slug, "agent-note");
+  });
+
+  it("rm requests fs side-effect for existing document", () => {
+    const result = runCommand(snap, "rm /projects/flat");
+    assert.deepEqual(result.fs, { kind: "rm", path: "/projects/flat" });
+  });
+
+  it("rm rejects directories with rmdir hint", () => {
+    const result = runCommand(snap, "rm /projects");
+    assert.equal(result.fs, undefined);
+    assert.ok(
+      plainLines(result).some((l) => l.includes("rmdir")),
+      plainLines(result).join("|"),
+    );
   });
 
   it("mkdir/rmdir hard-reject visitors", () => {
@@ -346,7 +405,11 @@ describe("commands path ergonomics (~ / .md / tree root)", () => {
       commandHistory: [],
     });
     assert.ok(result.edit, "expected edit target");
-    assert.deepEqual(result.edit!.ref, { group: "projects", slug: "my_web" });
+    assert.deepEqual(result.edit!.ref, {
+      zone: "public",
+      group: "projects",
+      slug: "my_web",
+    });
     assert.equal(result.edit!.exists, false);
   });
 
@@ -354,7 +417,7 @@ describe("commands path ergonomics (~ / .md / tree root)", () => {
     const result = runCommand(snap, "edit /projects");
     assert.equal(result.edit, undefined);
     const text = plainLines(result).join("|");
-    assert.ok(text.includes("可读取"), text);
+    assert.ok(/组根|不允许/.test(text), text);
   });
 
   it("edit bare slug from nested cwd creates doc under cwd (not group root)", () => {
@@ -366,6 +429,7 @@ describe("commands path ergonomics (~ / .md / tree root)", () => {
     });
     assert.ok(result.edit, "expected edit target");
     assert.deepEqual(result.edit!.ref, {
+      zone: "public",
       group: "projects",
       slug: "my_web_dir/log",
     });
@@ -381,6 +445,7 @@ describe("commands path ergonomics (~ / .md / tree root)", () => {
     });
     assert.ok(result.edit, "expected edit target");
     assert.deepEqual(result.edit!.ref, {
+      zone: "public",
       group: "projects",
       slug: "my_web_dir/log",
     });
@@ -390,7 +455,11 @@ describe("commands path ergonomics (~ / .md / tree root)", () => {
   it("edit bare slug from root still defaults to projects group", () => {
     const result = runCommand(snap, "edit brand_new");
     assert.ok(result.edit);
-    assert.deepEqual(result.edit!.ref, { group: "projects", slug: "brand_new" });
+    assert.deepEqual(result.edit!.ref, {
+      zone: "public",
+      group: "projects",
+      slug: "brand_new",
+    });
     assert.equal(result.edit!.exists, false);
   });
 });

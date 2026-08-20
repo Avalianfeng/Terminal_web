@@ -8,7 +8,7 @@ function doc(
   slug: string,
 ): ArchiveDocument {
   return {
-    ref: { group, slug },
+    ref: { zone: "public", group, slug },
     title: slug,
     summary: "",
     body: "body",
@@ -26,7 +26,13 @@ const emptySnapshot = {
   projects: [],
   thoughts: [],
   resources: [],
-  directories: { projects: [], thoughts: [], resources: [] },
+  directories: {
+    projects: [],
+    thoughts: [],
+    resources: [],
+    private: { projects: [], thoughts: [], resources: [] },
+  },
+  privateZoneMounted: false,
   timeline: [],
 } as ArchiveSnapshot;
 
@@ -89,7 +95,12 @@ describe("completeInput paths (ADR 0013)", () => {
   it("completes empty real dirs from disk state", () => {
     const snap = {
       ...emptySnapshot,
-      directories: { projects: ["scratch"], thoughts: [], resources: [] },
+      directories: {
+        projects: ["scratch"],
+        thoughts: [],
+        resources: [],
+        private: { projects: [], thoughts: [], resources: [] },
+      },
     } as ArchiveSnapshot;
     const result = completeInput("cd /projects/s", snap, "/");
     assert.deepEqual(result.candidates, ["/projects/scratch/"]);

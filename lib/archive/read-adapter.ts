@@ -4,21 +4,14 @@
  */
 
 import { parseDocument } from "./parse-document";
-import {
-  hashRaw,
-  readDocumentRaw,
-  type ContentGroup,
-} from "./content-write";
+import { hashRaw, readDocumentRaw } from "./content-write";
+import type { DocumentRef } from "./document-ref";
 import type { ArchiveDocument } from "./types";
 import { toItemListItem, type ItemPayload } from "./discovery";
 
 /** raw → 完整详情 payload（含真实 hash）。详情读与 PUT/PATCH 写响应共用。 */
-export function payloadFromRaw(
-  group: ContentGroup,
-  slug: string,
-  raw: string,
-): ItemPayload {
-  const document = parseDocument(group, slug, raw);
+export function payloadFromRaw(ref: DocumentRef, raw: string): ItemPayload {
+  const document = parseDocument(ref.group, ref.slug, raw, ref.zone);
   return {
     ...toItemListItem(document),
     body: document.body,
@@ -35,5 +28,5 @@ export async function toItemPayloadWithHash(
   document: ArchiveDocument,
 ): Promise<ItemPayload> {
   const raw = await readDocumentRaw(document.ref);
-  return payloadFromRaw(document.ref.group, document.ref.slug, raw);
+  return payloadFromRaw(document.ref, raw);
 }

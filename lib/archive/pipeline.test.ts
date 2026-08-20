@@ -72,7 +72,9 @@ async function fixtureSnapshot(): Promise<{
       projects: projects.dirs,
       thoughts: thoughts.dirs,
       resources: resources.dirs,
+      private: { projects: [], thoughts: [], resources: [] },
     },
+    privateZoneMounted: false,
     timeline: [],
     generatedAt: "2026-08-19T00:00:00.000Z",
   };
@@ -182,7 +184,11 @@ describe("scripted terminal session (docs/17 smoke)", () => {
       assert.deepEqual(mkdir.fs, { kind: "mkdir", path: "/projects/my_web/notes" });
       const editNested = run("edit my_web/notes");
       assert.ok(editNested.edit);
-      assert.deepEqual(editNested.edit!.ref, { group: "projects", slug: "my_web/notes" });
+      assert.deepEqual(editNested.edit!.ref, {
+        zone: "public",
+        group: "projects",
+        slug: "my_web/notes",
+      });
       assert.equal(editNested.edit!.exists, false);
 
       // 4. cd 进空目录，open 提示空

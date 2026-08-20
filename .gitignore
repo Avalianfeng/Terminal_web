@@ -14,6 +14,12 @@ out/
 # Local BGM cache (ADR 0011; sync to deploy, do not commit)
 /data/music/
 
+# Archive body (ADR 0018) — keep playlist curation + schema tracked
+/content/**
+!/content/music/
+!/content/music/playlists/
+!/content/music/playlists/**
+
 # debug
 npm-debug.log*
 

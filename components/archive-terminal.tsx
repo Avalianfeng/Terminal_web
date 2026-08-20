@@ -11,7 +11,8 @@ import { ReadingRail } from "@/components/reading-rail";
 import { BgmBar, type BgmPlayback } from "@/components/bgm-bar";
 import { completeInput } from "@/lib/archive/complete";
 import { initialEntries, runCommand, splitVfsDirPath, cwdAfterRemoval } from "@/lib/archive/commands";
-import { mkdirDir, rmdirDir } from "@/lib/archive/actions";
+import { mkdirDir, rmdirDir, removeDocument } from "@/lib/archive/actions";
+import { toLocalKey, tryFromVfsPath } from "@/lib/archive/document-ref";
 import { zhCN } from "@/lib/archive/i18n";
 import {
   musicDownloadAborted,
@@ -61,7 +62,6 @@ import {
 } from "@/lib/archive/reading-session";
 import { parseDocument } from "@/lib/archive/parse-document";
 import { createSession, formatShellPromptTokens } from "@/lib/archive/vfs";
-import { toLocalKey } from "@/lib/archive/document-ref";
 import type {
   ArchiveSnapshot,
   ReadingSurface,
@@ -1405,8 +1405,9 @@ export function ArchiveTerminal({
 
                 if (result.fs) {
                   const parsed = splitVfsDirPath(result.fs.path);
-                  const group = parsed?.group ?? "";
-                  const dirPath = parsed?.segments.join("/") ?? "";
+                  const dirLocalKey = parsed
+                    ? `${parsed.zone === "private" ? "private/" : ""}${parsed.group}/${parsed.segments.join("/")}`
+                    : "";
                   const fsLine = (text: string, tone: "success" | "error" | "hint" = "success") => ({
                     id: `fs-${Date.now()}-${Math.random().toString(16).slice(2)}`,
                     kind: "system" as const,
@@ -1414,7 +1415,7 @@ export function ArchiveTerminal({
                   });
                   try {
                     if (result.fs.kind === "mkdir") {
-                      const outcome = await mkdirDir(group, dirPath);
+                      const outcome = await mkdirDir(dirLocalKey);
                       extra.push(
                         outcome.ok
                           ? fsLine(
@@ -1424,8 +1425,8 @@ export function ArchiveTerminal({
                             )
                           : fsLine(outcome.message, "error"),
                       );
-                    } else {
-                      const outcome = await rmdirDir(group, dirPath);
+                    } else if (result.fs.kind === "rmdir") {
+                      const outcome = await rmdirDir(dirLocalKey);
                       extra.push(
                         outcome.ok
                           ? fsLine(`${zhCN.fs.rmdirRemoved}: ${result.fs.path}`)
@@ -1453,6 +1454,21 @@ export function ArchiveTerminal({
                           );
                         }
                       }
+                    } else if (result.fs.kind === "rm") {
+                      const docRef = tryFromVfsPath(result.fs.path);
+                      const localKey = docRef ? toLocalKey(docRef) : "";
+                      const outcome = localKey
+                        ? await removeDocument(localKey)
+                        : {
+                            ok: false as const,
+                            error: "bad_request" as const,
+                            message: zhCN.errors.writeInvalidTarget,
+                          };
+                      extra.push(
+                        outcome.ok
+                          ? fsLine(`${zhCN.fs.rmDeleted}: ${result.fs.path}`)
+                          : fsLine(outcome.message, "error"),
+                      );
                     }
                     router.refresh();
                   } catch {

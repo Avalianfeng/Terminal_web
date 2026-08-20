@@ -5,14 +5,21 @@ import {
   type ContentGroup,
 } from "./content-format";
 
+/** Zone discriminator: no prefix = public; reserved `private/` prefix. */
+export type DocumentZone = "public" | "private";
+
+export const PRIVATE_ZONE_PREFIX = "private" as const;
+
 /**
  * Canonical identity of a local archive document (`source: local`).
- * Projects to discovery localKey and VFS path only — not filesystem paths.
+ * `zone` is derived from the path — never an independent mutable field.
  *
  * ADR 0013: `slug` is the group-relative path, one or more segments joined
  * by `/` (e.g. `my_web` or `my_web/log`); each segment matches SLUG_PATTERN.
+ * ADR 0019: optional `private/` prefix → zone private.
  */
 export type DocumentRef = {
+  readonly zone: DocumentZone;
   readonly group: ContentGroup;
   readonly slug: string;
 };
@@ -32,7 +39,11 @@ export type DocumentEditTarget = {
   exists: boolean;
 };
 
-export function documentRef(group: ContentGroup, slug: string): DocumentRef {
+export function documentRef(
+  group: ContentGroup,
+  slug: string,
+  zone: DocumentZone = "public",
+): DocumentRef {
   if (!CONTENT_GROUPS.includes(group)) {
     throw new DocumentRefError(`Unknown group: ${group}`);
   }
@@ -41,53 +52,85 @@ export function documentRef(group: ContentGroup, slug: string): DocumentRef {
       `Invalid slug: "${slug}". Each segment must match [a-z0-9_-]+ (e.g. "my_web" or "my_web/log").`,
     );
   }
-  return { group, slug };
+  return { zone, group, slug };
 }
 
 export function tryDocumentRef(
   group: string,
   slug: string,
+  zone: DocumentZone = "public",
 ): DocumentRef | null {
   if (!CONTENT_GROUPS.includes(group as ContentGroup)) return null;
   if (slugSegments(slug) === null) return null;
-  return { group: group as ContentGroup, slug };
+  return { zone, group: group as ContentGroup, slug };
 }
 
-/** Discovery localKey / former ArchiveDocument.path: `group/slug`. */
+/** Discovery localKey: `group/slug` or `private/group/slug`. */
 export function toLocalKey(ref: DocumentRef): string {
-  return `${ref.group}/${ref.slug}`;
+  const base = `${ref.group}/${ref.slug}`;
+  return ref.zone === "private" ? `${PRIVATE_ZONE_PREFIX}/${base}` : base;
 }
 
-/** Terminal VFS path: `/group/slug`. */
+/** Terminal VFS path: `/group/slug` or `/private/group/slug`. */
 export function toVfsPath(ref: DocumentRef): string {
-  return `/${ref.group}/${ref.slug}`;
+  return `/${toLocalKey(ref)}`;
 }
 
 export function refsEqual(a: DocumentRef, b: DocumentRef): boolean {
-  return a.group === b.group && a.slug === b.slug;
+  return a.zone === b.zone && a.group === b.group && a.slug === b.slug;
 }
 
-/**
- * Parse discovery localKey (`projects/foo`, `projects/my_web/log`,
- * optional leading `/`). Requires group + at least one slug segment;
- * interior empty segments are rejected (ADR 0013).
- */
-export function fromLocalKey(localKey: string): DocumentRef {
-  const normalized = localKey.trim().replace(/^\/+/, "").replace(/\/+$/, "");
-  const parts = normalized.split("/");
+function parseGroupSlugParts(
+  parts: string[],
+  source: string,
+  kind: "localKey" | "vfs",
+): DocumentRef {
   if (parts.length < 2) {
     throw new DocumentRefError(
-      `Invalid localKey: "${localKey}". Must be ${contentGroupLocalKeyHint()}.`,
+      kind === "localKey"
+        ? `Invalid localKey: "${source}". Must be ${contentGroupLocalKeyHint()} or private/<group>/<slug>.`
+        : `Invalid VFS document path: "${source}". Expected /projects/<slug>… or /private/projects/<slug>….`,
     );
   }
-  const [group, ...rest] = parts;
-  const ref = tryDocumentRef(group!, rest.join("/"));
+
+  let zone: DocumentZone = "public";
+  let group: string;
+  let rest: string[];
+
+  if (parts[0] === PRIVATE_ZONE_PREFIX) {
+    if (parts.length < 3) {
+      throw new DocumentRefError(
+        kind === "localKey"
+          ? `Invalid localKey: "${source}". Must be private/<group>/<slug>.`
+          : `Invalid VFS document path: "${source}". Expected /private/<group>/<slug>….`,
+      );
+    }
+    zone = "private";
+    group = parts[1]!;
+    rest = parts.slice(2);
+  } else {
+    group = parts[0]!;
+    rest = parts.slice(1);
+  }
+
+  const ref = tryDocumentRef(group, rest.join("/"), zone);
   if (!ref) {
     throw new DocumentRefError(
-      `Invalid localKey: "${localKey}". Must be ${contentGroupLocalKeyHint()}.`,
+      kind === "localKey"
+        ? `Invalid localKey: "${source}". Must be ${contentGroupLocalKeyHint()} or private/<group>/<slug>.`
+        : `Invalid VFS document path: "${source}". Expected /projects/<slug>… or /private/projects/<slug>….`,
     );
   }
   return ref;
+}
+
+/**
+ * Parse discovery localKey (`projects/foo`, `private/thoughts/bar`,
+ * optional leading `/`). Requires group + at least one slug segment.
+ */
+export function fromLocalKey(localKey: string): DocumentRef {
+  const normalized = localKey.trim().replace(/^\/+/, "").replace(/\/+$/, "");
+  return parseGroupSlugParts(normalized.split("/"), localKey, "localKey");
 }
 
 export function tryFromLocalKey(localKey: string): DocumentRef | null {
@@ -99,27 +142,12 @@ export function tryFromLocalKey(localKey: string): DocumentRef | null {
 }
 
 /**
- * Parse a document VFS path (`/projects/foo`, `/projects/my_web/log`).
- * Requires group + at least one slug segment; interior empty segments
- * are rejected (ADR 0013).
+ * Parse a document VFS path (`/projects/foo`, `/private/thoughts/bar`).
  * Directories and non-document nodes (`/timeline`, `/person`) → error.
  */
 export function fromVfsPath(vfsPath: string): DocumentRef {
   const normalized = vfsPath.trim().replace(/^\/+/, "").replace(/\/+$/, "");
-  const parts = normalized.split("/");
-  if (parts.length < 2) {
-    throw new DocumentRefError(
-      `Invalid VFS document path: "${vfsPath}". Expected /projects/<slug>[/<sub>…], /thoughts/<slug>[/<sub>…], or /resources/<slug>[/<sub>…].`,
-    );
-  }
-  const [group, ...rest] = parts;
-  const ref = tryDocumentRef(group!, rest.join("/"));
-  if (!ref) {
-    throw new DocumentRefError(
-      `Invalid VFS document path: "${vfsPath}". Expected /projects/<slug>[/<sub>…], /thoughts/<slug>[/<sub>…], or /resources/<slug>[/<sub>…].`,
-    );
-  }
-  return ref;
+  return parseGroupSlugParts(normalized.split("/"), vfsPath, "vfs");
 }
 
 export function tryFromVfsPath(vfsPath: string): DocumentRef | null {

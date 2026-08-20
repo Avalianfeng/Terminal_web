@@ -39,9 +39,10 @@ export function EditorPanel({ target, onDone }: EditorPanelProps) {
   const [loadNonce, setLoadNonce] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const localKey = toLocalKey(target.ref);
   const { group, slug } = target.ref;
   const dirty = raw !== null && initialRaw !== null && raw !== initialRaw;
-  const title = `${toLocalKey(target.ref)}${target.exists ? "" : " (new)"}`;
+  const title = `${localKey}${target.exists ? "" : " (new)"}`;
 
   useEffect(() => {
     let cancelled = false;
@@ -53,7 +54,7 @@ export function EditorPanel({ target, onDone }: EditorPanelProps) {
     setInitialRaw(null);
     setBaseHash(null);
 
-    void getDocumentRaw(group, slug).then((result) => {
+    void getDocumentRaw(localKey).then((result) => {
       if (cancelled) return;
       if (result.ok && "raw" in result) {
         setInitialRaw(result.raw);
@@ -76,7 +77,7 @@ export function EditorPanel({ target, onDone }: EditorPanelProps) {
     return () => {
       cancelled = true;
     };
-  }, [group, slug, loadNonce]);
+  }, [localKey, group, slug, loadNonce]);
 
   useEffect(() => {
     textareaRef.current?.focus();
@@ -98,8 +99,7 @@ export function EditorPanel({ target, onDone }: EditorPanelProps) {
     if (!raw || status.kind === "saving") return;
     setStatus({ kind: "saving" });
     const result = await putDocumentRaw(
-      group,
-      slug,
+      localKey,
       raw,
       baseHash ?? undefined,
     );
@@ -123,8 +123,7 @@ export function EditorPanel({ target, onDone }: EditorPanelProps) {
     if (!window.confirm(zhCN.editor.deleteConfirm)) return;
     setStatus({ kind: "saving" });
     const result = await removeDocument(
-      group,
-      slug,
+      localKey,
       baseHash ?? undefined,
     );
     if (!result.ok) {

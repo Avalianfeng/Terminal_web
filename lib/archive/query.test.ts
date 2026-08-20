@@ -9,7 +9,7 @@ function doc(
   extra: Partial<ArchiveDocument> = {},
 ): ArchiveDocument {
   return {
-    ref: { group, slug },
+    ref: { zone: "public", group, slug },
     title: slug,
     summary: "",
     body: `body of ${slug}`,
@@ -30,7 +30,13 @@ function snapshot(docs: ArchiveDocument[]): ArchiveSnapshot {
     projects: docs.filter((d) => d.ref.group === "projects"),
     thoughts: docs.filter((d) => d.ref.group === "thoughts"),
     resources: docs.filter((d) => d.ref.group === "resources"),
-    directories: { projects: [], thoughts: [], resources: [] },
+    directories: {
+      projects: [],
+      thoughts: [],
+      resources: [],
+      private: { projects: [], thoughts: [], resources: [] },
+    },
+    privateZoneMounted: false,
     timeline: [],
     generatedAt: "2026-08-20T00:00:00.000Z",
   };

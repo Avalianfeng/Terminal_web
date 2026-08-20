@@ -14,7 +14,8 @@ import {
   payloadFromRaw,
   toItemPayloadWithHash,
 } from "@/lib/archive/read-adapter";
-import { getArchiveSnapshot } from "@/lib/archive/content";
+import { getArchiveSnapshotFor } from "@/lib/archive/content";
+import { resolveApiGrant } from "@/lib/archive/site-auth";
 import {
   requireWriteScope,
   writeAuthFailure,
@@ -173,6 +174,7 @@ export async function GET(request: Request) {
   const source = url.searchParams.get("source");
   const localKey = url.searchParams.get("localKey");
   const kind = url.searchParams.get("kind");
+  const grant = resolveApiGrant(request);
 
   if (kind !== null && !validateKind(kind)) {
     const available = ["document"].join(", ");
@@ -192,7 +194,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const snapshot = await getArchiveSnapshot();
+  const snapshot = await getArchiveSnapshotFor(grant);
 
   // Detail mode: both source and localKey provided
   if (source !== null && localKey !== null) {
@@ -208,6 +210,7 @@ export async function GET(request: Request) {
       return jsonOk(
         await toItemPayloadWithHash(document),
         snapshot.generatedAt,
+        { grant },
       );
     } catch (error) {
       if (error instanceof WriteError && error.code === "not_found") {
@@ -251,7 +254,7 @@ export async function GET(request: Request) {
     ...(tagParams.length > 0 ? { tag: tagParams } : {}),
     ...(fieldsParams.length > 0 ? { fields: fieldsParams } : {}),
   });
-  return jsonOk(result, snapshot.generatedAt);
+  return jsonOk(result, snapshot.generatedAt, { grant });
 }
 
 /** 创建/覆盖文档（upsert）。鉴权 + scope；If-Match 可选并发控制。 */
@@ -302,7 +305,7 @@ export async function PUT(request: Request) {
 
     const raw = await readDocumentRaw(ref);
     revalidatePath("/");
-    const payload = payloadFromRaw(ref.group, ref.slug, raw);
+    const payload = payloadFromRaw(ref, raw);
     return jsonOk(
       { ...payload, created: result.created },
       new Date().toISOString(),
@@ -345,7 +348,7 @@ export async function PATCH(request: Request) {
 
     const raw = await readDocumentRaw(ref);
     revalidatePath("/");
-    const payload = payloadFromRaw(ref.group, ref.slug, raw);
+    const payload = payloadFromRaw(ref, raw);
     return jsonOk(
       { ...payload, created: false },
       new Date().toISOString(),

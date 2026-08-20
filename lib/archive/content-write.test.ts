@@ -45,6 +45,7 @@ describe("content-write multi-segment (ADR 0013)", () => {
 
   it("vfsDirRef validates group and segments", () => {
     assert.deepEqual(vfsDirRef("projects", ["my_web", "log"]), {
+      zone: "public",
       group: "projects",
       segments: ["my_web", "log"],
     });

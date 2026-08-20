@@ -71,3 +71,7 @@ _Avoid_: merging into `public/resources/audio`; treating yaml `localCachedAt` as
 **UiWriteGate**:
 UI write allowed iff SitePrincipal is owner and `ARCHIVE_UI_WRITE` is not `false`. Disables terminal `edit` in help/Tab for visitors and hard-rejects Server Actions. HTTP Bearer write stays enabled when tokens are configured.
 _Avoid_: hiding `edit` from help only while leaving Actions callable; direct `fs` writes outside `content-write.ts`
+
+**ContentVisibility / publish（ADR 0018 + 0019）**:
+Archive body (`.md` / `person.json` / `timeline.md`) is **not** in the public Git remote; playlist curation yaml stays tracked. Zones are structural: `content/<group>/` = public, `content/private/<group>/` = private (not frontmatter). Publish whitelist excludes `private/**` (`selectPublishPaths`). Runtime: capability lattice + `getArchiveSnapshotFor(grant)` (ADR 0019). Member **semantics** locked (read private); member login Planned. Bearer scope is write-only; valid token reads all.
+_Avoid_: treating GitHub as the body CDN; frontmatter `visibility` as authority; `rsync` entire `content/` including private; 403 for unreachable docs

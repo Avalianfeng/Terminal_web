@@ -14,7 +14,7 @@ function doc(
   slug: string,
 ): ArchiveDocument {
   return {
-    ref: { group, slug },
+    ref: { zone: "public", group, slug },
     title: slug,
     summary: "",
     body: "body",
@@ -41,8 +41,10 @@ function snapshot(
       projects: [],
       thoughts: [],
       resources: [],
+      private: { projects: [], thoughts: [], resources: [] },
       ...directories,
     },
+    privateZoneMounted: false,
     timeline: [],
     generatedAt: "2026-08-17T00:00:00.000Z",
   };
@@ -202,6 +204,31 @@ describe("vfs (ADR 0013)", () => {
     const lines = treeLines(root);
     assert.equal(lines[0], "/");
     assert.ok(!lines.some((l) => l === "//"), lines.join("|"));
+  });
+
+  it("mounts empty /private when privateZoneMounted (disk skeleton)", () => {
+    const root = createVfs({
+      ...snapshot([]),
+      privateZoneMounted: true,
+    });
+    const priv = resolveVfsPath(root, "/", "/private");
+    assert.ok(priv);
+    assert.equal(isDirectory(priv!), true);
+    assert.deepEqual(
+      listNode(priv!)
+        .map((n) => n.name)
+        .sort(),
+      ["projects", "resources", "thoughts"],
+    );
+    assert.equal(resolveVfsPath(root, "/", "/private/thoughts")?.type, "dir");
+  });
+
+  it("visitor-cleared mount flag hides /private", () => {
+    const root = createVfs({
+      ...snapshot([]),
+      privateZoneMounted: false,
+    });
+    assert.equal(resolveVfsPath(root, "/", "/private"), null);
   });
 
   it("merges empty dir with doc into dual node (either order)", () => {

@@ -2,6 +2,13 @@ import { readFile, readdir, realpath } from "fs/promises";
 import path from "path";
 import { slugSegments, type ContentGroup } from "./content-format";
 import { parseDocument } from "./parse-document";
+import type { DocumentZone } from "./document-ref";
+import { PRIVATE_ZONE_PREFIX } from "./document-ref";
+import {
+  grantFor,
+  scopeSnapshot,
+  type PrincipalGrant,
+} from "./permission";
 import type {
   ArchiveDocument,
   ArchiveSnapshot,
@@ -11,7 +18,20 @@ import type {
 
 export { allSnapshotDocuments } from "./types";
 
-export const contentRoot = path.join(process.cwd(), "content");
+/** 仓根下 `content/`（按当前 cwd 惰性解析，便于测试 chdir；ADR 0018）。 */
+export function getContentRoot(cwd = process.cwd()): string {
+  return path.join(cwd, "content");
+}
+
+/** Absolute disk root for a zone under content/ (private = content/private). */
+export function contentRootForZone(
+  zone: DocumentZone,
+  cwd = process.cwd(),
+): string {
+  const root = getContentRoot(cwd);
+  return zone === "private" ? path.join(root, PRIVATE_ZONE_PREFIX) : root;
+}
+
 export { parseDocument } from "./parse-document";
 
 /** 扫描深度上限：防 junction 成环无限递归（安全审查 #2）。 */
@@ -73,13 +93,11 @@ export async function readGroupTree(
   return collectGroupTree(groupRoot, groupRootReal);
 }
 
-/**
- * 支持单文件与多段形态（ADR 0013）：
- * `content/<group>/<slug>.md` 或 `content/<group>/<seg1>/<seg2>.md`。
- * 盘上非法文件名（不符合段白名单）容错跳过，不打挂整站快照。
- */
-async function readMarkdownGroup(group: ContentGroup) {
-  const groupRoot = path.join(contentRoot, group);
+async function readMarkdownGroup(
+  group: ContentGroup,
+  zone: DocumentZone,
+): Promise<ArchiveDocument[]> {
+  const groupRoot = path.join(contentRootForZone(zone), group);
   const groupRootReal = await realpath(groupRoot).catch(() => null);
   if (groupRootReal === null) return [];
 
@@ -90,7 +108,7 @@ async function readMarkdownGroup(group: ContentGroup) {
       const slug = relative.replace(/\\/g, "/").replace(/\.md$/, "");
       if (slugSegments(slug) === null) {
         console.warn(
-          `[content] skipping invalid document path: ${group}/${relative}`,
+          `[content] skipping invalid document path: ${zone === "private" ? "private/" : ""}${group}/${relative}`,
         );
         return null;
       }
@@ -99,7 +117,7 @@ async function readMarkdownGroup(group: ContentGroup) {
         "utf8",
       ).catch(() => null);
       if (!markdown) return null;
-      return parseDocument(group, slug, markdown);
+      return parseDocument(group, slug, markdown, zone);
     }),
   );
 
@@ -108,13 +126,23 @@ async function readMarkdownGroup(group: ContentGroup) {
   );
 }
 
-/** 组内真实目录相对路径（含空目录；ADR 0013——VFS 反映盘状态）。 */
-async function readGroupDirectories(group: ContentGroup): Promise<string[]> {
-  const groupRoot = path.join(contentRoot, group);
+async function readGroupDirectories(
+  group: ContentGroup,
+  zone: DocumentZone,
+): Promise<string[]> {
+  const groupRoot = path.join(contentRootForZone(zone), group);
   const groupRootReal = await realpath(groupRoot).catch(() => null);
   if (groupRootReal === null) return [];
   const { dirs } = await collectGroupTree(groupRoot, groupRootReal);
   return dirs;
+}
+
+/** True when `content/private/` exists on disk (empty skeleton still counts). */
+async function privateZoneRootExists(cwd = process.cwd()): Promise<boolean> {
+  const root = await realpath(contentRootForZone("private", cwd)).catch(
+    () => null,
+  );
+  return root !== null;
 }
 
 function parseTimeline(markdown: string): TimelineEntry[] {
@@ -135,39 +163,97 @@ function parseTimeline(markdown: string): TimelineEntry[] {
   });
 }
 
-export async function getArchiveSnapshot(): Promise<ArchiveSnapshot> {
+/** Same group+slug in both zones is allowed (different localKeys); warn only. */
+function concatZoneDocs(
+  publicDocs: ArchiveDocument[],
+  privateDocs: ArchiveDocument[],
+): ArchiveDocument[] {
+  const publicSlugs = new Set(publicDocs.map((doc) => doc.ref.slug));
+  for (const doc of privateDocs) {
+    if (publicSlugs.has(doc.ref.slug)) {
+      console.warn(
+        `[content] same slug in public and private zones: ${doc.ref.group}/${doc.ref.slug}`,
+      );
+    }
+  }
+  return [...publicDocs, ...privateDocs];
+}
+
+/**
+ * Raw disk snapshot with no principal filter.
+ * Prefer {@link getArchiveSnapshotFor} at request / page boundaries.
+ */
+export async function readArchiveSnapshotUnscoped(): Promise<ArchiveSnapshot> {
   const person = JSON.parse(
-    await readFile(path.join(contentRoot, "person.json"), "utf8"),
+    await readFile(path.join(getContentRoot(), "person.json"), "utf8"),
   ) as PersonRecord;
   const [
-    projects,
-    thoughts,
-    resources,
+    publicProjects,
+    publicThoughts,
+    publicResources,
+    privateProjects,
+    privateThoughts,
+    privateResources,
     projectDirs,
     thoughtDirs,
     resourceDirs,
+    privateProjectDirs,
+    privateThoughtDirs,
+    privateResourceDirs,
     timelineMarkdown,
   ] = await Promise.all([
-    readMarkdownGroup("projects"),
-    readMarkdownGroup("thoughts"),
-    readMarkdownGroup("resources"),
-    readGroupDirectories("projects"),
-    readGroupDirectories("thoughts"),
-    readGroupDirectories("resources"),
-    readFile(path.join(contentRoot, "timeline.md"), "utf8").catch(() => ""),
+    readMarkdownGroup("projects", "public"),
+    readMarkdownGroup("thoughts", "public"),
+    readMarkdownGroup("resources", "public"),
+    readMarkdownGroup("projects", "private"),
+    readMarkdownGroup("thoughts", "private"),
+    readMarkdownGroup("resources", "private"),
+    readGroupDirectories("projects", "public"),
+    readGroupDirectories("thoughts", "public"),
+    readGroupDirectories("resources", "public"),
+    readGroupDirectories("projects", "private"),
+    readGroupDirectories("thoughts", "private"),
+    readGroupDirectories("resources", "private"),
+    readFile(path.join(getContentRoot(), "timeline.md"), "utf8").catch(() => ""),
   ]);
 
   return {
     person,
-    projects,
-    thoughts,
-    resources,
+    projects: concatZoneDocs(publicProjects, privateProjects),
+    thoughts: concatZoneDocs(publicThoughts, privateThoughts),
+    resources: concatZoneDocs(publicResources, privateResources),
     directories: {
       projects: projectDirs,
       thoughts: thoughtDirs,
       resources: resourceDirs,
+      private: {
+        projects: privateProjectDirs,
+        thoughts: privateThoughtDirs,
+        resources: privateResourceDirs,
+      },
     },
+    privateZoneMounted: await privateZoneRootExists(),
     timeline: parseTimeline(timelineMarkdown),
     generatedAt: new Date().toISOString(),
   };
+}
+
+/** Snapshot projected for a grant (unreachable zone omitted). */
+export async function getArchiveSnapshotFor(
+  grant: PrincipalGrant,
+): Promise<ArchiveSnapshot> {
+  return scopeSnapshot(await readArchiveSnapshotUnscoped(), grant);
+}
+
+/**
+ * @deprecated Prefer {@link getArchiveSnapshotFor} or {@link readArchiveSnapshotUnscoped}.
+ * Unscoped alias kept for tests that intentionally need the full disk view.
+ */
+export async function getArchiveSnapshot(): Promise<ArchiveSnapshot> {
+  return readArchiveSnapshotUnscoped();
+}
+
+/** Convenience: owner-scoped snapshot (local-dev / owner session default). */
+export async function getOwnerArchiveSnapshot(): Promise<ArchiveSnapshot> {
+  return getArchiveSnapshotFor(grantFor("owner"));
 }

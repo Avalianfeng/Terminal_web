@@ -1,7 +1,25 @@
 # cylf.me 部署短 runbook
 
-> 原则：[`adr/0007`](adr/0007-security-deployment-posture.md)、[`adr/0010`](adr/0010-site-principal.md)。契约细节不复制，只列上线要带的 env 与口令。  
+> 原则：[`adr/0007`](adr/0007-security-deployment-posture.md)、[`adr/0010`](adr/0010-site-principal.md)、[`adr/0018`](adr/0018-content-visibility-and-sync.md)。契约细节不复制，只列上线要带的 env 与口令。  
 > **上机前**：按 [`20-部署前自评清单.md`](20-部署前自评清单.md) 逐阶段勾选（本机模拟 production 必做）。
+
+## 档案正文（不经 Git）
+
+`content/**/*.md`、`person.json`、`timeline.md` **不进公开 Git**（[0018](adr/0018-content-visibility-and-sync.md)）。上机用**自建同步**把本机 **public** 子集推到部署机 `content/`：
+
+```text
+publish 白名单（ADR 0019 不变量）=
+  content/person.json
+  content/timeline.md
+  content/projects/**
+  content/thoughts/**
+  content/resources/**
+# 绝不包含 content/private/**
+```
+
+可测：`lib/archive/publish-paths.ts` → `selectPublishPaths`。读侧过滤见 [0019](adr/0019-capability-zone-permission.md)。歌单策展 `content/music/playlists/*.yaml` 仍随代码仓；曲目与音频仍同步整个 `data/music/`（下节）。
+
+备份以**本机**为准；服务器不做对等完整内容备份义务。
 
 ## 环境变量
 
