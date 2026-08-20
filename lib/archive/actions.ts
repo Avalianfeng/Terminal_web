@@ -17,7 +17,11 @@ import {
   type DocumentZone,
 } from "./document-ref";
 import { revalidatePath } from "next/cache";
-import { requireUiWrite } from "./site-auth";
+import {
+  grantFromSitePrincipal,
+  resolveRequestCapabilities,
+} from "./site-auth";
+import { can, type ArchiveActionId } from "./permission";
 
 export type EditActionResult =
   | { ok: true; raw: string; hash: string }
@@ -89,23 +93,35 @@ function requireDirRefFromLocalKey(localKey: string): VfsDirRef {
   return vfsDirRef(group as ContentGroup, segments, zone);
 }
 
-async function denyIfNoUiWrite(): Promise<EditActionResult | null> {
-  const allowed = await requireUiWrite();
-  if (allowed) return null;
-  return {
-    ok: false,
-    error: "forbidden",
-    message: "需要主人身份才能编辑",
-  };
+async function denyUnlessCan(
+  action: ArchiveActionId,
+  zone: DocumentZone,
+): Promise<EditActionResult | null> {
+  const { principal, capabilities } = await resolveRequestCapabilities();
+  if (!capabilities.uiWrite) {
+    return {
+      ok: false,
+      error: "forbidden",
+      message: "需要主人身份才能编辑",
+    };
+  }
+  if (!can(grantFromSitePrincipal(principal), action, zone)) {
+    return {
+      ok: false,
+      error: "forbidden",
+      message: "需要主人身份才能编辑",
+    };
+  }
+  return null;
 }
 
 export async function getDocumentRaw(
   localKey: string,
 ): Promise<EditActionResult> {
-  const denied = await denyIfNoUiWrite();
+  const ref = requireRefFromLocalKey(localKey);
+  const denied = await denyUnlessCan("read_body", ref.zone);
   if (denied) return denied;
   return toResult(async () => {
-    const ref = requireRefFromLocalKey(localKey);
     const raw = await readDocumentRaw(ref);
     return { ok: true, raw, hash: hashRaw(raw) };
   });
@@ -116,10 +132,10 @@ export async function putDocumentRaw(
   raw: string,
   expectedHash?: string,
 ): Promise<EditActionResult> {
-  const denied = await denyIfNoUiWrite();
+  const ref = requireRefFromLocalKey(localKey);
+  const denied = await denyUnlessCan("replace", ref.zone);
   if (denied) return denied;
   return toResult(async () => {
-    const ref = requireRefFromLocalKey(localKey);
     if (typeof raw !== "string" || raw.length > 1_000_000) {
       throw new WriteError("bad_request", "Body too large or invalid");
     }
@@ -137,10 +153,10 @@ export async function removeDocument(
   localKey: string,
   expectedHash?: string,
 ): Promise<EditActionResult> {
-  const denied = await denyIfNoUiWrite();
+  const ref = requireRefFromLocalKey(localKey);
+  const denied = await denyUnlessCan("delete_doc", ref.zone);
   if (denied) return denied;
   return toResult(async () => {
-    const ref = requireRefFromLocalKey(localKey);
     await deleteDocument(ref, { expectedHash });
     return { ok: true, deleted: true };
   });
@@ -148,10 +164,10 @@ export async function removeDocument(
 
 /** 创建目录（递归；已存在 → dirCreated:false no-op）。owner 闸同 edit。 */
 export async function mkdirDir(localKey: string): Promise<EditActionResult> {
-  const denied = await denyIfNoUiWrite();
+  const ref = requireDirRefFromLocalKey(localKey);
+  const denied = await denyUnlessCan("mkdir", ref.zone);
   if (denied) return denied;
   return toResult(async () => {
-    const ref = requireDirRefFromLocalKey(localKey);
     const result = await createDirectory(ref);
     revalidatePath("/");
     return { ok: true, dirCreated: result.created };
@@ -160,10 +176,10 @@ export async function mkdirDir(localKey: string): Promise<EditActionResult> {
 
 /** 删除空目录；非空 → conflict。owner 闸同 edit。 */
 export async function rmdirDir(localKey: string): Promise<EditActionResult> {
-  const denied = await denyIfNoUiWrite();
+  const ref = requireDirRefFromLocalKey(localKey);
+  const denied = await denyUnlessCan("rmdir", ref.zone);
   if (denied) return denied;
   return toResult(async () => {
-    const ref = requireDirRefFromLocalKey(localKey);
     await removeDirectory(ref);
     revalidatePath("/");
     return { ok: true, dirRemoved: true };

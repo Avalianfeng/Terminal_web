@@ -38,6 +38,9 @@ import {
   capabilitiesFrom,
   type SitePrincipal,
 } from "./site-principal";
+import { can, grantFor, type ArchiveActionId } from "./permission";
+import { writeActionFor } from "./command-intent";
+import type { DocumentZone } from "./document-ref";
 import { RAIL_MAX } from "./reading-state";
 import { formatInputTokens } from "./shell-style";
 import {
@@ -61,6 +64,7 @@ import {
 } from "./vfs";
 import { findNodes, QueryError, searchDocuments } from "./query";
 import {
+  lookupVfsNode,
   resolveCreatableDirectory,
   resolveCreatableDocument,
   resolveExistingDirectory,
@@ -68,6 +72,18 @@ import {
 } from "./target-resolver";
 
 export { splitVfsDirPath } from "./target-resolver";
+
+/** uiWrite 杀开关 + permission.can(action, zone)。 */
+function denyWrite(
+  principal: SitePrincipal,
+  action: ArchiveActionId,
+  zone: DocumentZone,
+): string | null {
+  if (!capabilitiesFrom(principal).uiWrite) return zhCN.auth.needOwner;
+  const grant = grantFor(principal.role === "owner" ? "owner" : "visitor");
+  if (!can(grant, action, zone)) return zhCN.auth.needOwner;
+  return null;
+}
 
 /** 单篇或批量打开；数组时最后一项进 main（见 docs/05）。 */
 type ReadingPayload = ReadingSurface | ReadingSurface[];
@@ -212,8 +228,8 @@ function search(snapshot: ArchiveSnapshot, query: string) {
     ],
   );
 }
-function findPaths(snapshot: ArchiveSnapshot, query: string) {
-  const hits = findNodes(snapshot, query);
+function findPaths(snapshot: ArchiveSnapshot, query: string, cwd: string) {
+  const hits = findNodes(snapshot, query, cwd);
   const target = normalize(query);
 
   if (hits.length === 0) {
@@ -364,25 +380,15 @@ type OpenResolve =
   | { kind: "missing"; token: string; parentDir: boolean }
   | { kind: "unreadable"; token: string };
 
-/** 目标的父目录前缀在 VFS 中是否真实存在（文档缺失但目录在 → 提示未落盘）。 */
-function dirPrefixExists(root: VfsNode, cwd: string, token: string): boolean {
-  const parts = token.split("/").filter(Boolean);
-  parts.pop();
-  if (parts.length === 0) return false;
-  const node = resolveVfsPath(root, cwd, parts.join("/"));
-  return Boolean(node && isDirectory(node));
-}
-
 function resolveOpenToken(
   snapshot: ArchiveSnapshot,
   cwd: string,
   rawToken: string,
 ): OpenResolve {
-  // 容错：尾缀 `.md` 剥掉（真实 shell 习惯）；`~` 由 resolveVfsPath 处理
+  // 容错：尾缀 `.md` 剥掉（真实 shell 习惯）；绝对/~ 经 target-resolver
   const token = rawToken.trim().replace(/\.md$/, "");
   if (!token) return { kind: "missing", token: rawToken, parentDir: false };
 
-  const root = createVfs(snapshot);
   const lower = normalize(token);
 
   if (lower === "person") {
@@ -397,9 +403,9 @@ function resolveOpenToken(
   }
 
   const isGlob = token === "*" || token === ".";
-  const node = isGlob
-    ? resolveVfsPath(root, cwd, ".")
-    : resolveVfsPath(root, cwd, token);
+  const { node, parentDirExists } = isGlob
+    ? lookupVfsNode(cwd, ".", snapshot, { stripMd: false })
+    : lookupVfsNode(cwd, token, snapshot);
 
   if (node) {
     if (node.type === "person") {
@@ -428,7 +434,11 @@ function resolveOpenToken(
     };
   }
 
-  return { kind: "missing", token, parentDir: dirPrefixExists(root, cwd, token) };
+  return {
+    kind: "missing",
+    token,
+    parentDir: parentDirExists,
+  };
 }
 
 const OPEN_SLOT_MAX = RAIL_MAX + 1;
@@ -614,7 +624,7 @@ function handleLinuxCommand(
         handled: true,
       };
     }
-    const node = resolveVfsPath(root, session.cwd, target);
+    const { node } = lookupVfsNode(session.cwd, target, snapshot);
 
     if (!node) {
       return {
@@ -1236,7 +1246,7 @@ export function runCommand(
 
     case "find":
       return {
-        entries: [commandEcho, findPaths(snapshot, rest)],
+        entries: [commandEcho, findPaths(snapshot, rest, nextSession.cwd)],
         session: nextSession,
       };
 
@@ -1247,16 +1257,21 @@ export function runCommand(
       };
 
     case "mkdir": {
-      if (!capabilitiesFrom(principal).uiWrite) {
-        return {
-          entries: [commandEcho, systemError(zhCN.auth.needOwner)],
-          session: nextSession,
-        };
-      }
       const resolved = resolveCreatableDirectory(nextSession.cwd, rest);
       if (!resolved.ok) {
         return {
           entries: [commandEcho, systemError(resolved.hint)],
+          session: nextSession,
+        };
+      }
+      const denied = denyWrite(
+        principal,
+        writeActionFor("mkdir"),
+        resolved.value.ref.zone,
+      );
+      if (denied) {
+        return {
+          entries: [commandEcho, systemError(denied)],
           session: nextSession,
         };
       }
@@ -1268,12 +1283,6 @@ export function runCommand(
     }
 
     case "rmdir": {
-      if (!capabilitiesFrom(principal).uiWrite) {
-        return {
-          entries: [commandEcho, systemError(zhCN.auth.needOwner)],
-          session: nextSession,
-        };
-      }
       const resolved = resolveExistingDirectory(
         nextSession.cwd,
         rest,
@@ -1285,6 +1294,17 @@ export function runCommand(
           session: nextSession,
         };
       }
+      const denied = denyWrite(
+        principal,
+        writeActionFor("rmdir"),
+        resolved.value.ref.zone,
+      );
+      if (denied) {
+        return {
+          entries: [commandEcho, systemError(denied)],
+          session: nextSession,
+        };
+      }
       return {
         entries: [commandEcho],
         session: nextSession,
@@ -1293,12 +1313,6 @@ export function runCommand(
     }
 
     case "rm": {
-      if (!capabilitiesFrom(principal).uiWrite) {
-        return {
-          entries: [commandEcho, systemError(zhCN.auth.needOwner)],
-          session: nextSession,
-        };
-      }
       const resolved = resolveExistingDocument(
         nextSession.cwd,
         rest,
@@ -1310,6 +1324,17 @@ export function runCommand(
           session: nextSession,
         };
       }
+      const denied = denyWrite(
+        principal,
+        writeActionFor("rm"),
+        resolved.value.ref.zone,
+      );
+      if (denied) {
+        return {
+          entries: [commandEcho, systemError(denied)],
+          session: nextSession,
+        };
+      }
       return {
         entries: [commandEcho],
         session: nextSession,
@@ -1318,12 +1343,6 @@ export function runCommand(
     }
 
     case "edit": {
-      if (!capabilitiesFrom(principal).uiWrite) {
-        return {
-          entries: [commandEcho, systemError(zhCN.auth.needOwner)],
-          session: nextSession,
-        };
-      }
       const resolved = resolveCreatableDocument(
         nextSession.cwd,
         rest,
@@ -1336,6 +1355,17 @@ export function runCommand(
         };
       }
       const target = resolved.value;
+      const denied = denyWrite(
+        principal,
+        writeActionFor("edit", { exists: target.exists }),
+        target.ref.zone,
+      );
+      if (denied) {
+        return {
+          entries: [commandEcho, systemError(denied)],
+          session: nextSession,
+        };
+      }
       return {
         entries: [
           commandEcho,

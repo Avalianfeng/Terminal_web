@@ -16,7 +16,7 @@ import {
   WriteError,
 } from "@/lib/archive/content-write";
 import {
-  requireWriteScope,
+  requireWritePermission,
   writeAuthFailure,
   writeErrorResponse,
 } from "@/lib/archive/write-api-auth";
@@ -49,7 +49,7 @@ function scopeTarget(group: string, dirPath: string): string {
   return `${group}/${dirPath.trim()}`;
 }
 
-/** mkdir -p（Bearer + scope）。 */
+/** mkdir -p（Bearer + scope + can）。 */
 export async function PUT(request: Request) {
   const url = new URL(request.url);
   const group = url.searchParams.get("group");
@@ -63,15 +63,24 @@ export async function PUT(request: Request) {
     );
   }
 
+  let ref;
+  try {
+    ref = requireDirParams(group, dirPath);
+  } catch (error) {
+    if (error instanceof WriteError) return writeErrorResponse(error, request);
+    throw error;
+  }
+
   const target = scopeTarget(group, dirPath);
-  const auth = requireWriteScope(
+  const auth = requireWritePermission(
     request.headers.get("authorization"),
     target,
+    "mkdir",
+    ref.zone,
   );
   if (!auth.authorized) return writeAuthFailure(auth.error, request);
 
   try {
-    const ref = requireDirParams(group, dirPath);
     const result = await createDirectory(ref);
     revalidatePath("/");
     return jsonOk(
@@ -93,7 +102,7 @@ export async function PUT(request: Request) {
   }
 }
 
-/** 删除空目录（Bearer + scope）。 */
+/** 删除空目录（Bearer + scope + can）。 */
 export async function DELETE(request: Request) {
   const url = new URL(request.url);
   const group = url.searchParams.get("group");
@@ -107,15 +116,24 @@ export async function DELETE(request: Request) {
     );
   }
 
+  let ref;
+  try {
+    ref = requireDirParams(group, dirPath);
+  } catch (error) {
+    if (error instanceof WriteError) return writeErrorResponse(error, request);
+    throw error;
+  }
+
   const target = scopeTarget(group, dirPath);
-  const auth = requireWriteScope(
+  const auth = requireWritePermission(
     request.headers.get("authorization"),
     target,
+    "rmdir",
+    ref.zone,
   );
   if (!auth.authorized) return writeAuthFailure(auth.error, request);
 
   try {
-    const ref = requireDirParams(group, dirPath);
     await removeDirectory(ref);
     revalidatePath("/");
     return jsonOk(

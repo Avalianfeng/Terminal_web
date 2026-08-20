@@ -4,6 +4,8 @@
 import { jsonError } from "./api-http";
 import { validateToken } from "./token";
 import type { WriteError } from "./content-write";
+import { can, grantFor, type ArchiveActionId } from "./permission";
+import type { DocumentZone } from "./document-ref";
 
 export function requireWriteScope(
   authorization: string | null,
@@ -20,6 +22,26 @@ export function requireWriteScope(
       authorized: false,
       error: result.scope !== undefined ? "forbidden" : "unauthorized",
     };
+  }
+  return { authorized: true };
+}
+
+/**
+ * Bearer scope + permission.can(action, zone)（ADR 0019/0020 硬接）。
+ * 当前有效 token → owner-agent（write:true）；can 为未来窄 grant 留 choke point。
+ */
+export function requireWritePermission(
+  authorization: string | null,
+  target: string,
+  action: ArchiveActionId,
+  zone: DocumentZone,
+):
+  | { authorized: true }
+  | { authorized: false; error: "unauthorized" | "forbidden" } {
+  const scope = requireWriteScope(authorization, target);
+  if (!scope.authorized) return scope;
+  if (!can(grantFor("owner-agent"), action, zone)) {
+    return { authorized: false, error: "forbidden" };
   }
   return { authorized: true };
 }

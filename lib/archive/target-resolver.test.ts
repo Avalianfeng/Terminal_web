@@ -4,6 +4,8 @@ import { documentRef } from "./document-ref.ts";
 import type { ArchiveDocument, ArchiveSnapshot } from "./types.ts";
 import {
   classifyPath,
+  lookupVfsNode,
+  normalizeFindNeedle,
   resolveAbsoluteVfsPath,
   resolveCreatableDirectory,
   resolveCreatableDocument,
@@ -195,5 +197,31 @@ describe("resolveExistingDocument / splitVfsDirPath", () => {
       group: "thoughts",
       segments: ["a", "b"],
     });
+  });
+});
+
+describe("lookupVfsNode / normalizeFindNeedle", () => {
+  const snap = snapshot([
+    doc("thoughts", "secret", "private"),
+    doc("projects", "flat"),
+  ]);
+
+  it("from /resources, ~/private/thoughts/secret finds private node", () => {
+    const { abs, node } = lookupVfsNode(
+      "/resources",
+      "~/private/thoughts/secret",
+      snap,
+    );
+    assert.equal(abs, "/private/thoughts/secret");
+    assert.ok(node);
+    assert.equal(node!.refSlug, "secret");
+  });
+
+  it("normalizeFindNeedle absoluteizes path-like queries", () => {
+    assert.equal(
+      normalizeFindNeedle("/resources", "~/private"),
+      "/private",
+    );
+    assert.equal(normalizeFindNeedle("/", "flat"), "flat");
   });
 });

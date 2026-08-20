@@ -336,3 +336,53 @@ export function resolveExistingDirectory(
   }
   return resolveCreatableDirectory(cwd, target);
 }
+
+/**
+ * open / cat / ls 共用：绝对化后再查 VFS（不拼 cwd 到 ~/ 或 /…）。
+ * `stripMd`：剥 `.md` 尾缀（shell 习惯）。
+ */
+export function lookupVfsNode(
+  cwd: string,
+  raw: string,
+  snapshot: ArchiveSnapshot,
+  options?: { stripMd?: boolean },
+): {
+  abs: string;
+  node: VfsNode | null;
+  parentDirExists: boolean;
+} {
+  let token = raw.trim();
+  if (options?.stripMd !== false) {
+    token = token.replace(/\.md$/, "");
+  }
+  const abs = resolveAbsoluteVfsPath(cwd, token || ".");
+  const root = createVfs(snapshot);
+  const node = resolveVfsPath(root, "/", abs);
+  if (node) {
+    return { abs, node, parentDirExists: false };
+  }
+  const parts = abs.split("/").filter(Boolean);
+  parts.pop();
+  if (parts.length === 0) {
+    return { abs, node: null, parentDirExists: false };
+  }
+  const parent = resolveVfsPath(root, "/", `/${parts.join("/")}`);
+  return {
+    abs,
+    node: null,
+    parentDirExists: Boolean(parent && isDirectory(parent)),
+  };
+}
+
+/** find 查询若呈路径形（`/` / `~` / 含 `/`），先绝对化再作子串针。 */
+export function normalizeFindNeedle(cwd: string, query: string): string {
+  const trimmed = query.trim();
+  if (!trimmed) return "";
+  const pathLike =
+    trimmed === "~" ||
+    trimmed.startsWith("/") ||
+    trimmed.startsWith("~") ||
+    trimmed.includes("/");
+  if (!pathLike) return trimmed.toLowerCase();
+  return resolveAbsoluteVfsPath(cwd, trimmed).toLowerCase();
+}

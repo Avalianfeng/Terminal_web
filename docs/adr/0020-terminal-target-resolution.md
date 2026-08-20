@@ -16,7 +16,7 @@
 1. **四层**：Command（registry）→ Target Resolution（本 ADR）→ VFS / DocumentRef → Action / Permission。
 2. **`target-resolver.ts` 为写路径权威**：绝对 / 相对 / `~` 先分流成绝对 VFS path，再 `classify` / `resolveCreatable*` / `resolveExisting*`。命令 handler **不**认识 zone。
 3. **写边界**（creatable / existing document|directory）：仅 `/{group}/…` 或 `/private/{group}/…`（组下至少一段）。`/`、`/private`、组根、`person`/`timeline` 不可作为写目标；报错按节点种类区分。
-4. **本刀迁移**：`edit` / `mkdir` / `rmdir` / 新 `rm`。`open` / `cat` / `find` 后迁；`permission.can()` 硬接后置。
+4. **渐进迁移**：刀1 `edit`/`mkdir`/`rmdir`/`rm`；刀2 `open`/`cat`/`find`（`lookupVfsNode` / `normalizeFindNeedle`）；刀3 CommandIntent + `permission.can()` 硬接写入口（终端 / Server Actions / HTTP）。
 5. **0002 职责不变**：注册表只管 name / alias / help / owner / argComplete。
 
 ## Consequences

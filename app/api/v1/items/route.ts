@@ -17,7 +17,7 @@ import {
 import { getArchiveSnapshotFor } from "@/lib/archive/content";
 import { resolveApiGrant } from "@/lib/archive/site-auth";
 import {
-  requireWriteScope,
+  requireWritePermission,
   writeAuthFailure,
   writeErrorResponse,
 } from "@/lib/archive/write-api-auth";
@@ -32,6 +32,7 @@ import {
 import {
   DocumentRefError,
   fromLocalKey,
+  tryFromLocalKey,
   type DocumentRef,
 } from "@/lib/archive/document-ref";
 import { revalidatePath } from "next/cache";
@@ -271,9 +272,19 @@ export async function PUT(request: Request) {
     );
   }
 
-  const auth = requireWriteScope(
+  const refForAuth = tryFromLocalKey(localKey);
+  if (!refForAuth) {
+    return jsonError(
+      "bad_request",
+      `Invalid localKey: ${localKey}`,
+      400,
+    );
+  }
+  const auth = requireWritePermission(
     request.headers.get("authorization"),
     localKey,
+    "replace",
+    refForAuth.zone,
   );
   if (!auth.authorized) return writeAuthFailure(auth.error, request);
 
@@ -331,9 +342,19 @@ export async function PATCH(request: Request) {
     );
   }
 
-  const auth = requireWriteScope(
+  const refForAuth = tryFromLocalKey(localKey);
+  if (!refForAuth) {
+    return jsonError(
+      "bad_request",
+      `Invalid localKey: ${localKey}`,
+      400,
+    );
+  }
+  const auth = requireWritePermission(
     request.headers.get("authorization"),
     localKey,
+    "patch",
+    refForAuth.zone,
   );
   if (!auth.authorized) return writeAuthFailure(auth.error, request);
 
@@ -374,9 +395,19 @@ export async function DELETE(request: Request) {
     );
   }
 
-  const auth = requireWriteScope(
+  const refForAuth = tryFromLocalKey(localKey);
+  if (!refForAuth) {
+    return jsonError(
+      "bad_request",
+      `Invalid localKey: ${localKey}`,
+      400,
+    );
+  }
+  const auth = requireWritePermission(
     request.headers.get("authorization"),
     localKey,
+    "delete_doc",
+    refForAuth.zone,
   );
   if (!auth.authorized) return writeAuthFailure(auth.error, request);
 

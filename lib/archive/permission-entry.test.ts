@@ -18,7 +18,7 @@ import {
   readDocumentRaw,
 } from "./content-write.ts";
 import { hashToken } from "./token.ts";
-import { requireWriteScope } from "./write-api-auth.ts";
+import { requireWritePermission, requireWriteScope } from "./write-api-auth.ts";
 
 const SECRET_KEY = "private/thoughts/secret";
 const SECRET_BODY_MARKER = "private-only-body-xyz";
@@ -171,6 +171,26 @@ describe("permission entry — write layers (can WRITE vs Bearer scope)", () => 
       const payload = payloadFromRaw(ref, raw);
       assert.equal(payload.localKey, "private/thoughts/agent-note");
       assert.ok(payload.body.includes("written by owner-agent"));
+    });
+  });
+
+  it("requireWritePermission also runs can(owner-agent, action, zone)", () => {
+    const token = "entry-test-token-star-scope-abcdefghijklmn";
+    withTokenEnv({ [hashToken(token)]: "*" }, () => {
+      const ok = requireWritePermission(
+        `Bearer ${token}`,
+        "private/thoughts/x",
+        "replace",
+        "private",
+      );
+      assert.equal(ok.authorized, true);
+      const noToken = requireWritePermission(
+        null,
+        "thoughts/x",
+        "replace",
+        "public",
+      );
+      assert.equal(noToken.authorized, false);
     });
   });
 });

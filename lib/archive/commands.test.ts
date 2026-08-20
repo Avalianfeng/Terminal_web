@@ -462,4 +462,43 @@ describe("commands path ergonomics (~ / .md / tree root)", () => {
     });
     assert.equal(result.edit!.exists, false);
   });
+
+  it("open/cat from /resources follow ~/private absolute (not nested under resources)", () => {
+    const withPrivate = snapshot([
+      doc("projects", "flat"),
+      {
+        ref: { zone: "private", group: "thoughts", slug: "secret" },
+        title: "secret",
+        summary: "",
+        body: "private body",
+        tags: [],
+      },
+    ]);
+    withPrivate.privateZoneMounted = true;
+    const nested = { cwd: "/resources", commandHistory: [] };
+    const opened = runCommand(
+      withPrivate,
+      "open ~/private/thoughts/secret",
+      nested,
+    );
+    assert.ok(opened.reading);
+    const surfaces = Array.isArray(opened.reading)
+      ? opened.reading
+      : [opened.reading];
+    assert.equal(
+      surfaces[0]!.kind === "document"
+        ? surfaces[0]!.document.ref.zone
+        : "",
+      "private",
+    );
+    const catted = runCommand(
+      withPrivate,
+      "cat ~/private/thoughts/secret",
+      nested,
+    );
+    assert.ok(catted.pager);
+    assert.ok(
+      catted.pager!.logicalLines.join("\n").includes("private body"),
+    );
+  });
 });

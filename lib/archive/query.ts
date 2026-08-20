@@ -5,6 +5,7 @@ import { toLocalKey, tryFromVfsPath } from "./document-ref";
 import type { ArchiveDocument, ArchiveSnapshot } from "./types";
 import { allSnapshotDocuments } from "./types";
 import { createVfs, isDirectory, type VfsNode } from "./vfs";
+import { normalizeFindNeedle } from "./target-resolver";
 
 export class QueryError extends Error {
   readonly code: "bad_request";
@@ -88,10 +89,11 @@ function toFindNode(node: VfsNode): FindNodeResult {
 export function findNodes(
   snapshot: ArchiveSnapshot,
   query: string,
+  cwd = "/",
 ): FindNodeResult[] {
   const root = createVfs(snapshot);
   const nodes = collectOpenableNodes(root);
-  const target = normalizeQuery(query);
+  const target = normalizeFindNeedle(cwd, query);
 
   const hits = target
     ? nodes.filter((node) => {
