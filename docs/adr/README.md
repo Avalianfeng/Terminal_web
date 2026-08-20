@@ -20,7 +20,7 @@
 | [0004](0004-reading-session.md) | 阅读会话 leave/demote 状态机 | Accepted | `74c317e` |
 | [0005](0005-unified-write-entry.md) | 统一写入口 + expectedHash | Accepted | `d678064` |
 | [0006](0006-post-write-reading-refresh.md) | 写后阅读面即时刷新 | Accepted | `3d88447` |
-| [0007](0007-security-deployment-posture.md) | 安全与部署姿态（写面分轨） | Accepted | （文档刀；上线闸门代码未落地） |
+| [0007](0007-security-deployment-posture.md) | 安全与部署姿态（写面分轨） | Accepted | 文档刀；闸门代码随 [0010](0010-site-principal.md) 落地；实例部署见 [`13`](../13-cylf.me-部署.md) |
 | [0008](0008-resources-content-group.md) | resources 组与外部收藏呈现 | Accepted | （resources MVP） |
 | [0009](0009-music-layer-netease-bff.md) | 音乐层（网易云 BFF + 歌单 + BGM） | Accepted | 热队列已收口；冷库管理页否决；BFF 闸见 0010 |
 | [0010](0010-site-principal.md) | 站点主语 SitePrincipal（visitor / owner） | Accepted | 口令 session + UI 写 / 音乐 BFF |
