@@ -46,6 +46,8 @@ npm run smoke:write-api
 
 可选：`ARCHIVE_API_BASE` 或 `--base` 指向非默认主机。
 
+**站外真写实验**（docs/19 §4.8）：`ARCHIVE_WRITE_TOKEN=<token> node scripts/agent-write-thought.mjs` — 从仓内 markdown 源 PUT `thoughts/digital-archive-entry`（非 `_smoke_*`）；判据见 docs/19 §4.8。
+
 ## 与终端 edit 的关系
 
 本包只护 **HTTP 写契约**。终端 `edit` / 面板回归见 `09` §1.2（手测清单，未含在本脚本内）。
