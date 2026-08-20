@@ -1,0 +1,152 @@
+/* —— 编辑器：全屏深色，与终端壳同变量体系 —— */
+.editor-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  background: var(--terminal-bg);
+  color: rgb(var(--tone-normal));
+  color-scheme: dark;
+  font-family:
+    var(--font-mono),
+    "JetBrains Mono",
+    "IBM Plex Mono",
+    "SFMono-Regular",
+    Consolas,
+    monospace;
+}
+
+.editor-panel__bar {
+  display: flex;
+  flex-shrink: 0;
+  min-height: 3.25rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--terminal-border);
+  padding: 0 1rem;
+  background: rgb(255 255 255 / 0.02);
+}
+
+.editor-panel__path {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.85rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgb(var(--tone-command));
+}
+
+.editor-panel__status {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  color: rgb(var(--tone-muted));
+}
+
+.editor-panel__status[data-status="saved"],
+.editor-panel__status[data-status="deleted"] {
+  color: rgb(var(--tone-success));
+}
+
+.editor-panel__status[data-status="error"] {
+  color: rgb(var(--tone-error));
+}
+
+.editor-panel__actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.editor-panel__btn {
+  border: 1px solid var(--terminal-border);
+  border-radius: 3px;
+  background: transparent;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  color: rgb(var(--tone-normal));
+  cursor: pointer;
+  transition:
+    border-color 200ms ease,
+    color 200ms ease,
+    background 200ms ease;
+}
+
+.editor-panel__btn:hover:not(:disabled) {
+  border-color: rgb(255 255 255 / 0.28);
+  color: #fff;
+  background: rgb(255 255 255 / 0.04);
+}
+
+.editor-panel__btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.editor-panel__btn--primary {
+  border-color: rgb(148 204 168 / 0.35);
+  color: rgb(var(--tone-success));
+}
+
+.editor-panel__btn--primary:hover:not(:disabled) {
+  border-color: rgb(148 204 168 / 0.6);
+  color: #fff;
+  background: rgb(148 204 168 / 0.1);
+}
+
+.editor-panel__input {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 1rem 1.25rem;
+  outline: none;
+  resize: none;
+  font-family: inherit;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: rgb(var(--tone-normal));
+  tab-size: 2;
+  white-space: pre;
+  overflow-wrap: normal;
+}
+
+.editor-panel__input::selection {
+  background: var(--terminal-selection-bg);
+  color: #fff;
+}
+
+.editor-panel__input::placeholder {
+  color: rgb(var(--tone-muted));
+}
+
+.editor-panel__hint {
+  flex-shrink: 0;
+  border-top: 1px solid var(--terminal-border);
+  padding: 0.45rem 1rem;
+  font-size: 0.72rem;
+  color: rgb(var(--tone-muted));
+}
+
+.editor-panel__error {
+  flex-shrink: 0;
+  border-top: 1px solid rgb(232 148 148 / 0.35);
+  background: rgb(232 148 148 / 0.08);
+  padding: 0.45rem 1rem;
+  font-size: 0.75rem;
+  color: rgb(var(--tone-error));
+}
+
+.editor-panel__loading {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  color: rgb(var(--tone-muted));
+}
+

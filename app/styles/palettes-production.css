@@ -1,0 +1,42 @@
+/* —— 默认：冷灰阅读室 cool-atelier（生产主调）—— */
+:root,
+[data-palette="cool-atelier"] {
+  color-scheme: light;
+  --workspace-bg: #e2e7ec;
+  --workspace-bg-deep: #d2d9e1;
+  --workspace-gradient-top: #eef1f5;
+  --workspace-grid-opacity: 0.024;
+  --workspace-text: #1a1f24;
+  --workspace-selection-bg: rgb(45 75 105 / 0.16);
+
+  --archive-black: #0a0c10;
+  --archive-ink: #12161c;
+  --archive-paper: #f3f5f8;
+  --archive-paper-ink: #14181e;
+  --archive-paper-chrome: rgb(255 255 255 / 0.52);
+  --archive-line: rgb(18 22 28 / 0.1);
+  --archive-muted: #64748b;
+  --archive-accent: #4a7a9b;
+
+  --reading-border: rgb(12 18 28 / 0.11);
+  --reading-shadow: 0 1px 0 rgb(255 255 255 / 0.72) inset,
+    0 20px 52px rgb(30 45 65 / 0.14);
+
+  --terminal-bg: rgb(10 12 16 / 0.95);
+  --terminal-border: rgb(255 255 255 / 0.09);
+  --terminal-shadow: 0 1px 0 rgb(255 255 255 / 0.05) inset,
+    0 28px 80px rgb(20 30 45 / 0.26);
+  --terminal-selection-bg: rgb(120 165 200 / 0.26);
+
+  --tone-normal: 219 227 235;
+  --tone-prompt: 146 173 199;
+  /* 档案墨水感：压低默认 PS1 荧光绿饱和度 */
+  --tone-user: 118 188 148;
+  --tone-host: 118 188 148;
+  --tone-command: 232 186 92;
+  --tone-hint: 150 166 181;
+  --tone-error: 232 148 148;
+  --tone-success: 148 204 168;
+  --tone-path: 132 186 232;
+  --tone-muted: 120 131 144;
+}

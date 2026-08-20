@@ -1,0 +1,412 @@
+/* —— A. 工作区 —— */
+.archive-workspace {
+  position: relative;
+  min-height: 100dvh;
+  padding-top: max(clamp(0.85rem, 2.8vw, 1.75rem), env(safe-area-inset-top, 0px));
+  padding-right: max(clamp(0.85rem, 2.8vw, 1.75rem), env(safe-area-inset-right, 0px));
+  padding-bottom: max(clamp(1rem, 3vw, 2rem), env(safe-area-inset-bottom, 0px));
+  padding-left: max(clamp(0.85rem, 2.8vw, 1.75rem), env(safe-area-inset-left, 0px));
+}
+
+/* fullscreen：终端壳 fixed 铺满视口；open 阅读时由 JS 退出全屏，回到 Dual Phase */
+.archive-workspace.is-terminal-fullscreen {
+  padding: 0;
+}
+
+.archive-workspace.is-terminal-fullscreen .archive-workspace__stage {
+  max-width: none;
+  gap: 0;
+}
+
+.archive-workspace__stage {
+  margin: 0 auto;
+  display: flex;
+  max-width: 1120px;
+  flex-direction: column;
+  gap: 1.15rem;
+
+  @media (min-width: 960px) {
+    gap: 1.5rem;
+    max-width: 1280px;
+  }
+}
+
+
+/* —— Theme lab —— */
+.palette-lab {
+  min-height: 100dvh;
+  background: var(--workspace-bg);
+  color: var(--workspace-text);
+  padding: 2rem 1rem 3.5rem;
+
+  @media (min-width: 768px) {
+    padding: 2.5rem 2rem 4rem;
+  }
+}
+
+.palette-lab__stage {
+  margin: 0 auto;
+  max-width: 1120px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.palette-lab__back {
+  width: fit-content;
+  border: 1px solid var(--reading-border);
+  border-radius: 3px;
+  background: var(--archive-paper-chrome);
+  padding: 0.45rem 0.9rem;
+  font-size: 0.875rem;
+  color: var(--archive-paper-ink);
+  text-decoration: none;
+  transition:
+    border-color 200ms ease,
+    background 200ms ease,
+    transform 160ms ease;
+}
+
+.palette-lab__back:hover {
+  border-color: var(--archive-line);
+  background: var(--archive-paper);
+}
+
+.palette-lab__back:active {
+  transform: translateY(1px);
+}
+
+.palette-lab__intro {
+  max-width: 42rem;
+}
+
+.palette-lab__eyebrow {
+  margin: 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  color: var(--archive-muted);
+  font-family:
+    var(--font-mono),
+    "JetBrains Mono",
+    Consolas,
+    monospace;
+}
+
+.palette-lab__title {
+  margin: 0.65rem 0 0;
+  font-size: clamp(1.85rem, 4vw, 2.65rem);
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.palette-lab__lead,
+.palette-lab__meta {
+  margin: 1rem 0 0;
+  max-width: 62ch;
+  line-height: 1.65;
+  color: color-mix(in srgb, var(--workspace-text) 72%, transparent);
+}
+
+.palette-lab__meta {
+  margin-top: 0.65rem;
+  font-size: 0.9rem;
+}
+
+.palette-lab__code {
+  font-family:
+    var(--font-mono),
+    "JetBrains Mono",
+    Consolas,
+    monospace;
+  font-size: 0.9em;
+}
+
+.palette-lab__controls {
+  display: grid;
+  gap: 1rem;
+
+  @media (min-width: 720px) {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.palette-lab__control {
+  border: 1px solid var(--reading-border);
+  border-radius: 4px;
+  background: var(--archive-paper);
+  padding: 1rem 1.1rem;
+  box-shadow: var(--reading-shadow);
+}
+
+.palette-lab__control-title,
+.palette-lab__section-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.palette-lab__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+
+.palette-lab__chip {
+  border: 1px solid var(--reading-border);
+  border-radius: 3px;
+  background: var(--archive-paper-chrome);
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+  color: var(--archive-paper-ink);
+  cursor: pointer;
+  transition:
+    border-color 200ms ease,
+    background 200ms ease,
+    transform 160ms ease;
+}
+
+.palette-lab__chip:hover {
+  border-color: var(--archive-line);
+}
+
+.palette-lab__chip:active {
+  transform: translateY(1px);
+}
+
+.palette-lab__chip.is-active {
+  border-color: var(--archive-accent);
+  background: color-mix(in srgb, var(--archive-accent) 12%, var(--archive-paper));
+}
+
+.palette-lab__tones {
+  border: 1px solid var(--reading-border);
+  border-radius: 4px;
+  background: var(--archive-paper);
+  padding: 1.1rem 1.2rem 1.25rem;
+  box-shadow: var(--reading-shadow);
+  max-width: 48rem;
+}
+
+.palette-lab__section-note {
+  margin: 0.45rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--archive-muted);
+}
+
+.palette-lab__tone-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin: 0.9rem 0 0;
+  padding: 0;
+  list-style: none;
+
+  @media (min-width: 640px) {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+.palette-lab__tone {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 3px;
+  background: var(--archive-black);
+  padding: 0.45rem 0.55rem;
+}
+
+.palette-lab__tone-swatch {
+  width: 0.7rem;
+  height: 0.7rem;
+  flex-shrink: 0;
+  border-radius: 2px;
+  border: 1px solid rgb(255 255 255 / 0.16);
+}
+
+.palette-lab__tone-label {
+  font-family:
+    var(--font-mono),
+    "JetBrains Mono",
+    Consolas,
+    monospace;
+  font-size: 11px;
+  color: rgb(var(--tone-muted));
+}
+
+.palette-lab__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.palette-lab__card {
+  overflow: hidden;
+  border: 1px solid var(--reading-border);
+  border-radius: 4px;
+  background: var(--archive-paper);
+  box-shadow: var(--reading-shadow);
+  transition: border-color 200ms ease;
+}
+
+.palette-lab__card.is-active {
+  border-color: var(--archive-accent);
+}
+
+.palette-lab__card-hit {
+  display: grid;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+
+  @media (min-width: 720px) {
+    grid-template-columns: 11rem 1fr;
+  }
+}
+
+.palette-lab__card-swatch {
+  min-height: 5.5rem;
+}
+
+.palette-lab__card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 1rem 1.15rem 1.15rem;
+}
+
+.palette-lab__card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.palette-lab__card-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.palette-lab__badge {
+  border: 1px solid var(--archive-line);
+  border-radius: 2px;
+  padding: 0.1rem 0.4rem;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--archive-muted);
+  font-family:
+    var(--font-mono),
+    "JetBrains Mono",
+    Consolas,
+    monospace;
+}
+
+.palette-lab__card-sub,
+.palette-lab__card-desc {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--archive-muted);
+}
+
+.palette-lab__card-desc {
+  color: color-mix(in srgb, var(--archive-paper-ink) 72%, transparent);
+}
+
+.palette-lab__token-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin: 0.55rem 0 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--archive-line);
+}
+
+.palette-lab__token-row dt {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--archive-muted);
+  font-family:
+    var(--font-mono),
+    "JetBrains Mono",
+    Consolas,
+    monospace;
+}
+
+.palette-lab__token-row dd {
+  margin: 0.25rem 0 0;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family:
+    var(--font-mono),
+    "JetBrains Mono",
+    Consolas,
+    monospace;
+  font-size: 10px;
+  color: color-mix(in srgb, var(--archive-paper-ink) 70%, transparent);
+}
+
+.palette-lab__token-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 2px;
+  border: 1px solid var(--archive-line);
+  flex-shrink: 0;
+}
+
+.palette-lab__paper {
+  overflow: hidden;
+  border: 1px solid var(--reading-border);
+  border-radius: 3px;
+  background: var(--archive-paper);
+  color: var(--archive-paper-ink);
+  box-shadow: var(--reading-shadow);
+}
+
+.palette-lab__paper-chrome {
+  border-bottom: 1px solid var(--archive-line);
+  background: var(--archive-paper-chrome);
+  padding: 1rem 1.15rem;
+}
+
+.palette-lab__paper-title {
+  margin: 0.4rem 0 0;
+  font-size: var(--type-title, 1.5rem);
+  font-weight: 650;
+  letter-spacing: -0.03em;
+}
+
+.palette-lab__paper-path {
+  margin: 0.35rem 0 0;
+  font-size: 12px;
+  color: var(--archive-muted);
+  font-family:
+    var(--font-mono),
+    "JetBrains Mono",
+    Consolas,
+    monospace;
+}
+
+.palette-lab__paper-body {
+  padding: clamp(1.1rem, 3vw, 1.75rem);
+}
+
+.palette-lab__paper-summary {
+  margin: 0 0 1.35rem;
+  max-width: 66ch;
+  font-size: var(--type-summary, 1.05rem);
+  line-height: 1.65;
+  color: color-mix(in srgb, var(--archive-paper-ink) 78%, transparent);
+}
+

@@ -1,0 +1,411 @@
+/* —— B. 终端壳 —— */
+.terminal-mount {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.terminal-shell {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  /* 窄屏压低占高，给下方纸面留入口；桌面仍可较高 */
+  height: min(58dvh, 640px);
+  min-height: min(320px, 48dvh);
+  flex-direction: column;
+  scroll-margin-block: 1.25rem;
+  overflow: hidden;
+  border: 1px solid var(--terminal-border);
+  border-radius: 5px;
+  background: var(--terminal-bg);
+  color: rgb(var(--tone-normal));
+  box-shadow: var(--terminal-shadow);
+  color-scheme: dark;
+  font-family:
+    var(--font-mono),
+    "JetBrains Mono",
+    "IBM Plex Mono",
+    "SFMono-Regular",
+    Consolas,
+    monospace;
+
+  @media (min-width: 960px) {
+    height: min(72dvh, 720px);
+    min-height: min(480px, 58dvh);
+  }
+}
+
+/* 播放器挂在终端下：同宽贴靠，保留分界与各自描边（非共框一体） */
+.terminal-mount:has(.bgm-player) {
+  gap: 0;
+}
+
+.terminal-mount:has(.bgm-player) .terminal-shell {
+  border-bottom-left-radius: 3px;
+  border-bottom-right-radius: 3px;
+}
+
+.terminal-mount:has(.bgm-player) .bgm-player {
+  margin-top: 0.35rem;
+}
+
+.terminal-shell__chrome {
+  display: flex;
+  height: 3.5rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--terminal-border);
+  padding: 0 1rem;
+
+  @media (min-width: 768px) {
+    padding: 0 1.25rem;
+  }
+}
+
+.terminal-shell__brand {
+  min-width: 0;
+}
+
+.terminal-shell__title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: rgb(var(--tone-normal));
+  font-family:
+    var(--font-paper-latin),
+    var(--font-paper-cjk),
+    Georgia,
+    serif;
+}
+
+.terminal-shell__subtitle {
+  margin: 0.15rem 0 0;
+  font-size: 0.72rem;
+  color: rgb(var(--tone-muted));
+  letter-spacing: 0.02em;
+}
+
+.terminal-shell__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.terminal-shell__btn {
+  border: 1px solid var(--terminal-border);
+  border-radius: 3px;
+  background: transparent;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  color: rgb(var(--tone-normal));
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    border-color 200ms ease,
+    color 200ms ease,
+    background 200ms ease,
+    transform 160ms ease;
+}
+
+.terminal-shell__btn:hover {
+  border-color: rgb(255 255 255 / 0.28);
+  color: #fff;
+  background: rgb(255 255 255 / 0.04);
+}
+
+.terminal-shell__btn:active {
+  transform: translateY(1px);
+}
+
+.terminal-shell__btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--archive-accent) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.terminal-shell__btn[aria-pressed="true"] {
+  border-color: rgb(255 255 255 / 0.32);
+  color: #fff;
+  background: rgb(255 255 255 / 0.06);
+}
+
+.terminal-shell__body {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.terminal-shell__complete {
+  flex-shrink: 0;
+  margin: 0;
+  border-top: 1px solid var(--terminal-border);
+  padding: 0.5rem 1rem;
+  font-size: 0.75rem;
+  color: rgb(var(--tone-muted));
+
+  @media (min-width: 768px) {
+    padding: 0.5rem 1.25rem;
+  }
+}
+
+.terminal-shell__complete-label,
+.terminal-shell__complete-hint {
+  color: rgb(var(--tone-hint));
+}
+
+.terminal-shell__complete-hint {
+  margin-left: 0.5rem;
+}
+
+.archive-workspace.is-terminal-fullscreen .terminal-mount {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  width: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  border-radius: 0;
+  box-shadow: none;
+  gap: 0;
+}
+
+.archive-workspace.is-terminal-fullscreen .terminal-shell {
+  position: relative;
+  inset: auto;
+  z-index: auto;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  flex: 1 1 auto;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  padding-bottom: 0;
+  padding-left: env(safe-area-inset-left, 0px);
+}
+
+.archive-workspace.is-terminal-fullscreen .terminal-mount:has(.bgm-player) .terminal-shell {
+  border-radius: 0;
+}
+
+.archive-workspace.is-terminal-fullscreen .bgm-player {
+  flex: 0 0 auto;
+  margin-top: 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+}
+
+.archive-workspace.is-terminal-fullscreen .bgm-player__frame {
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
+}
+
+.terminal-shell ::selection {
+  background: var(--terminal-selection-bg);
+  color: #fff;
+}
+
+/* xterm：外框留白，内层宿主供 FitAddon 精确测量 */
+.archive-xterm-frame {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  padding: 0.75rem 0.85rem;
+  overflow: hidden;
+  cursor: text;
+}
+
+.archive-xterm {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.archive-xterm .xterm,
+.archive-xterm .xterm-viewport,
+.archive-xterm .xterm-screen {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.archive-xterm .xterm-viewport {
+  overflow-y: auto !important;
+}
+
+.terminal-entry {
+  animation: archive-output-in var(--output-fade-ms, 420ms) cubic-bezier(0.16, 1, 0.3, 1)
+    both;
+}
+
+.terminal-cursor {
+  width: 0.58rem;
+  height: 1.15rem;
+  background: var(--archive-accent);
+  opacity: 0.72;
+  animation: archive-cursor var(--cursor-blink-ms, 1.12s) steps(2, start) infinite;
+}
+
+.terminal-tone-normal {
+  color: rgb(var(--tone-normal));
+}
+
+.terminal-tone-prompt {
+  color: rgb(var(--tone-prompt));
+}
+
+.terminal-tone-user {
+  color: rgb(var(--tone-user));
+}
+
+.terminal-tone-host {
+  color: rgb(var(--tone-host));
+}
+
+.terminal-tone-command {
+  color: rgb(var(--tone-command));
+}
+
+.terminal-tone-hint {
+  color: rgb(var(--tone-hint));
+}
+
+.terminal-tone-error {
+  color: rgb(var(--tone-error));
+}
+
+.terminal-tone-success {
+  color: rgb(var(--tone-success));
+}
+
+.terminal-tone-path {
+  color: rgb(var(--tone-path));
+}
+
+.terminal-tone-muted {
+  color: rgb(var(--tone-muted));
+}
+
+@keyframes archive-output-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--output-distance, 8px));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* PPT 式：自顶向下展开 / 向上收起（scaleY + 淡入淡出，比单靠 clip-path 更稳、更可见） */
+@keyframes reading-panel-in {
+  from {
+    opacity: 0;
+    transform: scaleY(0.04);
+  }
+
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+@keyframes reading-panel-out {
+  from {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scaleY(0.04);
+  }
+}
+
+/* Phase 2b：旧主槽缩向 rail（窄屏向下 / 桌面向右）；非 FLIP */
+@keyframes reading-demote-down {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(0.32) translateY(42%);
+  }
+}
+
+@keyframes reading-demote-right {
+  from {
+    opacity: 1;
+    transform: scale(1) translate(0, 0);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(0.28) translate(36%, 6%);
+  }
+}
+
+@keyframes reading-rail-arrive {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes archive-cursor {
+  0%,
+  45% {
+    opacity: 0.72;
+  }
+
+  46%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .reading-panel.is-entering,
+  .reading-panel.is-leaving,
+  .reading-demote-ghost,
+  .reading-rail__item.is-arriving,
+  .bgm-player__expand,
+  .bgm-player__expand-body,
+  .bgm-player__playlist-layer {
+    animation: none !important;
+    transition: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+

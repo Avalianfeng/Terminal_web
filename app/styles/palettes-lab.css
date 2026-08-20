@@ -1,0 +1,270 @@
+/* —— 暖纸档案 warm-folio（lab：偏档案抽屉，降低赤陶指纹）—— */
+[data-palette="warm-folio"] {
+  --workspace-bg: #e4ddd2;
+  --workspace-bg-deep: #d5cbbd;
+  --workspace-gradient-top: #efe8dc;
+  --workspace-grid-opacity: 0.03;
+  --workspace-text: #1c1915;
+  --workspace-selection-bg: rgb(80 58 40 / 0.14);
+
+  --archive-black: #0c0b09;
+  --archive-ink: #161412;
+  --archive-paper: #f4eee4;
+  --archive-paper-ink: #1a1712;
+  --archive-paper-chrome: rgb(255 250 240 / 0.5);
+  --archive-line: rgb(28 22 16 / 0.1);
+  --archive-muted: #74685c;
+  --archive-accent: #6f5644;
+
+  --reading-border: rgb(40 28 18 / 0.12);
+  --reading-shadow: 0 1px 0 rgb(255 255 255 / 0.6) inset,
+    0 22px 54px rgb(50 35 20 / 0.15);
+
+  --terminal-bg: rgb(11 10 9 / 0.94);
+  --terminal-border: rgb(255 248 235 / 0.08);
+  --terminal-shadow: 0 1px 0 rgb(255 255 255 / 0.04) inset,
+    0 28px 76px rgb(30 18 10 / 0.3);
+  --terminal-selection-bg: rgb(180 145 100 / 0.24);
+
+  --tone-normal: 228 220 208;
+  --tone-prompt: 186 158 122;
+  --tone-user: 154 186 140;
+  --tone-host: 186 164 128;
+  --tone-command: 228 174 96;
+  --tone-hint: 158 144 128;
+  --tone-error: 220 142 126;
+  --tone-success: 148 186 142;
+  --tone-path: 196 168 128;
+  --tone-muted: 128 116 104;
+}
+
+/* —— 高对比纸面 ledger-bright —— */
+[data-palette="ledger-bright"] {
+  --workspace-bg: #ececea;
+  --workspace-bg-deep: #dededc;
+  --workspace-gradient-top: #f8f8f6;
+  --workspace-grid-opacity: 0.018;
+  --workspace-text: #0a0a0a;
+  --workspace-selection-bg: rgb(20 90 60 / 0.14);
+
+  --archive-black: #050505;
+  --archive-ink: #0a0a0a;
+  --archive-paper: #ffffff;
+  --archive-paper-ink: #0a0a0a;
+  --archive-paper-chrome: rgb(255 255 255 / 0.88);
+  --archive-line: rgb(0 0 0 / 0.12);
+  --archive-muted: #525252;
+  --archive-accent: #146b4a;
+
+  --reading-border: rgb(0 0 0 / 0.16);
+  --reading-shadow: 0 1px 0 rgb(255 255 255 / 0.9) inset,
+    0 24px 56px rgb(0 0 0 / 0.12);
+
+  --terminal-bg: rgb(6 6 6 / 0.97);
+  --terminal-border: rgb(255 255 255 / 0.12);
+  --terminal-shadow: 0 1px 0 rgb(255 255 255 / 0.07) inset,
+    0 32px 88px rgb(0 0 0 / 0.32);
+  --terminal-selection-bg: rgb(40 180 120 / 0.28);
+
+  --tone-normal: 235 235 235;
+  --tone-prompt: 100 200 150;
+  --tone-user: 130 210 168;
+  --tone-host: 120 200 160;
+  --tone-command: 236 188 88;
+  --tone-hint: 150 150 150;
+  --tone-error: 236 128 128;
+  --tone-success: 100 210 150;
+  --tone-path: 80 190 140;
+  --tone-muted: 130 130 130;
+}
+
+/* —— lab：墨色抽屉 ink-drawer（暖而不赤陶）—— */
+[data-palette="ink-drawer"] {
+  --workspace-bg: #d9d3c8;
+  --workspace-bg-deep: #c9c1b4;
+  --workspace-gradient-top: #e8e2d6;
+  --workspace-grid-opacity: 0.034;
+  --workspace-text: #1a1712;
+  --workspace-selection-bg: rgb(70 55 40 / 0.16);
+
+  --archive-black: #0d0b09;
+  --archive-ink: #151310;
+  --archive-paper: #f1ebe1;
+  --archive-paper-ink: #181510;
+  --archive-paper-chrome: rgb(255 250 240 / 0.48);
+  --archive-line: rgb(24 20 14 / 0.12);
+  --archive-muted: #6e6458;
+  --archive-accent: #4e4338;
+
+  --reading-border: rgb(36 28 18 / 0.14);
+  --reading-shadow: 0 1px 0 rgb(255 255 255 / 0.55) inset,
+    0 22px 50px rgb(45 32 18 / 0.18);
+
+  --terminal-bg: rgb(12 10 8 / 0.96);
+  --terminal-border: rgb(255 245 230 / 0.07);
+  --terminal-shadow: 0 1px 0 rgb(255 255 255 / 0.03) inset,
+    0 28px 72px rgb(28 18 10 / 0.34);
+  --terminal-selection-bg: rgb(160 130 90 / 0.26);
+
+  --tone-normal: 224 216 204;
+  --tone-prompt: 176 152 118;
+  --tone-user: 148 176 136;
+  --tone-host: 168 148 116;
+  --tone-command: 214 168 92;
+  --tone-hint: 152 140 124;
+  --tone-error: 208 136 120;
+  --tone-success: 140 176 136;
+  --tone-path: 186 158 116;
+  --tone-muted: 122 112 100;
+}
+
+/* —— lab：薄雾工作室 mist-atelier（更冷、更疏）—— */
+[data-palette="mist-atelier"] {
+  --workspace-bg: #e6ebf0;
+  --workspace-bg-deep: #d5dde6;
+  --workspace-gradient-top: #f2f5f8;
+  --workspace-grid-opacity: 0.02;
+  --workspace-text: #1c232b;
+  --workspace-selection-bg: rgb(55 90 120 / 0.14);
+
+  --archive-black: #0b0e12;
+  --archive-ink: #131820;
+  --archive-paper: #f6f8fa;
+  --archive-paper-ink: #161b22;
+  --archive-paper-chrome: rgb(255 255 255 / 0.62);
+  --archive-line: rgb(16 22 30 / 0.09);
+  --archive-muted: #6b7a8c;
+  --archive-accent: #5a849e;
+
+  --reading-border: rgb(14 22 32 / 0.1);
+  --reading-shadow: 0 1px 0 rgb(255 255 255 / 0.78) inset,
+    0 18px 48px rgb(28 42 58 / 0.12);
+
+  --terminal-bg: rgb(9 11 15 / 0.94);
+  --terminal-border: rgb(255 255 255 / 0.08);
+  --terminal-shadow: 0 1px 0 rgb(255 255 255 / 0.04) inset,
+    0 26px 76px rgb(18 28 42 / 0.24);
+  --terminal-selection-bg: rgb(110 160 200 / 0.24);
+
+  --tone-normal: 214 224 234;
+  --tone-prompt: 138 168 196;
+  --tone-user: 124 186 162;
+  --tone-host: 124 186 162;
+  --tone-command: 220 178 98;
+  --tone-hint: 142 158 174;
+  --tone-error: 220 142 148;
+  --tone-success: 140 196 168;
+  --tone-path: 126 178 220;
+  --tone-muted: 116 128 142;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: var(--workspace-bg);
+}
+
+body {
+  min-height: 100dvh;
+  margin: 0;
+  background:
+    radial-gradient(circle at 16% 0%, rgb(255 255 255 / 0.48), transparent 26rem),
+    linear-gradient(
+      180deg,
+      var(--workspace-gradient-top) 0%,
+      var(--workspace-bg) 44%,
+      var(--workspace-bg-deep) 100%
+    );
+  color: var(--workspace-text);
+  /* Dual Phase：拉丁 Source Serif + 中文 Noto Serif SC，按字形混排 */
+  font-family:
+    var(--font-paper-latin),
+    var(--font-paper-cjk),
+    "Songti SC",
+    "Noto Serif CJK SC",
+    "Source Han Serif SC",
+    Georgia,
+    "Times New Roman",
+    serif;
+  font-size: var(--type-body, 16px);
+  line-height: var(--type-leading, 1.55);
+  -webkit-font-smoothing: antialiased;
+  text-wrap: pretty;
+}
+
+/* lab：字号阶梯 */
+:root,
+[data-type-scale="reading"] {
+  --type-body: 16px;
+  --type-leading: 1.55;
+  --type-prose: 1.02rem;
+  --type-prose-leading: 1.72;
+  --type-summary: 1.05rem;
+  --type-title: clamp(1.28rem, 3.2vw, 1.72rem);
+}
+
+[data-type-scale="compact"] {
+  --type-body: 15px;
+  --type-leading: 1.5;
+  --type-prose: 0.98rem;
+  --type-prose-leading: 1.62;
+  --type-summary: 1rem;
+  --type-title: clamp(1.18rem, 2.8vw, 1.5rem);
+}
+
+[data-type-scale="airy"] {
+  --type-body: 17px;
+  --type-leading: 1.62;
+  --type-prose: 1.08rem;
+  --type-prose-leading: 1.8;
+  --type-summary: 1.1rem;
+  --type-title: clamp(1.35rem, 3.4vw, 1.85rem);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgb(0 0 0 / var(--workspace-grid-opacity)) 1px, transparent 1px),
+    linear-gradient(
+      90deg,
+      rgb(0 0 0 / calc(var(--workspace-grid-opacity) * 0.72)) 1px,
+      transparent 1px
+    );
+  background-size: var(--workspace-grid-scale, 52px) var(--workspace-grid-scale, 52px);
+  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.28), transparent 78%);
+  opacity: var(--paper-grain-opacity, 0.9);
+}
+
+:root,
+[data-paper-grain="medium"] {
+  --paper-grain-opacity: 0.9;
+  --workspace-grid-scale: 52px;
+}
+
+[data-paper-grain="soft"] {
+  --paper-grain-opacity: 0.55;
+  --workspace-grid-scale: 64px;
+}
+
+[data-paper-grain="strong"] {
+  --paper-grain-opacity: 1;
+  --workspace-grid-scale: 40px;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: var(--workspace-selection-bg);
+  color: var(--workspace-text);
+}
+
