@@ -12,6 +12,7 @@
     "start": "next start",
     "lint": "eslint",
     "verify": "npm run lint && npx tsc --noEmit && tsx --test \"lib/archive/*.test.ts\" \"lib/music/*.test.ts\"",
+    "smoke:ui": "playwright test",
     "token:generate": "node scripts/gen-token.mjs",
     "owner:password": "node scripts/set-owner-password.mjs",
     "smoke:write-api": "node scripts/smoke-write-api.mjs",
@@ -58,6 +59,7 @@
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4.3.2",
     "@types/node": "^26.1.1",
     "@types/react": "^19.2.17",

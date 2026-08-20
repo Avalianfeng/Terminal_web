@@ -30,3 +30,10 @@ Thumbs.db
 
 # code graph
 .codegraph/
+
+# smoke-ui artifacts
+outputs/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
