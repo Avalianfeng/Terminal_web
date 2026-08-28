@@ -85,13 +85,18 @@
 - `.gitignore` + `git rm --cached` 解除正文跟踪（盘上文件保留）。
 - 文档链入；`content` 相关测试不依赖公开仓内正文。
 
+**已做（后续刀 · 2026-08-20）**
+
+- public 发布与拉回/备份：本机运维控制台 `D:\VPS\my_web`（不进本仓 npm）；过滤内核 = `selectPublishPaths`。用法见 [`13`](../13-cylf.me-部署.md) / [`22`](../22-上线后方向.md) §4。
+
 **明确不做（本 ADR）**
 
-- 读侧 snapshot / discovery / API 按可见性过滤
-- member 会话、邀请流
+- 读侧 snapshot / discovery / API 按可见性过滤（→ 已由 [0019](0019-capability-zone-permission.md) 承接）
+- member 会话、邀请流（登录入口另 ADR；形状见 [`22`](../22-上线后方向.md)）
 - Agent 第二类只读 token
-- publish 脚本定稿与盘区最终命名
+- 盘区最终命名的永久定稿（脚本可调路径；政策不绑死目录品牌名）
 - 改写 Git 历史抹掉曾公开过的正文（若曾 push 敏感文，另做历史清理；非本刀）
+- 从服务器拉回 / 本机备份脚本 / 评论 / 浏览模式 → [`22`](../22-上线后方向.md)
 
 ## Consequences
 

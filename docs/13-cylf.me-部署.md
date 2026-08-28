@@ -19,6 +19,23 @@ publish 白名单（ADR 0019 不变量）=
 
 可测：`lib/archive/publish-paths.ts` → `selectPublishPaths`。读侧过滤见 [0019](adr/0019-capability-zone-permission.md)。歌单策展 `content/music/playlists/*.yaml` 仍随代码仓；曲目与音频仍同步整个 `data/music/`（下节）。
 
+### 本机推送 / 拉回 / 备份（运维控制台 · 不进 npm）
+
+**不**用 `npm run` 发正文——避免 Cloud Agent / CI / 服务器误以为应用自带同步。
+
+入口（本机）：`D:\VPS\my_web\启动档案同步.bat` → `manage-archive.ps1`  
+配置：`D:\VPS\my_web\config.ps1`（`RepoRoot`、`SshTarget`、`RemoteContent`、`RemoteMusic`）
+
+| 菜单 | 作用 |
+|------|------|
+| 状态 | 本机 public 白名单 vs 远程；仅本机 / 仅远程 / 两边都有 |
+| 推送正文 | 本机 public → VPS `content/`（永不含 `private/**`） |
+| 推送曲库 | `data/music/` → VPS |
+| 拉回 | 默认只拉「仅远程」；覆盖「两边都有」须二次确认 |
+| 本机备份 | zip → `D:\VPS\my_web\backups\` |
+
+仓内只留白名单内核：`lib/archive/publish-paths.ts`；运维侧经 `npm run list:publish-paths`（JSON）调用。心智与细节见 [`22`](22-上线后方向.md) §4。
+
 备份以**本机**为准；服务器不做对等完整内容备份义务。
 
 ## 环境变量

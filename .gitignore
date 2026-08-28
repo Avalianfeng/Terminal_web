@@ -43,3 +43,6 @@ outputs/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Cursor plan records: not launch content
+.cursor/plans/

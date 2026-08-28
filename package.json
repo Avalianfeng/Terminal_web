@@ -18,6 +18,7 @@
     "smoke:write-api": "node scripts/smoke-write-api.mjs",
     "smoke:directories-api": "node scripts/smoke-directories-api.mjs",
     "agent:write-thought": "node scripts/agent-write-thought.mjs",
+    "list:publish-paths": "tsx scripts/list-publish-paths.ts",
     "smoke:terminal": "tsx --test lib/archive/pipeline.test.ts",
     "test:cli-emit": "tsx --test lib/archive/cli-emit.test.ts",
     "test:document-ref": "tsx --test lib/archive/document-ref.test.ts",
