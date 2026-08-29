@@ -328,7 +328,6 @@ export function resolveCreatableDirectory(
 export function resolveExistingDirectory(
   cwd: string,
   rawTarget: string,
-  _snapshot?: ArchiveSnapshot,
 ): ResolveResult<{ vfsPath: string; ref: VfsDirRef }> {
   const target = rawTarget.trim();
   if (!target) {

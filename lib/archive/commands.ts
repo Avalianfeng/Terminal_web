@@ -56,7 +56,6 @@ import {
   formatShellPromptTokens,
   isDirectory,
   listNode,
-  normalizePath,
   resolveVfsPath,
   suggestVfsPaths,
   treeLines,
@@ -1283,11 +1282,7 @@ export function runCommand(
     }
 
     case "rmdir": {
-      const resolved = resolveExistingDirectory(
-        nextSession.cwd,
-        rest,
-        snapshot,
-      );
+      const resolved = resolveExistingDirectory(nextSession.cwd, rest);
       if (!resolved.ok) {
         return {
           entries: [commandEcho, systemError(resolved.hint)],
