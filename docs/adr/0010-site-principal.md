@@ -1,9 +1,10 @@
 # ADR 0010: 站点主语 SitePrincipal（visitor / owner）
 
-- **Status**: Accepted
+- **Status**: Accepted（visitor / owner 主语、Cookie、不把写 token 贴进页面）；**生产口令 session 的读写范围** 目标见 **[0022](0022-owner-credential-tiers.md)**（运行时未落地；下文描述 **现行代码**）
 - **Date**: 2026-08-15
+- **Revised**: 2026-08-30
 - **Code**: `lib/archive/site-principal.ts`；`owner-session.ts`；`owner-password.ts`；`app/api/auth/*`；`lib/music/bff-gate.ts`；`lib/archive/actions.ts`；`command-registry.ts`
-- **Contract**: [`0007`](0007-security-deployment-posture.md)（公网写面）；[`0005`](0005-unified-write-entry.md)（Actions 无 Bearer）；[`0009`](0009-music-layer-netease-bff.md)（BFF 第二闸仍是网易 Cookie）；HTTP Agent 写仍 [`08`](../08-发现层对象模型.md) §5.7 Bearer
+- **Contract**: [`0007`](0007-security-deployment-posture.md)（公网写面）；[`0005`](0005-unified-write-entry.md)（Actions 无 Bearer）；[`0009`](0009-music-layer-netease-bff.md)（BFF 第二闸仍是网易 Cookie）；HTTP Agent 写仍 [`08`](../08-发现层对象模型.md) §5.7 Bearer；口令 Grant 目标 [`0022`](0022-owner-credential-tiers.md)
 
 ## Context
 
@@ -59,7 +60,7 @@ Server Actions **仍无 Bearer**（0005），但必须 `requireOwner`（含 `uiW
 
 ## Rejected
 
-- 独立 `/login` 页、OAuth、Passkey、多账号
+- 独立 `/login` 页、OAuth、多账号（Passkey / 设备绑定作为主人第二步：见 [0022](0022-owner-credential-tiers.md)，不再一概否决）
 - 把 `ARCHIVE_WRITE_TOKEN` 贴进浏览器当登录
 - 用 session 替代 Agent Bearer
 - 把网易 Cookie 下发浏览器

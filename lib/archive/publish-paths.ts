@@ -1,6 +1,9 @@
 /**
- * Publish path selection invariant (ADR 0019):
- * ∀ path ∈ published → path ∉ content/private/**
+ * Upload path selection. **Current behavior** still matches old 0019:
+ * published subset excludes `content/private/**`.
+ * Target policy (ADR 0021): private may live on the VPS; do not feed this
+ * list into `rsync --delete` from a sparse local tree until the ops console
+ * is upload-only.
  */
 
 import { CONTENT_GROUPS } from "./content-format";
@@ -9,7 +12,9 @@ const BYPASS_FILES = new Set(["person.json", "timeline.md"]);
 
 /**
  * Given relative paths under `content/` (posix `/` separators, no `content/` prefix),
- * return the subset safe to publish to a public VPS.
+ * return the subset the **current** kernel will list for upload.
+ * Still excludes `private/**` (legacy 0019). ADR 0021 wants private included
+ * after the ops console is upload-only.
  */
 export function selectPublishPaths(
   relativePaths: readonly string[],

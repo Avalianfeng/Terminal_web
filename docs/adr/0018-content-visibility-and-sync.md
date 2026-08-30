@@ -1,8 +1,9 @@
 # ADR 0018: 档案正文离公开 Git + 可见性 / 同步模型
 
-- **Status**: Accepted（政策与仓布局）；读侧可见性过滤见 **[0019](0019-capability-zone-permission.md)**（本 ADR §2 / §6 读侧设想由 0019 supersede）
+- **Status**: Accepted（§1 离仓仍有效）；**同步 / 备份 / private 是否上 VPS** 由 **[0021](0021-server-content-authority.md)** supersede。读侧过滤见 **[0019](0019-capability-zone-permission.md)**（本 ADR 原 §2 / §6 读侧设想已由 0019 supersede）
 - **Date**: 2026-08-20
-- **Related**: [0007](0007-security-deployment-posture.md)（写面分轨）；[0010](0010-site-principal.md)（visitor|owner）；[0014](0014-playlist-curation-vs-sync.md)（策展仍进 Git）；[0011](0011-music-local-cache-public.md)（`data/music/` 已离仓范式）；[0019](0019-capability-zone-permission.md)（能力格 + zone）；契约读面 [`08`](../08-发现层对象模型.md)；部署 [`13`](../13-cylf.me-部署.md) / [`20`](../20-部署前自评清单.md)
+- **Revised**: 2026-08-30（指向 0021；下文 §2–4 为原拍板，保留作历史）
+- **Related**: [0007](0007-security-deployment-posture.md)（写面分轨）；[0010](0010-site-principal.md)（visitor|owner）；[0021](0021-server-content-authority.md)（同步权威）；[0014](0014-playlist-curation-vs-sync.md)（策展仍进 Git）；[0011](0011-music-local-cache-public.md)（`data/music/` 已离仓范式）；[0019](0019-capability-zone-permission.md)（能力格 + zone）；契约读面 [`08`](../08-发现层对象模型.md)；部署 [`13`](../13-cylf.me-部署.md) / [`20`](../20-部署前自评清单.md)
 
 ## Context
 

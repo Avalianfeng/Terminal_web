@@ -7,11 +7,13 @@ This is a single Next.js 16 (App Router) + React 19 + TypeScript + Tailwind v4 w
 database or external service; content lives under `content/` and is served via
 Next.js (read snapshot + optional authenticated write API). Archive **body**
 (`.md` / `person.json` / `timeline.md`) is **not** in the public Git remote
-([ADR 0018](docs/adr/0018-content-visibility-and-sync.md)); private zone + read
+([ADR 0018](docs/adr/0018-content-visibility-and-sync.md)); production
+`content/` (including `private/`) is the body authority
+([ADR 0021](docs/adr/0021-server-content-authority.md)); private zone + read
 gating: [ADR 0019](docs/adr/0019-capability-zone-permission.md)
 (`content/private/…`, `getArchiveSnapshotFor`). Playlist curation
-yaml under `content/music/playlists/` stays tracked. Fresh clones need a local
-`content/` (owner machine or publish); CI uses fixtures.
+yaml under `content/music/playlists/` stays tracked. Fresh clones have no
+body until the owner uploads or writes on the server; CI uses fixtures.
 
 ### Cloud Agent bootstrap
 

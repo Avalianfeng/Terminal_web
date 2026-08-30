@@ -23,7 +23,7 @@
 | [0007](0007-security-deployment-posture.md) | 安全与部署姿态（写面分轨） | Accepted | 文档刀；闸门代码随 [0010](0010-site-principal.md) 落地；实例部署见 [`13`](../13-cylf.me-部署.md) |
 | [0008](0008-resources-content-group.md) | resources 组与外部收藏呈现 | Accepted | （resources MVP） |
 | [0009](0009-music-layer-netease-bff.md) | 音乐层（网易云 BFF + 歌单 + BGM） | Accepted | 热队列已收口；冷库管理页否决；BFF 闸见 0010 |
-| [0010](0010-site-principal.md) | 站点主语 SitePrincipal（visitor / owner） | Accepted | 口令 session + UI 写 / 音乐 BFF |
+| [0010](0010-site-principal.md) | 站点主语 SitePrincipal（visitor / owner） | Accepted；口令 Grant 目标见 [0022](0022-owner-credential-tiers.md) | 口令 session + UI 写 / 音乐 BFF |
 | [0011](0011-music-local-cache-public.md) | 本地曲库（访客可播已落盘媒体） | Accepted | `data/music/` + local/play/download |
 | [0012](0012-cli-output-contract.md) | 终端 CLI 输出契约（排放） | Accepted | `cli-emit` + music 首刀 |
 | [0013](0013-document-ref-multi-segment.md) | DocumentRef 多段路径（方案 A；加宽 0001 slug） | Accepted | （随方案 A 落地） |
@@ -31,8 +31,10 @@
 | [0016](0016-http-read-query.md) | HTTP 读查询 search / find | Accepted | `query.ts` + `/api/v1/search` `/find` |
 | [0015](0015-http-directory-write.md) | HTTP 目录写 mkdir / rmdir | Accepted | `/api/v1/directories` + `write-api-auth` |
 | [0017](0017-structured-frontmatter.md) | 结构化 frontmatter（严格 schema） | **Proposed** | 无代码；不做 raw 读 |
-| [0018](0018-content-visibility-and-sync.md) | 档案正文离公开 Git + 可见性 / 同步 | Accepted | 政策+gitignore；读过滤见 [0019](0019-capability-zone-permission.md) |
-| [0019](0019-capability-zone-permission.md) | 能力格权限 + `content/private/` zone | Accepted | `permission.ts` + 读侧裁剪 + zone 路径 |
+| [0018](0018-content-visibility-and-sync.md) | 档案正文离公开 Git + 可见性 / 同步 | Accepted（离仓）；同步/备份见 [0021](0021-server-content-authority.md) | 政策+gitignore；读过滤见 [0019](0019-capability-zone-permission.md) |
+| [0019](0019-capability-zone-permission.md) | 能力格权限 + `content/private/` zone | Accepted；Publish 目标见 0021 | `permission.ts` + 读侧裁剪 + zone 路径 |
 | [0020](0020-terminal-target-resolution.md) | 终端 Target Resolution（命令→目标→Action） | Accepted | `target-resolver.ts`；写命令迁移 |
+| [0021](0021-server-content-authority.md) | 档案权威在服务器 + 本机只上传 | Accepted（政策）；控制台未改行为 | 2026-08-30 |
+| [0022](0022-owner-credential-tiers.md) | 主人凭证分层（口令 vs 设备 / Agent） | Accepted（政策）；运行时未落地 | 2026-08-30 |
 
 编号与 2026-08-11 架构深化候选 #1–#6 对齐，便于对照；#7 为 2026-08-12 安全审计后的部署原则；#8 resources；#9 music 层；#10 网页身份；#11 本地曲库；#12 终端排放（0002 管发现，0012 管 xterm 写什么）；落地顺序不必等于编号顺序。

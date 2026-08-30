@@ -1,42 +1,40 @@
 # cylf.me 部署短 runbook
 
-> 原则：[`adr/0007`](adr/0007-security-deployment-posture.md)、[`adr/0010`](adr/0010-site-principal.md)、[`adr/0018`](adr/0018-content-visibility-and-sync.md)。契约细节不复制，只列上线要带的 env 与口令。  
+> 原则：[`adr/0007`](adr/0007-security-deployment-posture.md)、[`adr/0010`](adr/0010-site-principal.md)、[`adr/0021`](adr/0021-server-content-authority.md)、[`adr/0018`](adr/0018-content-visibility-and-sync.md)（离仓）。契约细节不复制，只列上线要带的 env 与口令。  
 > **上机前**：按 [`20-部署前自评清单.md`](20-部署前自评清单.md) 逐阶段勾选（本机模拟 production 必做）。
 
 ## 档案正文（不经 Git）
 
-`content/**/*.md`、`person.json`、`timeline.md` **不进公开 Git**（[0018](adr/0018-content-visibility-and-sync.md)）。上机用**自建同步**把本机 **public** 子集推到部署机 `content/`：
+`content/**/*.md`、`person.json`、`timeline.md` **不进公开 Git**（[0018](adr/0018-content-visibility-and-sync.md)）。**权威在生产机 `content/`**（含 `private/`，[0021](adr/0021-server-content-authority.md)）。本机只上传文件，不拉全量、不用残树 `rsync --delete` 当镜像。
+
+目标白名单（控制台落地后）=
 
 ```text
-publish 白名单（ADR 0019 不变量）=
   content/person.json
   content/timeline.md
-  content/projects/**
-  content/thoughts/**
-  content/resources/**
-# 绝不包含 content/private/**
+  content/projects|thoughts|resources/**
+  content/private/projects|thoughts|resources/**
+# 仍不进 Git；访客读靠 0019，不靠「private 不在 VPS」
 ```
 
-可测：`lib/archive/publish-paths.ts` → `selectPublishPaths`。读侧过滤见 [0019](adr/0019-capability-zone-permission.md)。歌单策展 `content/music/playlists/*.yaml` 仍随代码仓；曲目与音频仍同步整个 `data/music/`（下节）。
+**现行**仓内核 `selectPublishPaths` 与控制台仍排除 `private/**` 且可能 `--delete`。行为改完前不要清空本机再推。可测函数仍是 `lib/archive/publish-paths.ts`。策展 `content/music/playlists/*.yaml` 仍随代码仓。曲库 **不在本机推送**（远程 `login` 后 download/sync，[0021](adr/0021-server-content-authority.md) §4）。
 
-### 本机推送 / 拉回 / 备份（运维控制台 · 不进 npm）
+### 本机推送 / 备份（运维控制台 · 不进 npm）
 
-**不**用 `npm run` 发正文——避免 Cloud Agent / CI / 服务器误以为应用自带同步。
+**不**用 `npm run` 发正文。
 
 入口（本机）：`D:\VPS\my_web\启动档案同步.bat` → `manage-archive.ps1`  
-配置：`D:\VPS\my_web\config.ps1`（`RepoRoot`、`SshTarget`、`RemoteContent`、`RemoteMusic`）
+配置：`D:\VPS\my_web\config.ps1`
 
-| 菜单 | 作用 |
-|------|------|
-| 状态 | 本机 public 白名单 vs 远程；仅本机 / 仅远程 / 两边都有 |
-| 推送正文 | 本机 public → VPS `content/`（永不含 `private/**`） |
-| 推送曲库 | `data/music/` → VPS |
-| 拉回 | 默认只拉「仅远程」；覆盖「两边都有」须二次确认 |
-| 本机备份 | zip → `D:\VPS\my_web\backups\` |
+政策（0021；**菜单文案可能仍写旧 0018**）：
 
-仓内只留白名单内核：`lib/archive/publish-paths.ts`；运维侧经 `npm run list:publish-paths`（JSON）调用。心智与细节见 [`22`](22-上线后方向.md) §4。
+| 应做 | 不应做 |
+|------|--------|
+| 上传本机现有正文（落地后含 private） | 拉远程全部当日常；用空/残树 `--delete` 抹服务器 |
+| 删除在服务器上做 | SSH 手粘当默认工作流 |
+| 从服务器打包备份；密文则主人自持密钥 | 把工作区当唯一备份；密钥只留在 VPS |
 
-备份以**本机**为准；服务器不做对等完整内容备份义务。
+仓内只留白名单内核：`lib/archive/publish-paths.ts`；`npm run list:publish-paths`。心智见 [`22`](22-上线后方向.md) §4 与 0021。
 
 ## 环境变量
 
@@ -52,7 +50,7 @@ publish 白名单（ADR 0019 不变量）=
 
 ## 本地曲库（访客可播）
 
-同步仓根 `data/music/`（`audio/` + `lyric/` + `playlists/`，gitignore）到部署机。无此目录时访客 `music ls` 为空，只能外链。详见 [`adr/0011`](adr/0011-music-local-cache-public.md) 与 [`adr/0014`](adr/0014-playlist-curation-vs-sync.md)。
+同步仓根 `data/music/` 的权威在 **VPS**（主人在生产上下载/sync）。不要从本机日常 rsync 曲库（[0021](adr/0021-server-content-authority.md)）。无此目录时访客 `music ls` 为空，只能外链。详见 [`adr/0011`](adr/0011-music-local-cache-public.md) 与 [`adr/0014`](adr/0014-playlist-curation-vs-sync.md)。
 
 ## 网易云 BFF
 

@@ -1,8 +1,9 @@
 # ADR 0019: 能力格权限 + `content/private/` zone
 
-- **Status**: Accepted
+- **Status**: Accepted（能力格 / zone / 读侧裁剪）；**Publish 不变量** 目标由 **[0021](0021-server-content-authority.md)** supersede（private 可上 VPS；仍禁止进公开 Git）。口令会话降权见 **[0022](0022-owner-credential-tiers.md)**（未落地前 session 仍是全权 owner）
 - **Date**: 2026-08-20
-- **Related**: [0018](0018-content-visibility-and-sync.md)（离仓 / publish 政策；本 ADR supersede 其 §2 档位表与 §6 Agent 读候选）；[0010](0010-site-principal.md)（visitor|owner 会话）；[0007](0007-security-deployment-posture.md)（写面分轨）；契约 [`08`](../08-发现层对象模型.md)；底稿消化 [`21`](../21-内容操作面一览.md)
+- **Revised**: 2026-08-30
+- **Related**: [0018](0018-content-visibility-and-sync.md)（离仓）；[0021](0021-server-content-authority.md)（Publish 目标）；[0010](0010-site-principal.md)（visitor|owner 会话）；[0022](0022-owner-credential-tiers.md)（口令 Grant）；[0007](0007-security-deployment-posture.md)（写面分轨）；契约 [`08`](../08-发现层对象模型.md)；底稿消化 [`21`](../21-内容操作面一览.md)
 
 ## Context
 
@@ -60,11 +61,13 @@ content/
 
 ### Publish 不变量
 
+> **已由 [0021](0021-server-content-authority.md) 取代目标。** 原句保留：
+
 ```text
 ∀ path ∈ publishedFiles: path ∉ content/private/**
 ```
 
-白名单：`person.json` / `timeline.md` / `projects|thoughts|resources/**`。可测函数：`selectPublishPaths`。
+原白名单：`person.json` / `timeline.md` / `projects|thoughts|resources/**`。可测函数：`selectPublishPaths`（**现行代码仍实现本段**，至控制台改为只上传前不要把 private 塞进 `--delete` 镜像）。
 
 ## Consequences
 
@@ -83,5 +86,5 @@ content/
 
 ## 与 0018
 
-- **保留**：正文离公开 Git、策展 yaml 仍跟踪、备份以本机为准、服务器私文原则
+- **保留**：正文离公开 Git、策展 yaml 仍跟踪；备份与「private 上 VPS」见 0021
 - **取代**：§2 两档产品表作为读侧权威；§6 Agent 读候选 → 采用「写 token = owner-agent 读全开」
