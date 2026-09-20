@@ -1,6 +1,6 @@
 # ADR 0019: 能力格权限 + `content/private/` zone
 
-- **Status**: Accepted（能力格 / zone / 读侧裁剪）；**Publish 不变量** 目标由 **[0021](0021-server-content-authority.md)** supersede（private 可上 VPS；仍禁止进公开 Git）。口令会话降权见 **[0022](0022-owner-credential-tiers.md)**（未落地前 session 仍是全权 owner）
+- **Status**: Accepted（能力格 / zone / 读侧裁剪）；**Publish 不变量** 目标由 **[0021](0021-server-content-authority.md)** supersede（private 可上 VPS；仍禁止进公开 Git）。口令会话降权见 **[0022](0022-owner-credential-tiers.md)**
 - **Date**: 2026-08-20
 - **Revised**: 2026-08-30
 - **Related**: [0018](0018-content-visibility-and-sync.md)（离仓）；[0021](0021-server-content-authority.md)（Publish 目标）；[0010](0010-site-principal.md)（visitor|owner 会话）；[0022](0022-owner-credential-tiers.md)（口令 Grant）；[0007](0007-security-deployment-posture.md)（写面分轨）；契约 [`08`](../08-发现层对象模型.md)；底稿消化 [`21`](../21-内容操作面一览.md)

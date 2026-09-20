@@ -1,6 +1,6 @@
 # ADR 0021: 档案权威在服务器 + 本机只上传
 
-- **Status**: Accepted（政策）；运维控制台与 `selectPublishPaths` **尚未**按本文改行为
+- **Status**: Accepted（已落地：仓内核 `selectPublishPaths`；本机控制台 `D:\VPS\my_web\manage-archive.ps1`，不进公开 Git）
 - **Date**: 2026-08-30
 - **Supersedes**: [0018](0018-content-visibility-and-sync.md) Decision §2 同步列、§3、§4、§7 运维句；[0019](0019-capability-zone-permission.md)「Publish 不变量」（`published` 永不含 `private/**`）
 - **Related**: [0010](0010-site-principal.md) / [0022](0022-owner-credential-tiers.md)（网页凭证分层）；[0011](0011-music-local-cache-public.md) / [0014](0014-playlist-curation-vs-sync.md)（曲库）；部署 [`13`](../13-cylf.me-部署.md) / [`22`](../22-上线后方向.md) §4
@@ -29,8 +29,8 @@
 
 - `content/private/` **映射到服务器同一路径**，与 public 同一棵 `content/` 树。
 - **禁止**把正文（含 private）推进公开 Git。隐私对访客 = 0019 读闸；对托管环境 = 信任 VPS。
-- 仓内核目标白名单（落地后）：`person.json` / `timeline.md` / `projects|thoughts|resources/**` / **`private/` 下同组 `/**`**。仍排除 `content/music/playlists`（跟代码走）与 `..` 逃逸。
-- **现行代码** `selectPublishPaths` 与 `D:\VPS\my_web` 控制台仍 **排除 private** 且推送带 `rsync --delete`。在控制台改为「只上传、不以残树删除远程」之前，**禁止**按新习惯清空本机再推，也 **禁止**把 private 塞进现有 `--delete` 镜像。
+- 仓内核白名单：`person.json` / `timeline.md` / `projects|thoughts|resources/**` / **`private/` 下同组 `/**`**。仍排除 `content/music/playlists`（跟代码走）与 `..` 逃逸。
+- 控制台上传 **无** `rsync --delete`；删除只在服务器写面做。仍勿用空本机当镜像。
 
 ### 3. 备份
 
@@ -63,5 +63,5 @@
 ## 与既有 ADR
 
 - **0018 §1**：离仓政策保留。
-- **0019**：zone / 裁剪 / member 语义保留；Publish 不变量按本文改目标，代码未跟上前以控制台旧行为为准。
+- **0019**：zone / 裁剪 / member 语义保留；Publish 不变量以本文为准（private 可上 VPS）。
 - **0011**：访客仍只播 **服务器上** 已落盘媒体；来源改为远程自管，不是本机 rsync。

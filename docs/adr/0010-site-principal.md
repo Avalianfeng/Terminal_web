@@ -1,6 +1,6 @@
 # ADR 0010: 站点主语 SitePrincipal（visitor / owner）
 
-- **Status**: Accepted（visitor / owner 主语、Cookie、不把写 token 贴进页面）；**生产口令 session 的读写范围** 目标见 **[0022](0022-owner-credential-tiers.md)**（运行时未落地；下文描述 **现行代码**）
+- **Status**: Accepted（visitor / owner 主语、Cookie、不把写 token 贴进页面）；生产口令 session 的读写范围见 **[0022](0022-owner-credential-tiers.md)**
 - **Date**: 2026-08-15
 - **Revised**: 2026-08-30
 - **Code**: `lib/archive/site-principal.ts`；`owner-session.ts`；`owner-password.ts`；`app/api/auth/*`；`lib/music/bff-gate.ts`；`lib/archive/actions.ts`；`command-registry.ts`

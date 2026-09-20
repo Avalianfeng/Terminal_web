@@ -34,7 +34,7 @@
 | [0018](0018-content-visibility-and-sync.md) | 档案正文离公开 Git + 可见性 / 同步 | Accepted（离仓）；同步/备份见 [0021](0021-server-content-authority.md) | 政策+gitignore；读过滤见 [0019](0019-capability-zone-permission.md) |
 | [0019](0019-capability-zone-permission.md) | 能力格权限 + `content/private/` zone | Accepted；Publish 目标见 0021 | `permission.ts` + 读侧裁剪 + zone 路径 |
 | [0020](0020-terminal-target-resolution.md) | 终端 Target Resolution（命令→目标→Action） | Accepted | `target-resolver.ts`；写命令迁移 |
-| [0021](0021-server-content-authority.md) | 档案权威在服务器 + 本机只上传 | Accepted（政策）；控制台未改行为 | 2026-08-30 |
-| [0022](0022-owner-credential-tiers.md) | 主人凭证分层（口令 vs 设备 / Agent） | Accepted（政策）；运行时未落地 | 2026-08-30 |
+| [0021](0021-server-content-authority.md) | 档案权威在服务器 + 本机只上传 | Accepted（内核 + 本机控制台） | 2026-08-30 |
+| [0022](0022-owner-credential-tiers.md) | 主人凭证分层（口令 vs 设备 / Agent） | Accepted（运行时已落地） | 2026-08-30 |
 
 编号与 2026-08-11 架构深化候选 #1–#6 对齐，便于对照；#7 为 2026-08-12 安全审计后的部署原则；#8 resources；#9 music 层；#10 网页身份；#11 本地曲库；#12 终端排放（0002 管发现，0012 管 xterm 写什么）；落地顺序不必等于编号顺序。

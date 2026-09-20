@@ -1,6 +1,6 @@
 # ADR 0022: 主人凭证分层（口令网页 vs 设备 / Agent）
 
-- **Status**: Accepted（政策）；**运行时未落地**——现行代码仍是 [0010](0010-site-principal.md)：口令 session = 全权 owner
+- **Status**: Accepted（运行时已落地：`owner-password` Grant、新建配额、WebAuthn `device` 步进）
 - **Date**: 2026-08-30
 - **Supersedes**（目标模型）：0010「公网口令 session ⇒ 完整 `uiWrite` + 读 private」；0010 Rejected 中的 **Passkey**（仅就「主人第二步设备绑定」重新打开，仍无 OAuth / 公开注册 / 多账号）
 - **Related**: [0019](0019-capability-zone-permission.md)（zone；落地时须把口令会话从「owner 读全开」拆开）；[0007](0007-security-deployment-posture.md)（href）；[0021](0021-server-content-authority.md)；写 token [`08`](../08-发现层对象模型.md) §5.7
@@ -45,7 +45,7 @@
 
 ### 5. 0019 落地含义
 
-运行时要把「口令 session」从 `grantFor("owner")` 拆成更窄的 Grant（读不到 private zone；write 仅 create）。Bearer 与设备凭证仍为 owner 级。在拆开之前，**代码仍全权**；上线若尚未落地 0022，须在 [`20`](../20-部署前自评清单.md) 接受「口令 = 今日全权」或推迟开门直到本 ADR 实现。
+「口令 session」走 `grantFor("owner-password")`（读不到 private；write 仅 create，含 private 投箱）。Bearer 与 WebAuthn step-up / local-dev 仍为 owner 级。终端秘密命令 `device` 登记或提升本机密钥。
 
 ## Consequences
 

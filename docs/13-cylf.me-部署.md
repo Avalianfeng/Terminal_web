@@ -7,7 +7,7 @@
 
 `content/**/*.md`、`person.json`、`timeline.md` **不进公开 Git**（[0018](adr/0018-content-visibility-and-sync.md)）。**权威在生产机 `content/`**（含 `private/`，[0021](adr/0021-server-content-authority.md)）。本机只上传文件，不拉全量、不用残树 `rsync --delete` 当镜像。
 
-目标白名单（控制台落地后）=
+目标白名单：
 
 ```text
   content/person.json
@@ -17,7 +17,7 @@
 # 仍不进 Git；访客读靠 0019，不靠「private 不在 VPS」
 ```
 
-**现行**仓内核 `selectPublishPaths` 与控制台仍排除 `private/**` 且可能 `--delete`。行为改完前不要清空本机再推。可测函数仍是 `lib/archive/publish-paths.ts`。策展 `content/music/playlists/*.yaml` 仍随代码仓。曲库 **不在本机推送**（远程 `login` 后 download/sync，[0021](adr/0021-server-content-authority.md) §4）。
+仓内核 `selectPublishPaths` 与本机控制台均按此上传；**无**残树 `--delete`。可测函数：`lib/archive/publish-paths.ts`。策展 `content/music/playlists/*.yaml` 仍随代码仓。曲库 **不在本机推送**（远程 `login` 后 download/sync，[0021](adr/0021-server-content-authority.md) §4）。
 
 ### 本机推送 / 备份（运维控制台 · 不进 npm）
 
@@ -26,11 +26,11 @@
 入口（本机）：`D:\VPS\my_web\启动档案同步.bat` → `manage-archive.ps1`  
 配置：`D:\VPS\my_web\config.ps1`
 
-政策（0021；**菜单文案可能仍写旧 0018**）：
+政策（0021）：
 
 | 应做 | 不应做 |
 |------|--------|
-| 上传本机现有正文（落地后含 private） | 拉远程全部当日常；用空/残树 `--delete` 抹服务器 |
+| 上传本机现有正文（含 private） | 拉远程全部当日常；用空/残树 `--delete` 抹服务器 |
 | 删除在服务器上做 | SSH 手粘当默认工作流 |
 | 从服务器打包备份；密文则主人自持密钥 | 把工作区当唯一备份；密钥只留在 VPS |
 
@@ -43,7 +43,7 @@
 - `ARCHIVE_OWNER_PASSWORD_HASH` — 本机 `npm run owner:password` 生成后拷哈希
 - `ARCHIVE_SESSION_SECRET` — 随机 32+ 字节（脚本会在 `.env.local` 补一个，生产请单独生成）
 - `ARCHIVE_WRITE_TOKENS` — `npm run token:generate` 的哈希 JSON（Agent 写）
-- `ARCHIVE_PUBLIC_ORIGIN` — 如 `https://cylf.me`（写 API CORS）
+- `ARCHIVE_PUBLIC_ORIGIN` — 如 `https://cylf.me`（写 API CORS + WebAuthn rpID/origin）
 - 可选 `ARCHIVE_UI_WRITE=false` — 事故关死终端 edit，即使已 login
 
 `NODE_ENV=production`。不要把主人口令或写 token 明文放进仓库 / 前端。
@@ -59,7 +59,7 @@
 ## 上线冒烟
 
 1. 访客：`help` 无 `edit`；`open`/`cat` 正常
-2. `login` → `edit` 可保存；`logout` 后不可
+2. `login` → 可新建；改旧文 / 读 private 须再 `device`；`logout` 后不可写
 3. `ARCHIVE_WRITE_TOKEN=… npm run smoke:write-api`（对生产 URL 时改脚本 host）
 4. 链 [`10`](10-agent-写API验收.md) / [`11`](11-终端edit手测清单.md) / [`12`](12-站点身份手测.md)
 5. **开门验收**（docs/19 §4.9）：陌生浏览器 + 手机真机走完「进站 → `help` → `open thoughts/digital-archive-entry` → 读完 → 听见（若有本地曲库）」
