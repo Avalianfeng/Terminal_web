@@ -1,20 +1,23 @@
 /**
- * Upload path selection. **Current behavior** still matches old 0019:
- * published subset excludes `content/private/**`.
- * Target policy (ADR 0021): private may live on the VPS; do not feed this
- * list into `rsync --delete` from a sparse local tree until the ops console
- * is upload-only.
+ * Upload path selection (ADR 0021): public groups, bypass files, and
+ * private/<group>/**. Never Git; never `..`. Ops console must upload
+ * without rsync --delete.
  */
 
 import { CONTENT_GROUPS } from "./content-format";
 
 const BYPASS_FILES = new Set(["person.json", "timeline.md"]);
 
+function isGroupPath(path: string): boolean {
+  const [group, ...rest] = path.split("/");
+  return (
+    CONTENT_GROUPS.includes(group as (typeof CONTENT_GROUPS)[number]) &&
+    rest.length > 0
+  );
+}
+
 /**
- * Given relative paths under `content/` (posix `/` separators, no `content/` prefix),
- * return the subset the **current** kernel will list for upload.
- * Still excludes `private/**` (legacy 0019). ADR 0021 wants private included
- * after the ops console is upload-only.
+ * Relative paths under `content/` (posix `/`, no `content/` prefix).
  */
 export function selectPublishPaths(
   relativePaths: readonly string[],
@@ -22,9 +25,11 @@ export function selectPublishPaths(
   return relativePaths.filter((raw) => {
     const path = raw.replace(/^\/+/, "").replace(/\\/g, "/");
     if (!path || path.includes("..")) return false;
-    if (path === "private" || path.startsWith("private/")) return false;
     if (BYPASS_FILES.has(path)) return true;
-    const [group] = path.split("/");
-    return CONTENT_GROUPS.includes(group as (typeof CONTENT_GROUPS)[number]);
+    if (path === "private" || path === "private/") return false;
+    if (path.startsWith("private/")) {
+      return isGroupPath(path.slice("private/".length));
+    }
+    return isGroupPath(path);
   });
 }
