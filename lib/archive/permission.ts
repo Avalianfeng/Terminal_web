@@ -1,5 +1,5 @@
 /**
- * Archive permission kernel (ADR 0019).
+ * Archive permission kernel (ADR 0019 + 0022).
  * No HTTP / cookies / Bearer — only Principal → Grant, Action, Zone, can().
  */
 
@@ -15,7 +15,7 @@ export const LEVEL_ORDER: Record<PrincipalLevel, number> = {
   owner: 2,
 };
 
-export type ActionCapability = "read" | "write";
+export type ActionCapability = "read" | "writeCreate" | "writeMutate";
 
 export type ArchiveActionId =
   | "discover_docs"
@@ -47,12 +47,12 @@ export const ARCHIVE_ACTION_CAPABILITY: Record<
   tree: "read",
   read_person: "read",
   read_timeline: "read",
-  create: "write",
-  replace: "write",
-  patch: "write",
-  delete_doc: "write",
-  mkdir: "write",
-  rmdir: "write",
+  create: "writeCreate",
+  mkdir: "writeCreate",
+  replace: "writeMutate",
+  patch: "writeMutate",
+  delete_doc: "writeMutate",
+  rmdir: "writeMutate",
 };
 
 /** Logical actor for grant resolution (Agent = same grants as human peers). */
@@ -60,27 +60,39 @@ export type ArchiveActor =
   | "visitor"
   | "member"
   | "owner"
+  | "owner-password"
   | "anonymous-agent"
   | "owner-agent";
 
 export type PrincipalGrant = {
   readonly level: PrincipalLevel;
-  readonly write: boolean;
+  readonly writeCreate: boolean;
+  readonly writeMutate: boolean;
 };
 
 export const VISITOR_GRANT: PrincipalGrant = {
   level: "public",
-  write: false,
+  writeCreate: false,
+  writeMutate: false,
 };
 
 export const MEMBER_GRANT: PrincipalGrant = {
   level: "member",
-  write: false,
+  writeCreate: false,
+  writeMutate: false,
 };
 
 export const OWNER_GRANT: PrincipalGrant = {
   level: "owner",
-  write: true,
+  writeCreate: true,
+  writeMutate: true,
+};
+
+/** Production password session: public read, create (incl. private drop-box), no mutate. */
+export const PASSWORD_SESSION_GRANT: PrincipalGrant = {
+  level: "public",
+  writeCreate: true,
+  writeMutate: false,
 };
 
 export function grantFor(actor: ArchiveActor): PrincipalGrant {
@@ -90,6 +102,8 @@ export function grantFor(actor: ArchiveActor): PrincipalGrant {
       return VISITOR_GRANT;
     case "member":
       return MEMBER_GRANT;
+    case "owner-password":
+      return PASSWORD_SESSION_GRANT;
     case "owner":
     case "owner-agent":
       return OWNER_GRANT;
@@ -109,19 +123,26 @@ export function levelAtLeast(
 }
 
 /**
- * Visibility/zone decides reachability; action capability decides what
- * is allowed on a reachable object. Unreachable objects do not exist
- * for this principal (callers must 404 / omit — never 403).
+ * Visibility/zone decides reachability for **read**;
+ * writeCreate may target private without read (ADR 0022 drop-box).
+ * Unreachable-for-read objects are omitted from snapshots (never 403).
  */
 export function can(
   grant: PrincipalGrant,
   action: ArchiveActionId,
   zone: DocumentZone,
 ): boolean {
-  if (!levelAtLeast(grant.level, zoneMinLevel(zone))) return false;
   const needed = ARCHIVE_ACTION_CAPABILITY[action];
-  if (needed === "read") return true;
-  return grant.write;
+  if (needed === "read") {
+    return levelAtLeast(grant.level, zoneMinLevel(zone));
+  }
+  if (needed === "writeCreate") {
+    if (!grant.writeCreate) return false;
+    if (zone === "private") return true;
+    return levelAtLeast(grant.level, zoneMinLevel(zone));
+  }
+  if (!grant.writeMutate) return false;
+  return levelAtLeast(grant.level, zoneMinLevel(zone));
 }
 
 export function canReachZone(
@@ -149,7 +170,7 @@ function filterDocs(
 }
 
 /**
- * Project snapshot to what the grant can reach.
+ * Project snapshot to what the grant can **read**.
  * Unreachable docs and private directories are omitted (not empty shells).
  */
 export function scopeSnapshot(

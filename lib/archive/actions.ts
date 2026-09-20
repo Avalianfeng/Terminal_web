@@ -1,10 +1,13 @@
 "use server";
 
+import { headers } from "next/headers";
 import {
   WriteError,
   createDirectory,
   deleteDocument,
+  documentExists,
   hashRaw,
+  MAX_DOCUMENT_BYTES,
   readDocumentRaw,
   removeDirectory,
   saveDocumentRaw,
@@ -21,7 +24,12 @@ import {
   grantFromSitePrincipal,
   resolveRequestCapabilities,
 } from "./site-auth";
+import { actorFromSitePrincipal } from "./grant-principal";
 import { can, type ArchiveActionId } from "./permission";
+import {
+  clientIpFromHeaders,
+} from "./owner-password";
+import { notePasswordCreate } from "./create-quota";
 
 export type EditActionResult =
   | { ok: true; raw: string; hash: string }
@@ -133,10 +141,28 @@ export async function putDocumentRaw(
   expectedHash?: string,
 ): Promise<EditActionResult> {
   const ref = requireRefFromLocalKey(localKey);
-  const denied = await denyUnlessCan("replace", ref.zone);
+  const existed = await documentExists(ref);
+  const action: ArchiveActionId = existed ? "replace" : "create";
+  const denied = await denyUnlessCan(action, ref.zone);
   if (denied) return denied;
+  const { principal } = await resolveRequestCapabilities();
+  if (
+    action === "create" &&
+    actorFromSitePrincipal(principal) === "owner-password"
+  ) {
+    const headerList = await headers();
+    const ip = clientIpFromHeaders(headerList);
+    const quota = notePasswordCreate(ip);
+    if (!quota.allowed) {
+      return {
+        ok: false,
+        error: "forbidden",
+        message: "新建过多，请稍后再试",
+      };
+    }
+  }
   return toResult(async () => {
-    if (typeof raw !== "string" || raw.length > 1_000_000) {
+    if (typeof raw !== "string" || raw.length > MAX_DOCUMENT_BYTES) {
       throw new WriteError("bad_request", "Body too large or invalid");
     }
     const result = await saveDocumentRaw(ref, raw, { expectedHash });

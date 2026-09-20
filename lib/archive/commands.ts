@@ -38,7 +38,8 @@ import {
   capabilitiesFrom,
   type SitePrincipal,
 } from "./site-principal";
-import { can, grantFor, type ArchiveActionId } from "./permission";
+import { grantFromSitePrincipal } from "./grant-principal";
+import { can, type ArchiveActionId } from "./permission";
 import { writeActionFor } from "./command-intent";
 import type { DocumentZone } from "./document-ref";
 import { RAIL_MAX } from "./reading-state";
@@ -79,7 +80,7 @@ function denyWrite(
   zone: DocumentZone,
 ): string | null {
   if (!capabilitiesFrom(principal).uiWrite) return zhCN.auth.needOwner;
-  const grant = grantFor(principal.role === "owner" ? "owner" : "visitor");
+  const grant = grantFromSitePrincipal(principal);
   if (!can(grant, action, zone)) return zhCN.auth.needOwner;
   return null;
 }
@@ -106,7 +107,7 @@ type CommandResult = {
   /** 音乐层副作用（播放 / 导入）；由终端 UI 异步执行。 */
   music?: MusicAction | null;
   /** 站点身份副作用（口令提示 / 清 cookie）。 */
-  auth?: { kind: "login" } | { kind: "logout" };
+  auth?: { kind: "login" } | { kind: "logout" } | { kind: "device" };
 };
 
 type LinuxHandlerResult = {
@@ -704,6 +705,12 @@ function handleLinuxCommand(
         : principal.via === "session"
           ? zhCN.auth.viaCookie
           : zhCN.auth.viaNone;
+    const deviceLine =
+      principal.deviceStepUp
+        ? [token("device: ", "muted"), token("step-up", "success")]
+        : principal.via === "session"
+          ? [token("device: ", "muted"), token("password-only", "hint")]
+          : null;
     return {
       entries: [
         lineEntry(
@@ -720,6 +727,7 @@ function handleLinuxCommand(
               token(`${zhCN.auth.session}: `, "muted"),
               token(viaLabel, "muted"),
             ],
+            ...(deviceLine ? [deviceLine] : []),
           ),
         ),
       ],
@@ -1591,6 +1599,13 @@ export function runCommand(
         auth: { kind: "login" },
       };
     }
+
+    case "device":
+      return {
+        entries: [commandEcho],
+        session: nextSession,
+        auth: { kind: "device" },
+      };
 
     case "logout":
       return {

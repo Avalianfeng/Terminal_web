@@ -267,6 +267,45 @@ describe("commands mkdir/rmdir (ADR 0013)", () => {
     assert.equal(rm.fs, undefined);
   });
 
+  it("password session can create but not replace or delete", () => {
+    const password: SitePrincipal = {
+      role: "owner",
+      via: "session",
+      deviceStepUp: false,
+    };
+    const create = runCommand(
+      snap,
+      "edit /thoughts/new-drop",
+      undefined,
+      [],
+      password,
+    );
+    assert.ok(create.edit);
+    const replace = runCommand(
+      snap,
+      "edit /projects/flat",
+      undefined,
+      [],
+      password,
+    );
+    assert.equal(replace.edit, undefined);
+    const del = runCommand(snap, "rm /projects/flat", undefined, [], password);
+    assert.equal(del.fs, undefined);
+    const stepped: SitePrincipal = {
+      role: "owner",
+      via: "session",
+      deviceStepUp: true,
+    };
+    const replaceOk = runCommand(
+      snap,
+      "edit /projects/flat",
+      undefined,
+      [],
+      stepped,
+    );
+    assert.ok(replaceOk.edit);
+  });
+
   it("rmdir requests fs side-effect", () => {
     const result = runCommand(snap, "rmdir /projects/my_web/notes");
     assert.deepEqual(result.fs, { kind: "rmdir", path: "/projects/my_web/notes" });

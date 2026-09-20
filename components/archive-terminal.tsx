@@ -9,6 +9,11 @@ import { ReadingDemoteGhost } from "@/components/reading-demote-ghost";
 import { ReadingPanel } from "@/components/reading-panel";
 import { ReadingRail } from "@/components/reading-rail";
 import { BgmBar, type BgmPlayback } from "@/components/bgm-bar";
+import {
+  startAuthentication,
+  startRegistration,
+  browserSupportsWebAuthn,
+} from "@simplewebauthn/browser";
 import { completeInput } from "@/lib/archive/complete";
 import { initialEntries, runCommand, splitVfsDirPath, cwdAfterRemoval } from "@/lib/archive/commands";
 import { mkdirDir, rmdirDir, removeDocument } from "@/lib/archive/actions";
@@ -894,6 +899,9 @@ export function ArchiveTerminal({
                   const next: SitePrincipal = {
                     role: body.role,
                     via: body.via === "session" ? "session" : "implicit-local-dev",
+                    deviceStepUp: Boolean(
+                      (body as { deviceStepUp?: boolean }).deviceStepUp,
+                    ),
                   };
                   principalRef.current = next;
                   setPrincipal(next);
@@ -933,6 +941,111 @@ export function ArchiveTerminal({
                       },
                     ],
                   };
+                }
+              }}
+              onDevice={async () => {
+                const fail = (text: string) => ({
+                  entries: [
+                    {
+                      id: `device-fail-${Date.now()}`,
+                      kind: "system" as const,
+                      lines: [
+                        {
+                          tokens: [{ text, tone: "error" as const }],
+                        },
+                      ],
+                    },
+                  ],
+                });
+                const ok = (text: string, deviceStepUp: boolean) => {
+                  const next: SitePrincipal = {
+                    role: "owner",
+                    via: "session",
+                    deviceStepUp,
+                  };
+                  principalRef.current = next;
+                  setPrincipal(next);
+                  xtermRef.current?.refreshPrompt();
+                  router.refresh();
+                  return {
+                    entries: [
+                      {
+                        id: `device-ok-${Date.now()}`,
+                        kind: "system" as const,
+                        lines: [
+                          {
+                            tokens: [{ text, tone: "success" as const }],
+                          },
+                        ],
+                      },
+                    ],
+                  };
+                };
+                if (!browserSupportsWebAuthn()) {
+                  return fail("浏览器不支持 WebAuthn / 通行密钥");
+                }
+                try {
+                  const authOptRes = await fetch("/api/auth/webauthn", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "auth-options" }),
+                  });
+                  const authOpt = (await authOptRes.json()) as {
+                    ok?: boolean;
+                    options?: Parameters<typeof startAuthentication>[0]["optionsJSON"];
+                    message?: string;
+                  };
+                  if (authOpt.ok && authOpt.options) {
+                    const credential = await startAuthentication({
+                      optionsJSON: authOpt.options,
+                    });
+                    const verRes = await fetch("/api/auth/webauthn", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        action: "auth-verify",
+                        credential,
+                      }),
+                    });
+                    const ver = (await verRes.json()) as {
+                      ok?: boolean;
+                      message?: string;
+                    };
+                    if (!ver.ok) return fail(ver.message ?? zhCN.auth.deviceFail);
+                    return ok(zhCN.auth.deviceOk, true);
+                  }
+                  const regOptRes = await fetch("/api/auth/webauthn", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "register-options" }),
+                  });
+                  const regOpt = (await regOptRes.json()) as {
+                    ok?: boolean;
+                    options?: Parameters<typeof startRegistration>[0]["optionsJSON"];
+                    message?: string;
+                  };
+                  if (!regOpt.ok || !regOpt.options) {
+                    return fail(regOpt.message ?? zhCN.auth.deviceNeedSession);
+                  }
+                  const credential = await startRegistration({
+                    optionsJSON: regOpt.options,
+                  });
+                  const verRes = await fetch("/api/auth/webauthn", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      action: "register-verify",
+                      credential,
+                    }),
+                  });
+                  const ver = (await verRes.json()) as {
+                    ok?: boolean;
+                    message?: string;
+                  };
+                  if (!ver.ok) return fail(ver.message ?? zhCN.auth.deviceFail);
+                  return ok(zhCN.auth.deviceRegistered, true);
+                } catch {
+                  return fail(zhCN.auth.deviceFail);
                 }
               }}
               onCommand={async (command) => {
@@ -1495,6 +1608,7 @@ export function ArchiveTerminal({
                           : body.via === "session"
                             ? "session"
                             : "none",
+                      deviceStepUp: false,
                     };
                     principalRef.current = next;
                     setPrincipal(next);
@@ -1531,6 +1645,7 @@ export function ArchiveTerminal({
                   clear: result.clear,
                   pager: result.pager,
                   passwordPrompt: result.auth?.kind === "login",
+                  devicePrompt: result.auth?.kind === "device",
                   confirmPrompt,
                 };
               }}

@@ -13,7 +13,11 @@ describe("resolveSitePrincipal", () => {
       sessionValid: true,
       nodeEnv: "development",
     });
-    assert.deepEqual(principal, { role: "owner", via: "session" });
+    assert.deepEqual(principal, {
+      role: "owner",
+      via: "session",
+      deviceStepUp: false,
+    });
   });
 
   it("uses implicit owner in local-dev without a cookie", () => {

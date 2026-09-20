@@ -28,7 +28,7 @@ export function requireWriteScope(
 
 /**
  * Bearer scope + permission.can(action, zone)（ADR 0019/0020 硬接）。
- * 当前有效 token → owner-agent（write:true）；can 为未来窄 grant 留 choke point。
+ * Bearer 仍是 owner-agent 全权（ADR 0022 不升级 token）。网页口令走 Server Actions，不进本函数。
  */
 export function requireWritePermission(
   authorization: string | null,

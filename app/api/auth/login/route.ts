@@ -61,11 +61,16 @@ export async function POST(request: Request) {
 
   clearLoginFailures(loginFailures, ip);
   const token = signOwnerSession(now, secret);
-  const principal = resolveSitePrincipal({ sessionValid: true, nodeEnv: process.env.NODE_ENV });
+  const principal = resolveSitePrincipal({
+    sessionValid: true,
+    nodeEnv: process.env.NODE_ENV,
+    deviceStepUp: false,
+  });
   const response = NextResponse.json({
     ok: true,
     role: principal.role,
     via: "session",
+    deviceStepUp: false,
     capabilities: capabilitiesFrom(principal),
   });
   response.cookies.set(

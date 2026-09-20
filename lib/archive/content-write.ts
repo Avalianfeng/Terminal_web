@@ -84,6 +84,12 @@ export function resolveContentPath(ref: DocumentRef): string {
   );
 }
 
+export const MAX_DOCUMENT_BYTES = 1_000_000;
+
+export async function documentExists(ref: DocumentRef): Promise<boolean> {
+  return fileExists(resolveContentPath(ref));
+}
+
 async function fileExists(filePath: string): Promise<boolean> {
   try {
     await readFile(filePath);
@@ -290,6 +296,9 @@ export async function saveDocumentRaw(
   raw: string,
   options?: WriteOptions,
 ): Promise<SaveResult> {
+  if (typeof raw !== "string" || raw.length > MAX_DOCUMENT_BYTES) {
+    throw new WriteError("bad_request", "Body too large or invalid");
+  }
   const filePath = resolveContentPath(ref);
   const parsed = parseFrontmatter(raw);
 

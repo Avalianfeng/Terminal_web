@@ -1,6 +1,7 @@
 import {
   resolveSessionSecret,
   sessionValidFromCookie,
+  deviceStepUpFromCookie,
 } from "./owner-session";
 
 export type SiteRole = "visitor" | "owner";
@@ -9,6 +10,8 @@ export type SitePrincipalVia = "session" | "implicit-local-dev" | "none";
 export type SitePrincipal = {
   readonly role: SiteRole;
   readonly via: SitePrincipalVia;
+  /** ADR 0022 WebAuthn step-up; ignored when via is implicit-local-dev. */
+  readonly deviceStepUp?: boolean;
 };
 
 export type SiteCapabilities = {
@@ -38,9 +41,14 @@ export function isUiWriteKilled(env = process.env.ARCHIVE_UI_WRITE): boolean {
 export function resolveSitePrincipal(input: {
   sessionValid: boolean;
   nodeEnv?: string;
+  deviceStepUp?: boolean;
 }): SitePrincipal {
   if (input.sessionValid) {
-    return { role: "owner", via: "session" };
+    return {
+      role: "owner",
+      via: "session",
+      deviceStepUp: Boolean(input.deviceStepUp),
+    };
   }
   if (isLocalDevPosture(input.nodeEnv)) {
     return IMPLICIT_OWNER;
@@ -69,8 +77,10 @@ export function principalFromCookieValue(
   nowMs = Date.now(),
 ): SitePrincipal {
   const secret = resolveSessionSecret(env.sessionSecret, env.nodeEnv);
+  const valid = sessionValidFromCookie(raw, secret, nowMs);
   return resolveSitePrincipal({
-    sessionValid: sessionValidFromCookie(raw, secret, nowMs),
+    sessionValid: valid,
     nodeEnv: env.nodeEnv,
+    deviceStepUp: valid ? deviceStepUpFromCookie(raw, secret, nowMs) : false,
   });
 }

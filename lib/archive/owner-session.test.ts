@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   LOCAL_DEV_SESSION_SECRET,
+  parseOwnerSession,
   resolveSessionSecret,
   signOwnerSession,
   verifyOwnerSession,
@@ -11,9 +12,9 @@ const secret = "test-session-secret-at-least-32-bytes!!";
 const now = 1_700_000_000_000;
 
 describe("owner-session", () => {
-  it("round-trips a signed token", () => {
-    const token = signOwnerSession(now, secret);
-    assert.equal(verifyOwnerSession(token, secret, now + 1000), true);
+  it("round-trips a device step-up flag", () => {
+    const token = signOwnerSession(now, secret, 60_000, { device: true });
+    assert.equal(parseOwnerSession(token, secret, now + 1000)?.d, 1);
   });
 
   it("rejects a tampered payload", () => {

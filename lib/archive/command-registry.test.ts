@@ -38,6 +38,7 @@ describe("command-registry", () => {
     assert.ok(names.includes("dir"));
     assert.ok(!names.includes("login"));
     assert.ok(!names.includes("logout"));
+    assert.ok(!names.includes("device"));
     assert.ok(names.includes("edit"));
   });
 
@@ -74,6 +75,7 @@ describe("command-registry", () => {
     );
     assert.equal(getCommand("login")?.secret, true);
     assert.equal(getCommand("logout")?.secret, true);
+    assert.equal(getCommand("device")?.secret, true);
     assert.ok(!helpUsagesForSection("session").some((line) => line.startsWith("login")));
   });
 

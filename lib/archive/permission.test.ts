@@ -4,6 +4,7 @@ import {
   ARCHIVE_ACTION_CAPABILITY,
   MEMBER_GRANT,
   OWNER_GRANT,
+  PASSWORD_SESSION_GRANT,
   VISITOR_GRANT,
   can,
   canReachZone,
@@ -21,6 +22,7 @@ describe("grantFor", () => {
     assert.deepEqual(grantFor("member"), MEMBER_GRANT);
     assert.deepEqual(grantFor("owner"), OWNER_GRANT);
     assert.deepEqual(grantFor("owner-agent"), OWNER_GRANT);
+    assert.deepEqual(grantFor("owner-password"), PASSWORD_SESSION_GRANT);
   });
 });
 
@@ -68,6 +70,12 @@ describe("axiom table Principal × zone × READ/WRITE", () => {
       privateRead: true,
       write: true,
     },
+    {
+      actor: "owner-password",
+      publicRead: true,
+      privateRead: false,
+      write: false,
+    },
   ];
 
   for (const row of cases) {
@@ -79,6 +87,14 @@ describe("axiom table Principal × zone × READ/WRITE", () => {
       assert.equal(can(grant, "discover_docs", "private"), row.privateRead);
       assert.equal(can(grant, "replace", "public"), row.write);
       assert.equal(can(grant, "replace", "private"), row.write && row.privateRead);
+      assert.equal(
+        can(grant, "create", "public"),
+        row.write || row.actor === "owner-password",
+      );
+      assert.equal(
+        can(grant, "create", "private"),
+        row.write || row.actor === "owner-password",
+      );
       assert.equal(canReachZone(grant, "public"), row.publicRead);
       assert.equal(canReachZone(grant, "private"), row.privateRead);
     });
@@ -89,8 +105,9 @@ describe("action capability map", () => {
   it("groups read vs write", () => {
     assert.equal(ARCHIVE_ACTION_CAPABILITY.read_body, "read");
     assert.equal(ARCHIVE_ACTION_CAPABILITY.search, "read");
-    assert.equal(ARCHIVE_ACTION_CAPABILITY.create, "write");
-    assert.equal(ARCHIVE_ACTION_CAPABILITY.mkdir, "write");
+    assert.equal(ARCHIVE_ACTION_CAPABILITY.create, "writeCreate");
+    assert.equal(ARCHIVE_ACTION_CAPABILITY.mkdir, "writeCreate");
+    assert.equal(ARCHIVE_ACTION_CAPABILITY.replace, "writeMutate");
   });
 });
 
@@ -142,6 +159,16 @@ describe("scopeSnapshot", () => {
       thoughts: [],
       resources: [],
     });
+  });
+
+  it("password session reads like visitor but can create including private", () => {
+    const grant = PASSWORD_SESSION_GRANT;
+    assert.equal(can(grant, "read_body", "private"), false);
+    assert.equal(can(grant, "replace", "public"), false);
+    assert.equal(can(grant, "create", "public"), true);
+    assert.equal(can(grant, "create", "private"), true);
+    assert.equal(can(grant, "mkdir", "private"), true);
+    assert.equal(scopeSnapshot(snapshot, grant).projects.length, 1);
   });
 
   it("member and owner keep private", () => {

@@ -37,7 +37,7 @@ import {
 } from "@/lib/archive/document-ref";
 import { revalidatePath } from "next/cache";
 
-const MAX_BODY_BYTES = 1_000_000;
+import { MAX_DOCUMENT_BYTES } from "@/lib/archive/content-write";
 
 /** `projects/foo` → DocumentRef；不合法 → bad_request。 */
 function requireDocumentRef(localKey: string): DocumentRef {
@@ -53,7 +53,7 @@ function requireDocumentRef(localKey: string): DocumentRef {
 
 async function readBody(request: Request): Promise<Record<string, unknown>> {
   const raw = await request.text();
-  if (raw.length > MAX_BODY_BYTES) {
+  if (raw.length > MAX_DOCUMENT_BYTES) {
     throw new WriteError("bad_request", "Body too large (max 1MB)");
   }
   try {

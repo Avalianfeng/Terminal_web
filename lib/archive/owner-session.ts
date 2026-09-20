@@ -8,6 +8,8 @@ export type OwnerSessionPayload = {
   readonly v: 1;
   readonly iat: number;
   readonly exp: number;
+  /** ADR 0022: WebAuthn (or equivalent) step-up. */
+  readonly d?: 1;
 };
 
 function base64UrlEncode(value: string | Buffer): string {
@@ -38,24 +40,26 @@ export function signOwnerSession(
   nowMs: number,
   secret: string,
   ttlMs = SESSION_TTL_MS,
+  options?: { device?: boolean },
 ): string {
   const payload: OwnerSessionPayload = {
     v: 1,
     iat: nowMs,
     exp: nowMs + ttlMs,
+    ...(options?.device ? { d: 1 as const } : {}),
   };
   const encoded = base64UrlEncode(JSON.stringify(payload));
   const sig = createHmac("sha256", secret).update(`v1.${encoded}`).digest();
   return `v1.${encoded}.${base64UrlEncode(sig)}`;
 }
 
-export function verifyOwnerSession(
+export function parseOwnerSession(
   token: string,
   secret: string,
   nowMs: number,
-): boolean {
+): OwnerSessionPayload | null {
   const parts = token.split(".");
-  if (parts.length !== 3 || parts[0] !== "v1") return false;
+  if (parts.length !== 3 || parts[0] !== "v1") return null;
   const encoded = parts[1]!;
   const givenSig = parts[2]!;
   const expected = createHmac("sha256", secret)
@@ -65,18 +69,18 @@ export function verifyOwnerSession(
   try {
     given = Buffer.from(givenSig, "base64url");
   } catch {
-    return false;
+    return null;
   }
-  if (given.length !== expected.length) return false;
-  if (!timingSafeEqual(given, expected)) return false;
+  if (given.length !== expected.length) return null;
+  if (!timingSafeEqual(given, expected)) return null;
 
   const json = base64UrlDecodeToString(encoded);
-  if (!json) return false;
+  if (!json) return null;
   let payload: unknown;
   try {
     payload = JSON.parse(json);
   } catch {
-    return false;
+    return null;
   }
   if (
     !payload ||
@@ -84,9 +88,19 @@ export function verifyOwnerSession(
     (payload as OwnerSessionPayload).v !== 1 ||
     typeof (payload as OwnerSessionPayload).exp !== "number"
   ) {
-    return false;
+    return null;
   }
-  return (payload as OwnerSessionPayload).exp > nowMs;
+  const typed = payload as OwnerSessionPayload;
+  if (typed.exp <= nowMs) return null;
+  return typed;
+}
+
+export function verifyOwnerSession(
+  token: string,
+  secret: string,
+  nowMs: number,
+): boolean {
+  return parseOwnerSession(token, secret, nowMs) !== null;
 }
 
 export function sessionValidFromCookie(
@@ -96,6 +110,16 @@ export function sessionValidFromCookie(
 ): boolean {
   if (!raw || !secret) return false;
   return verifyOwnerSession(raw, secret, nowMs);
+}
+
+export function deviceStepUpFromCookie(
+  raw: string | undefined,
+  secret: string | null,
+  nowMs: number,
+): boolean {
+  if (!raw || !secret) return false;
+  const payload = parseOwnerSession(raw, secret, nowMs);
+  return payload?.d === 1;
 }
 
 export function ownerCookieSetOptions(secure: boolean): {

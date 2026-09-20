@@ -36,6 +36,7 @@ type XtermCommandResult = {
   clear?: boolean;
   pager?: { logicalLines: string[] } | null;
   passwordPrompt?: boolean;
+  devicePrompt?: boolean;
   confirmPrompt?: string;
 };
 
@@ -50,6 +51,7 @@ type ArchiveXtermProps = {
     decision: "yes" | "no" | "abort",
   ) => Promise<XtermCommandResult>;
   onPassword?: (password: string) => Promise<{ entries: TerminalEntry[] }>;
+  onDevice?: () => Promise<{ entries: TerminalEntry[] }>;
   onCandidatesChange: (candidates: string[]) => void;
   /** Esc：先清候选；若返回 true 表示已处理（如关阅读面板） */
   onEscape: () => boolean;
@@ -86,6 +88,7 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
       onCommand,
       onConfirm,
       onPassword,
+      onDevice,
       onCandidatesChange,
       onEscape,
     },
@@ -520,6 +523,14 @@ export const ArchiveXterm = forwardRef<ArchiveXtermHandle, ArchiveXtermProps>(
 
       if (result.passwordPrompt) {
         startPasswordPrompt();
+        return;
+      }
+
+      if (result.devicePrompt && onDevice) {
+        const deviceResult = await onDevice();
+        await writeEntries(deviceResult.entries, true);
+        paintPromptLine();
+        scrollToPrompt();
         return;
       }
 

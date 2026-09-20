@@ -200,6 +200,12 @@ export const COMMANDS: readonly CommandSpec[] = [
       argComplete: "none",
       secret: true,
     },
+    {
+      name: "device",
+      usage: "device              本机密钥登记 / 提升（WebAuthn）",
+      argComplete: "none",
+      secret: true,
+    },
   ] as const;
 
 const byName = new Map<string, CommandSpec>();

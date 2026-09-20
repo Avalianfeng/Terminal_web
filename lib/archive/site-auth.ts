@@ -8,11 +8,13 @@ import {
 } from "./site-principal";
 import { OWNER_COOKIE_NAME } from "./owner-session";
 import { validateToken } from "./token";
+import { grantFor, type PrincipalGrant } from "./permission";
 import {
-  grantFor,
-  type ArchiveActor,
-  type PrincipalGrant,
-} from "./permission";
+  actorFromSitePrincipal,
+  grantFromSitePrincipal,
+} from "./grant-principal";
+
+export { actorFromSitePrincipal, grantFromSitePrincipal };
 
 export async function resolveRequestPrincipal(): Promise<SitePrincipal> {
   const jar = await cookies();
@@ -46,16 +48,6 @@ export async function requireOwnerPrincipal(
 export async function requireUiWrite(): Promise<boolean> {
   const { capabilities } = await resolveRequestCapabilities();
   return capabilities.uiWrite;
-}
-
-export function actorFromSitePrincipal(principal: SitePrincipal): ArchiveActor {
-  return principal.role === "owner" ? "owner" : "visitor";
-}
-
-export function grantFromSitePrincipal(
-  principal: SitePrincipal,
-): PrincipalGrant {
-  return grantFor(actorFromSitePrincipal(principal));
 }
 
 /**
